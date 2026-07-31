@@ -1,0 +1,266 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import {
+  Workflow,
+  Plus,
+  MoreHorizontal,
+  Trash2,
+  Copy,
+  Pause,
+  Play,
+  Pencil,
+  Zap,
+  Mail,
+  GitBranch,
+  Clock,
+  Tag,
+  Webhook,
+  UserMinus,
+  ArrowRight,
+} from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AutomationStatusBadge } from "@/components/shared/status-badges";
+import { EmptyState } from "@/components/shared/empty-state";
+import { formatNumber, timeAgo } from "@/lib/format";
+import { automations as mockAutomations } from "@/lib/mock";
+import type { Automation, AutomationStatus, AutomationStepType } from "@/lib/types";
+
+const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: string }>> = {
+  "send-email": Mail,
+  condition: GitBranch,
+  delay: Clock,
+  "add-tag": Tag,
+  "remove-tag": Tag,
+  unsubscribe: UserMinus,
+  webhook: Webhook,
+};
+
+export default function AutomationsPage() {
+  const [automations, setAutomations] = React.useState(mockAutomations);
+  const [tab, setTab] = React.useState("all");
+
+  const filtered = automations.filter(
+    (a) => tab === "all" || a.status === (tab as AutomationStatus)
+  );
+
+  const counts = {
+    all: automations.length,
+    active: automations.filter((a) => a.status === "active").length,
+    paused: automations.filter((a) => a.status === "paused").length,
+    draft: automations.filter((a) => a.status === "draft").length,
+  };
+
+  const toggleStatus = (automation: Automation) => {
+    const next: AutomationStatus = automation.status === "active" ? "paused" : "active";
+    setAutomations((prev) =>
+      prev.map((a) => (a.id === automation.id ? { ...a, status: next } : a))
+    );
+    toast.success(next === "active" ? "Automation activated" : "Automation paused");
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Automations"
+        description="Visual workflows that send the right message at the right moment."
+        icon={Workflow}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => toast.info("Choose a template from the library")}>
+              <Zap /> Templates
+            </Button>
+            <Button asChild>
+              <Link href="/automations/new">
+                <Plus /> New automation
+              </Link>
+            </Button>
+          </>
+        }
+      />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="all">
+            All
+            <Badge variant="secondary" className="ml-1">{counts.all}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="active">
+            Active
+            <Badge variant="secondary" className="ml-1">{counts.active}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="paused">
+            Paused
+            <Badge variant="secondary" className="ml-1">{counts.paused}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="draft">
+            Drafts
+            <Badge variant="secondary" className="ml-1">{counts.draft}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="No automations yet"
+          description="Build a workflow that runs on its own — like a welcome series or abandoned-cart recovery."
+          actionLabel="New automation"
+          icon={Workflow}
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((automation) => (
+            <Card key={automation.id} className="card-hover group gap-4 py-5">
+              <div className="flex items-start justify-between px-5">
+                <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl">
+                  <Workflow className="size-5" />
+                </span>
+                <div className="flex items-center gap-1">
+                  {automation.status === "active" && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleStatus(automation)}
+                      aria-label="Pause automation"
+                    >
+                      <Pause />
+                    </Button>
+                  )}
+                  {automation.status !== "active" && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleStatus(automation)}
+                      aria-label="Activate automation"
+                    >
+                      <Play />
+                    </Button>
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" aria-label="Automation actions">
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuLabel>Automation</DropdownMenuLabel>
+                      <DropdownMenuItem className="cursor-pointer" asChild>
+                        <Link href={`/automations/${automation.id}`}>
+                          <Pencil /> Edit workflow
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setAutomations((prev) => [
+                            ...prev,
+                            {
+                            ...automation,
+                            id: `a-${Date.now()}`,
+                            name: `${automation.name} (copy)`,
+                            status: "draft",
+                            contacts: 0,
+                            activeCount: 0,
+                            },
+                          ]);
+                          toast.success(`"${automation.name}" duplicated`);
+                        }}
+                      >
+                        <Copy /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        variant="destructive"
+                        onClick={() => {
+                          setAutomations((prev) => prev.filter((a) => a.id !== automation.id));
+                          toast.success(`"${automation.name}" deleted`);
+                        }}
+                      >
+                        <Trash2 /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              <div className="px-5">
+                <Link
+                  href={`/automations/${automation.id}`}
+                  className="hover:text-primary text-[0.95rem] font-semibold transition-colors"
+                >
+                  {automation.name}
+                </Link>
+                <p className="text-muted-foreground mt-1 line-clamp-1 text-sm">
+                  {automation.description}
+                </p>
+              </div>
+
+              <div className="border-y bg-muted/20 px-5 py-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Zap className="text-primary size-4 shrink-0" />
+                  <span className="truncate text-xs font-medium">
+                    Trigger: {automation.trigger.label}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden">
+                  <span className="bg-secondary text-secondary-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                    <Zap className="size-3.5" />
+                  </span>
+                  {automation.steps.slice(0, 5).map((step) => {
+                    const Icon = stepIcons[step.type];
+                    return (
+                      <React.Fragment key={step.id}>
+                        <ArrowRight className="text-muted-foreground/50 size-3 shrink-0" />
+                        <span className="bg-secondary text-secondary-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                          <Icon className="size-3.5" />
+                        </span>
+                      </React.Fragment>
+                    );
+                  })}
+                  {automation.steps.length > 5 && (
+                    <>
+                      <ArrowRight className="text-muted-foreground/50 size-3 shrink-0" />
+                      <span className="text-muted-foreground text-[0.65rem] font-medium">
+                        +{automation.steps.length - 5}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between px-5">
+                <div>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {formatNumber(automation.activeCount)}
+                  </p>
+                  <p className="text-muted-foreground text-xs">in flow this week</p>
+                </div>
+                <div className="text-right">
+                  <AutomationStatusBadge status={automation.status} />
+                  <p className="text-muted-foreground mt-1 text-[0.7rem]">
+                    {automation.contacts.toLocaleString()} contacts · Updated {timeAgo(automation.updatedAt)}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
