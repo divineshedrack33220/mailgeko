@@ -8,8 +8,6 @@ import {
   UserPlus,
   ShoppingCart,
   Cake,
-  MousePointerClick,
-  CalendarClock,
   Code2,
   ArrowRight,
   Zap,
@@ -22,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
 import type { AutomationStep } from "@/lib/types";
 
 const triggerOptions: {
@@ -77,72 +76,6 @@ const triggerOptions: {
   },
 ];
 
-const templates = [
-  {
-    id: "welcome",
-    title: "Welcome series",
-    description: "5 emails · warm up new subscribers",
-    icon: UserPlus,
-  },
-  {
-    id: "abandoned-cart",
-    title: "Abandoned cart",
-    description: "3 emails · recover lost sales",
-    icon: ShoppingCart,
-  },
-  {
-    id: "win-back",
-    title: "Win-back",
-    description: "2 emails · re-engage lapsed contacts",
-    icon: CalendarClock,
-  },
-  {
-    id: "re-order",
-    title: "Re-order reminder",
-    description: "2 emails · remind of a purchase cycle",
-    icon: MousePointerClick,
-  },
-] as const;
-
-function step(type: AutomationStep["type"], label: string): AutomationStep {
-  return { id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, type, label, config: {} };
-}
-
-function stepsForTemplate(id: string): AutomationStep[] {
-  switch (id) {
-    case "welcome":
-      return [
-        step("send-email", "Welcome email"),
-        step("delay", "Wait 1 day"),
-        step("send-email", "Getting started guide"),
-        step("delay", "Wait 3 days"),
-        step("send-email", "Community + resources"),
-      ];
-    case "abandoned-cart":
-      return [
-        step("send-email", "You left something behind"),
-        step("delay", "Wait 24 hours"),
-        step("send-email", "Back in stock reminder"),
-        step("delay", "Wait 2 days"),
-        step("send-email", "Last chance + discount"),
-      ];
-    case "win-back":
-      return [
-        step("send-email", "We miss you"),
-        step("delay", "Wait 5 days"),
-        step("send-email", "Come back + offer"),
-      ];
-    case "re-order":
-      return [
-        step("send-email", "Time to re-order"),
-        step("delay", "Wait 3 days"),
-        step("send-email", "Order reminder"),
-      ];
-    default:
-      return [];
-  }
-}
-
 export default function NewAutomationPage() {
   const router = useRouter();
   const [name, setName] = React.useState("");
@@ -172,7 +105,7 @@ export default function NewAutomationPage() {
   };
 
   const startFromTemplate = (id: string) => {
-    const template = templates.find((t) => t.id === id);
+    const template = automationTemplates.find((t) => t.id === id);
     if (!template) return;
     create(template.id, template.title, stepsForTemplate(id));
   };
@@ -272,7 +205,7 @@ export default function NewAutomationPage() {
           Battle-tested flows, preconfigured in seconds.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {templates.map((template) => (
+          {automationTemplates.map((template) => (
             <button
               key={template.id}
               onClick={() => startFromTemplate(template.id)}

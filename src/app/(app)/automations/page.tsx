@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Workflow,
   Plus,
@@ -22,8 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/shared/page-header";
-import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/shared/page-header";import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,8 +37,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AutomationStatusBadge } from "@/components/shared/status-badges";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatNumber, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
 import type { Automation, AutomationStatus, AutomationStepType } from "@/lib/types";
 
 const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: string }>> = {
@@ -52,9 +60,12 @@ const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: st
 };
 
 export default function AutomationsPage() {
+  const router = useRouter();
   const [automations, setAutomations] = React.useState<Automation[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState("all");
+  const [templateOpen, setTemplateOpen] = React.useState(false);
+  const [creating, setCreating] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -129,6 +140,34 @@ export default function AutomationsPage() {
     }
   };
 
+  const createFromTemplate = async (templateId: string) => {
+    const template = automationTemplates.find((t) => t.id === templateId);
+    if (!template) return;
+    setCreating(templateId);
+    try {
+      const res = await api.post<{ automation: { id: string } }>("/api/v1/automations", {
+        name: template.title,
+        description: "",
+        trigger: {
+          type: templateId,
+          label: template.title,
+          conditions: [],
+          delay: 0,
+        },
+        steps: stepsForTemplate(templateId),
+        status: "draft",
+      });
+      setTemplateOpen(false);
+      toast.success(`"${template.title}" created — customise it in the builder`);
+      await load();
+      router.push(`/automations/${res.automation.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create automation");
+    } finally {
+      setCreating(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -137,7 +176,7 @@ export default function AutomationsPage() {
         icon={Workflow}
         actions={
           <>
-            <Button variant="outline" onClick={() => toast.info("Choose a template from the library")}>
+            <Button variant="outline" onClick={() => setTemplateOpen(true)}>
               <Zap /> Templates
             </Button>
             <Button asChild>
@@ -307,6 +346,40 @@ export default function AutomationsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start from a template</DialogTitle>
+            <DialogDescription>
+              Battle-tested flows, preconfigured in seconds. Pick one to create a draft.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {automationTemplates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => createFromTemplate(template.id)}
+                disabled={creating !== null}
+                className="bg-card hover:border-primary/40 hover:bg-accent group flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                  {creating === template.id ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <template.icon className="size-4.5" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{template.title}</p>
+                  <p className="text-muted-foreground truncate text-xs">{template.description}</p>
+                </div>
+                <ArrowRight className="text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

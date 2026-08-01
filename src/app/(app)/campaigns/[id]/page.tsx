@@ -72,15 +72,21 @@ export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [campaign, setCampaign] = React.useState<Campaign | null>(null);
+  const [liveStats, setLiveStats] = React.useState<CampaignStats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [testOpen, setTestOpen] = React.useState(false);
   const [testEmails, setTestEmails] = React.useState("");
+  const [previewOpen, setPreviewOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
       const res = await api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${params.id}`);
       setCampaign(res.campaign);
+      api
+        .get<{ stats?: CampaignStats }>(`/api/v1/analytics/campaigns/${params.id}`)
+        .then((a) => setLiveStats(a.stats ?? null))
+        .catch(() => {});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not load campaign");
       router.replace("/campaigns");
@@ -218,7 +224,7 @@ export default function CampaignDetailPage() {
 
   if (!campaign) return null;
 
-  const stats = campaign.stats ?? EMPTY_STATS;
+  const stats = liveStats ?? campaign.stats ?? EMPTY_STATS;
   const delivered = stats.delivered;
   const openRate = delivered ? (stats.uniqueOpens / delivered) * 100 : 0;
   const clickRate = delivered ? (stats.uniqueClicks / delivered) * 100 : 0;
@@ -370,7 +376,7 @@ export default function CampaignDetailPage() {
                       <CardDescription>Totals for this campaign</CardDescription>
                     </div>
                     <CardAction>
-                      <Badge variant="secondary">Per-campaign breakdown coming soon</Badge>
+                      <Badge variant="success">Live</Badge>
                     </CardAction>
                   </div>
                 </CardHeader>
@@ -469,7 +475,7 @@ export default function CampaignDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => toast.info("Email preview is coming soon")}>
+                  <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
                     <TrendingUp /> Preview
                   </Button>
                   <Button size="sm" onClick={() => setTestOpen(true)}>
@@ -498,17 +504,26 @@ export default function CampaignDetailPage() {
                 </div>
               </div>
               <Separator />
-              <div className="bg-muted/40 flex h-64 items-center justify-center rounded-xl border">
-                <div className="text-center">
-                  <MailOpen className="text-muted-foreground mx-auto size-8" />
-                  <p className="text-muted-foreground mt-2 text-sm">
-                    Email preview rendered here
-                  </p>
-                  <p className="text-muted-foreground/70 text-xs">
-                    (MJML → HTML rendering pipeline)
-                  </p>
+              {campaign.htmlContent ? (
+                <iframe
+                  title="Email preview"
+                  srcDoc={campaign.htmlContent}
+                  sandbox=""
+                  className="bg-white h-96 w-full rounded-xl border"
+                />
+              ) : (
+                <div className="bg-muted/40 flex h-64 items-center justify-center rounded-xl border">
+                  <div className="text-center">
+                    <MailOpen className="text-muted-foreground mx-auto size-8" />
+                    <p className="text-muted-foreground mt-2 text-sm">
+                      No HTML content yet
+                    </p>
+                    <p className="text-muted-foreground/70 text-xs">
+                      Build your email in the templates editor, then attach it here.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </Card>
         </TabsContent>
@@ -599,6 +614,34 @@ export default function CampaignDetailPage() {
               Send test
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="px-6 py-4">
+            <DialogTitle>{campaign.subject}</DialogTitle>
+            <DialogDescription>
+              From {campaign.sender?.fromName ?? "Mailgeko"} &lt;
+              {campaign.sender?.fromEmail ?? "team@mailgeko.dev"}&gt;
+            </DialogDescription>
+          </DialogHeader>
+          {campaign.htmlContent ? (
+            <iframe
+              title="Email preview"
+              srcDoc={campaign.htmlContent}
+              sandbox=""
+              className="bg-white w-full flex-1 border-t"
+              style={{ height: "62vh" }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 border-t px-6 py-16">
+              <MailOpen className="text-muted-foreground size-8" />
+              <p className="text-muted-foreground text-sm">
+                No HTML content yet — add content to preview.
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

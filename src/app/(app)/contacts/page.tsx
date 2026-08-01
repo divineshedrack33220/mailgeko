@@ -174,6 +174,42 @@ export default function ContactsPage() {
     }
   };
 
+  const [tagContact, setTagContact] = React.useState<Contact | null>(null);
+  const [draftTags, setDraftTags] = React.useState<string[]>([]);
+  const [tagInput, setTagInput] = React.useState("");
+  const [tagSaving, setTagSaving] = React.useState(false);
+
+  const openManageTags = (contact: Contact) => {
+    setTagContact(contact);
+    setDraftTags([...(contact.tags ?? [])]);
+    setTagInput("");
+  };
+
+  const addDraftTag = () => {
+    const value = tagInput.trim();
+    if (!value) return;
+    if (!draftTags.includes(value)) setDraftTags([...draftTags, value]);
+    setTagInput("");
+  };
+
+  const saveTags = async () => {
+    if (!tagContact) return;
+    setTagSaving(true);
+    try {
+      const res = await api.patch<{ contact: Contact }>(`/api/v1/contacts/${tagContact.id}`, {
+        email: tagContact.email,
+        tags: draftTags,
+      });
+      setContacts((prev) => prev.map((c) => (c.id === tagContact.id ? res.contact : c)));
+      setTagContact(null);
+      toast.success("Tags updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update tags");
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
   const bulkDelete = async () => {
     const ids = [...selected];
     setSelected([]);
@@ -429,7 +465,7 @@ export default function ContactsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() => toast.info("Manage tags — coming soon")}
+                              onClick={() => openManageTags(contact)}
                             >
                               <Tag /> Manage tags
                             </DropdownMenuItem>
@@ -494,6 +530,62 @@ export default function ContactsPage() {
         importing={importing}
         onImport={startImport}
       />
+
+      <Dialog open={tagContact !== null} onOpenChange={(open) => !open && setTagContact(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage tags</DialogTitle>
+            <DialogDescription>
+              Tags for {tagContact?.email ?? "this contact"} — used to organize and segment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2">
+              {draftTags.length === 0 && (
+                <p className="text-muted-foreground text-sm">No tags yet — add one below.</p>
+              )}
+              {draftTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setDraftTags(draftTags.filter((t) => t !== tag))}
+                    className="hover:text-foreground text-muted-foreground rounded-full outline-none"
+                    aria-label={`Remove tag ${tag}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addDraftTag();
+                  }
+                }}
+                placeholder="Type a tag and press Enter"
+              />
+              <Button type="button" variant="outline" onClick={addDraftTag}>
+                Add
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setTagContact(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveTags} disabled={tagSaving}>
+              {tagSaving && <Loader2 className="animate-spin" />}
+              Save tags
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
