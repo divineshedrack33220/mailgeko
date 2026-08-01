@@ -15,8 +15,6 @@ import {
   Send,
   TrendingUp,
   Users,
-  Volume2,
-  VolumeX,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -304,7 +302,7 @@ function useInViewAnimation(rootRef: React.RefObject<HTMLDivElement | null>) {
           }
         });
       },
-      { threshold: 0.12, rootMargin: "0px 0px -60px 0px" }
+      { threshold: 0.05, rootMargin: "0px 0px -20px 0px" }
     );
     revealEls.forEach((el) => observer.observe(el));
     staggerEls.forEach((el) => observer.observe(el));
@@ -467,7 +465,7 @@ function StoriesCarousel() {
                 <div className="absolute top-4 left-4 lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
                   {s.tag}
                 </div>
-                <div className="bg-[var(--lg-accent)] absolute right-4 bottom-4 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-black">
+                <div className="lg-badge absolute right-4 bottom-4">
                   {s.badge}
                 </div>
               </div>
@@ -515,14 +513,14 @@ function StoriesCarousel() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => goTo(index - 1)}
-            className="flex h-11 w-11 items-center justify-center border border-[var(--lg-border-light)] transition-all hover:border-[var(--lg-accent)] hover:bg-[var(--lg-accent)] hover:text-black"
+            className="flex h-11 w-11 items-center justify-center border border-[var(--lg-border-light)] transition-all hover:border-[var(--lg-accent)] hover:bg-[var(--lg-accent)] hover:text-[var(--lg-primary-foreground)]"
             aria-label="Previous stories"
           >
             <ArrowLeft className="size-4" />
           </button>
           <button
             onClick={() => goTo(index + 1)}
-            className="flex h-11 w-11 items-center justify-center border border-[var(--lg-border-light)] transition-all hover:border-[var(--lg-accent)] hover:bg-[var(--lg-accent)] hover:text-black"
+            className="flex h-11 w-11 items-center justify-center border border-[var(--lg-border-light)] transition-all hover:border-[var(--lg-accent)] hover:bg-[var(--lg-accent)] hover:text-[var(--lg-primary-foreground)]"
             aria-label="Next stories"
           >
             <ArrowRight className="size-4" />
@@ -535,7 +533,6 @@ function StoriesCarousel() {
 
 export function LandingPage({ fonts }: LandingPageProps) {
   const rootRef = React.useRef<HTMLDivElement>(null);
-  const [muted, setMuted] = React.useState(true);
   const [useCase, setUseCase] = React.useState(USE_CASES[0]);
   const [audience, setAudience] = React.useState(AUDIENCE_TIERS[0].label);
   const [form, setForm] = React.useState({ name: "", email: "" });
@@ -606,14 +603,14 @@ export function LandingPage({ fonts }: LandingPageProps) {
       <div className="lg-grain" />
 
       {/* ===================== NAV ===================== */}
-      <header className="border-b border-white/5 bg-black/50 fixed top-0 right-0 left-0 z-50 backdrop-blur-md">
+      <header className="border-b border-[var(--lg-border)] bg-[var(--lg-bg-darker)]/80 fixed top-0 right-0 left-0 z-50 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4 lg:px-10">
           <Link href="/" className="lg-group group flex items-center gap-3">
-            <div className="bg-[var(--lg-accent)] relative flex h-9 w-9 items-center justify-center">
+            <div className="bg-[var(--lg-accent)] relative flex h-9 w-9 items-center justify-center rounded-lg">
               <span className="lg-gecko-nudge">
-                <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+                <GeckoMark className="size-6 text-[var(--lg-primary-foreground)]" eyeColor="var(--lg-accent)" />
               </span>
-              <div className="absolute -inset-1 border border-[var(--lg-accent)] opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="absolute -inset-1 rounded-lg border border-[var(--lg-accent)] opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
             <div>
               <div className="lg-font-display text-2xl leading-none tracking-wider">
@@ -656,7 +653,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
             </Link>
             <Link
               href="/register"
-              className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-black uppercase px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
+              className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase rounded-full px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
             >
               Start Free
             </Link>
@@ -675,47 +672,24 @@ export function LandingPage({ fonts }: LandingPageProps) {
         </div>
 
         <div className="lg-hero-overlay" />
-        <div className="lg-scan-line" />
 
         <div className="lg-gecko-hero" aria-hidden="true">
           <div className="lg-gecko-tail-anim">
-            <GeckoMark className="h-24 w-24 text-[var(--lg-accent)]" eyeColor="var(--lg-bg)" />
+            <GeckoMark className="h-24 w-24 text-[var(--lg-hero-accent)]" eyeColor="#0a0a0a" />
           </div>
         </div>
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] flex-col justify-end px-6 pt-32 pb-20 lg:px-10">
-          <div className="absolute top-32 right-6 z-20 flex items-center gap-6 lg:right-10">
-            <div className="hidden items-center gap-3 font-mono text-[11px] tracking-[0.2em] text-[var(--lg-fg-dim)] md:flex">
-              <span className="lg-rec-dot bg-[var(--lg-accent)] size-2 rounded-full" />
-              <span>REEL · LIVE</span>
-            </div>
-            <button
-              onClick={() => setMuted((m) => !m)}
-              className="group flex items-center gap-3 border border-white/20 bg-black/40 px-4 py-2.5 backdrop-blur-sm transition-colors hover:border-[var(--lg-accent)]"
-            >
-              <div className={cn("flex h-4 items-end gap-[2px]", !muted && "lg-unmuted")}>
-                <span className="lg-wave-bar" />
-                <span className="lg-wave-bar" />
-                <span className="lg-wave-bar" />
-                <span className="lg-wave-bar" />
-                <span className="lg-wave-bar" />
-              </div>
-              <span className="lg-font-mono text-[10px] tracking-[0.2em] uppercase">
-                {muted ? "Muted" : "Sound On"}
-              </span>
-              {muted ? (
-                <VolumeX className="text-xs text-[var(--lg-muted)] group-hover:text-[var(--lg-accent)]" />
-              ) : (
-                <Volume2 className="text-xs text-[var(--lg-accent)]" />
-              )}
-            </button>
+          <div className="lg-chip absolute top-32 right-6 z-20 lg:right-10">
+            <span className="size-1.5 rounded-full bg-[var(--lg-accent)]" />
+            <span>INBOX-FIRST ENGINE · LIVE</span>
           </div>
 
           <div className="lg-reveal lg-in-view max-w-5xl">
             <div className="lg-section-marker mb-6">
               <span>EST. 2025 · YOUR EMAIL, YOUR RULES · STICKY BY DESIGN</span>
             </div>
-            <h1 className="lg-font-display mb-8 text-[14vw] leading-[0.85] md:text-[10vw] lg:text-[8.5vw]">
+            <h1 className="lg-font-display mb-8 text-[var(--lg-hero-fg)] text-[clamp(2.75rem,7vw,5.75rem)] leading-[0.9]">
               <span className="lg-headline-line">
                 <span>SENT WITH</span>
               </span>
@@ -724,14 +698,14 @@ export function LandingPage({ fonts }: LandingPageProps) {
               </span>
               <span className="lg-headline-line">
                 <span>
-                  DELIVERED ON <span className="text-[var(--lg-accent)]">PURPOSE.</span>
+                  DELIVERED ON <span className="text-[var(--lg-hero-accent)]">PURPOSE.</span>
                 </span>
               </span>
             </h1>
-            <p className="lg-font-body max-w-xl text-base leading-relaxed text-[var(--lg-fg-dim)] md:text-lg">
+            <p className="lg-font-body max-w-xl text-base leading-relaxed text-[var(--lg-hero-dim)] md:text-lg">
               The privacy-first, AI-powered email marketing platform. Agile, quick-footed, and
               built to stick in the inbox —{" "}
-              <span className="text-[var(--lg-fg)]">without selling your data</span>.
+              <span className="text-[var(--lg-hero-fg)]">without selling your data</span>.
             </p>
           </div>
 
@@ -759,39 +733,39 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   alt="Team member"
                 />
                 <div className="bg-[var(--lg-accent)] flex h-12 w-12 items-center justify-center rounded-full border-2 border-[var(--lg-bg)]">
-                  <span className="lg-font-display text-base text-black">42K</span>
+                  <span className="lg-font-display text-base text-[var(--lg-primary-foreground)]">42K</span>
                 </div>
               </div>
               <div>
-                <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
+                <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-muted)] uppercase">
                   Trusted By
                 </div>
-                <div className="lg-font-heading text-sm tracking-wider text-[var(--lg-fg)]">
+                <div className="lg-font-heading text-sm tracking-wider text-[var(--lg-hero-fg)]">
                   42,000+ growing teams
                 </div>
               </div>
             </div>
 
             <div className="flex w-full max-w-md items-center gap-6 lg:w-auto">
-              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)]">
-                <span className="text-[var(--lg-accent)]">0{frame + 1}</span> / 05
+              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-muted)]">
+                <span className="text-[var(--lg-hero-accent)]">0{frame + 1}</span> / 05
               </div>
               <div className="lg-progress-bar flex-1">
                 <div className="lg-progress-fill" style={{ width: `${progress}%` }} />
               </div>
-              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
+              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-accent)]">
                 PRODUCT REEL
               </div>
             </div>
           </div>
         </div>
 
-        <div className="absolute right-0 bottom-0 left-0 z-10 overflow-hidden border-t border-white/5 bg-black/60 py-3 backdrop-blur-sm">
-          <div className="lg-marquee-track lg-font-display text-sm tracking-[0.25em] text-[var(--lg-silver-dim)]">
+        <div className="absolute right-0 bottom-0 left-0 z-10 overflow-hidden border-t border-white/10 bg-[#0a111a]/70 py-3 backdrop-blur-sm">
+          <div className="lg-marquee-track lg-font-display text-sm tracking-[0.25em] text-[var(--lg-hero-dim)]">
             {[...TICKER, ...TICKER].map((word, i) => (
               <React.Fragment key={i}>
                 <span className="px-8">{word}</span>
-                <span className="text-[var(--lg-accent)]">/</span>
+                <span className="text-[var(--lg-hero-accent)]">◆</span>
               </React.Fragment>
             ))}
           </div>
@@ -806,7 +780,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div key={s.label} className="border-l border-[var(--lg-border-light)] pl-6">
                 <div
                   className={cn(
-                    "lg-font-display lg-number-display text-6xl md:text-7xl",
+                    "lg-font-display lg-number-display text-4xl md:text-5xl",
                     s.accent ? "text-[var(--lg-accent)]" : "text-[var(--lg-fg)]"
                   )}
                   data-count={s.count}
@@ -831,7 +805,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div className="lg-section-marker mb-6">
                 <span>01 — Platform</span>
               </div>
-              <h2 className="lg-font-display text-6xl leading-[0.9] md:text-7xl lg:text-8xl">
+              <h2 className="lg-font-display text-4xl leading-[0.95] md:text-5xl lg:text-6xl">
                 One tool.<br />
                 <span className="lg-text-stroke">Every campaign.</span>
                 <br />
@@ -867,12 +841,12 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <div className="lg-font-mono absolute top-4 left-4 text-[11px] tracking-[0.2em] text-[var(--lg-accent)]">
                     {p.num} / {p.tag}
                   </div>
-                  <div className="bg-[var(--lg-accent)] absolute top-4 right-4 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-black">
+                  <div className="lg-badge absolute top-4 right-4">
                     {p.intensity}
                   </div>
                 </div>
                 <div className="p-7">
-                  <h3 className="lg-font-display mb-3 text-4xl">{p.title}</h3>
+                  <h3 className="lg-font-display mb-3 text-2xl md:text-3xl">{p.title}</h3>
                   <p className="mb-6 text-sm leading-relaxed text-[var(--lg-fg-dim)]">{p.body}</p>
                   <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-[var(--lg-border-light)] pb-6">
                     {p.meta.map(([k, v]) => (
@@ -909,7 +883,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div className="lg-section-marker mb-6">
                 <span>02 — The Engine Room</span>
               </div>
-              <h2 className="lg-font-display text-6xl leading-[0.9] md:text-7xl lg:text-8xl">
+              <h2 className="lg-font-display text-4xl leading-[0.95] md:text-5xl lg:text-6xl">
                 Tools that <span className="text-[var(--lg-accent)]">build</span> <br />
                 habits that <span className="lg-text-stroke">convert.</span>
               </h2>
@@ -935,7 +909,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                       <div className="lg-font-mono absolute top-4 left-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
                         {f.num}
                       </div>
-                      <div className="absolute top-4 right-4 bg-black/60 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-[var(--lg-fg)] backdrop-blur-sm">
+                      <div className="lg-badge absolute top-4 right-4">
                         {f.badge}
                       </div>
                       <div className="absolute right-4 bottom-4 left-4">
@@ -999,12 +973,12 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div className="lg-section-marker mb-6">
                 <span className="inline-flex items-center gap-3">
                   <span className="lg-gecko-hop inline-flex">
-                    <GeckoMark className="size-5 text-[var(--lg-accent)]" eyeColor="var(--lg-bg)" />
+                    <GeckoMark className="size-5 text-[var(--lg-accent)]" eyeColor="#0a0a0a" />
                   </span>
                   03 — Forged With Mailgeko
                 </span>
               </div>
-              <h2 className="lg-font-display text-6xl leading-[0.9] md:text-7xl lg:text-8xl">
+              <h2 className="lg-font-display text-4xl leading-[0.95] md:text-5xl lg:text-6xl">
                 Real teams.<br />
                 <span className="text-[var(--lg-accent)]">Relentless</span> growth.
               </h2>
@@ -1036,7 +1010,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div className="lg-section-marker mb-6">
                 <span>04 — Begin the Process</span>
               </div>
-              <h2 className="lg-font-display text-6xl leading-[0.9] md:text-7xl lg:text-[7rem]">
+              <h2 className="lg-font-display text-4xl leading-[0.95] md:text-5xl lg:text-6xl">
                 STOP SENDING<br />
                 <span className="lg-text-stroke">BLIND.</span>{" "}
                 <span className="text-[var(--lg-accent)]">START GROWING.</span>
@@ -1050,7 +1024,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 <div className="lg-font-mono mb-3 text-[11px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
                   {"// Create your account"}
                 </div>
-                <h3 className="lg-font-display mb-2 text-4xl">CLAIM YOUR FREE TIER</h3>
+                <h3 className="lg-font-display mb-2 text-3xl">CLAIM YOUR FREE TIER</h3>
                 <p className="mb-8 text-sm text-[var(--lg-fg-dim)]">
                   14-day pro trial, 1,000 contacts free forever. No credit card required.
                 </p>
@@ -1128,7 +1102,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                             checked={audience === t.label}
                             onChange={() => setAudience(t.label)}
                           />
-                          <div className="border border-[var(--lg-border-light)] py-3 text-center font-heading text-xs uppercase tracking-wider text-[var(--lg-fg-dim)] transition-all peer-checked:border-[var(--lg-accent)] peer-checked:bg-[var(--lg-accent)] peer-checked:text-black">
+                          <div className="border border-[var(--lg-border-light)] py-3 text-center font-heading text-xs uppercase tracking-wider text-[var(--lg-fg-dim)] transition-all peer-checked:border-[var(--lg-accent)] peer-checked:bg-[var(--lg-accent)] peer-checked:text-[var(--lg-primary-foreground)]">
                             {t.label}
                             <br />
                             <span className="lg-font-mono text-[9px]">{t.range}</span>
@@ -1141,7 +1115,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="lg-pulse-btn bg-[var(--lg-accent)] mt-4 flex w-full items-center justify-center gap-4 py-5 font-display text-2xl tracking-wider text-black transition-colors hover:bg-[var(--lg-accent-bright)]"
+                    className="lg-pulse-btn bg-[var(--lg-accent)] mt-4 flex w-full items-center justify-center gap-4 rounded-full py-5 font-display text-2xl tracking-wider text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
                   >
                     <span>{submitting ? "CREATING…" : "START FOR FREE"}</span>
                     <Send className="size-5" />
@@ -1221,18 +1195,15 @@ export function LandingPage({ fonts }: LandingPageProps) {
       </section>
 
       {/* ===================== FOOTER ===================== */}
-      <footer className="relative overflow-hidden border-t border-[var(--lg-border)] bg-black py-16">
+      <footer className="relative overflow-hidden border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)] py-16">
         <div className="mx-auto max-w-[1600px] px-6 lg:px-10">
-          <div className="lg-font-display lg-text-stroke absolute right-0 bottom-0 left-0 text-center text-[18vw] leading-none opacity-30 select-none pointer-events-none md:text-[14vw]">
-            MAILGEKO
-          </div>
 
           <div className="relative mb-12 grid gap-10 md:grid-cols-12">
             <div className="md:col-span-5">
               <div className="mb-5 flex items-center gap-3">
                 <div className="bg-[var(--lg-accent)] flex h-10 w-10 items-center justify-center">
                   <span className="lg-gecko-hop inline-flex">
-                    <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+                    <GeckoMark className="size-6 text-[var(--lg-primary-foreground)]" eyeColor="var(--lg-accent)" />
                   </span>
                 </div>
                 <div>
@@ -1263,7 +1234,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <a
                     key={i}
                     href="#lg-start"
-                    className="border-[var(--lg-border-light)] hover:bg-[var(--lg-accent)] hover:text-black flex h-10 w-10 items-center justify-center border transition-all hover:border-[var(--lg-accent)]"
+                    className="border-[var(--lg-border-light)] hover:bg-[var(--lg-accent)] hover:text-[var(--lg-primary-foreground)] flex h-10 w-10 items-center justify-center border transition-all hover:border-[var(--lg-accent)]"
                     aria-label="Mailgeko social"
                   >
                     <Icon className="size-4" />
@@ -1314,7 +1285,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 />
                 <button
                   type="submit"
-                  className="bg-[var(--lg-accent)] px-4 text-black transition-colors hover:bg-[var(--lg-accent-bright)]"
+                  className="bg-[var(--lg-accent)] px-4 text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
                   aria-label="Subscribe"
                 >
                   <ArrowRight className="size-4" />
@@ -1342,11 +1313,11 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
       {/* ===================== STICKY CTA ===================== */}
       <div className={cn("lg-sticky-cta", stickyVisible && "lg-visible")}>
-        <div className="border-t border-[var(--lg-accent)]/30 bg-black/90 backdrop-blur-md">
+        <div className="border-t border-[var(--lg-accent)]/25 bg-[var(--lg-bg-darker)]/95 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-4 lg:px-10">
             <div className="flex items-center gap-5">
               <div className="lg-font-mono hidden items-center gap-2 text-[11px] tracking-[0.2em] text-[var(--lg-accent)] sm:flex">
-                <span className="lg-rec-dot bg-[var(--lg-accent)] size-2 rounded-full" />
+                <span className="size-2 rounded-full bg-[var(--lg-accent)]" />
                 <span>FREE TIER OPEN</span>
               </div>
               <div>
@@ -1360,7 +1331,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
             </div>
             <Link
               href="/register"
-              className="lg-pulse-btn bg-[var(--lg-accent)] flex items-center gap-3 whitespace-nowrap px-6 py-3.5 font-heading text-xs uppercase tracking-[0.2em] text-black transition-colors hover:bg-[var(--lg-accent-bright)] md:px-8 md:text-sm"
+              className="lg-pulse-btn bg-[var(--lg-accent)] flex items-center gap-3 rounded-full whitespace-nowrap px-6 py-3.5 font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase transition-colors hover:bg-[var(--lg-accent-bright)] md:px-8 md:text-sm"
             >
               <span>START FREE</span>
               <ArrowRight className="size-4" />

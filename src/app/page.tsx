@@ -1,18 +1,12 @@
-import { Archivo, Bebas_Neue, JetBrains_Mono, Oswald } from "next/font/google";
+import { Archivo, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import type { Metadata } from "next";
 import "./landing.css";
 import { LandingPage } from "@/components/landing/landing-page";
 
-const bebas = Bebas_Neue({
-  weight: "400",
+const space = Space_Grotesk({
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--lg-font-display",
-  display: "swap",
-});
-
-const oswald = Oswald({
-  subsets: ["latin"],
-  variable: "--lg-font-heading",
   display: "swap",
 });
 
@@ -36,6 +30,6 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <LandingPage fonts={`${bebas.variable} ${oswald.variable} ${archivo.variable} ${jetbrains.variable}`} />
+    <LandingPage fonts={`${space.variable} ${archivo.variable} ${jetbrains.variable}`} />
   );
 }

@@ -14,13 +14,13 @@
   <circle cx="1640" cy="480" r="120" fill="none" stroke="#3bb974" stroke-width="12" stroke-linecap="round" stroke-dasharray="255.8 754.0" transform="rotate(-90 1640 480)"/><g>
     <rect x="350" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
     <rect x="350" y="880" width="3" height="120" fill="#6b6b6b" fill-opacity="0.5"/>
-    <text x="370" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">SENT</text>
-    <text x="370" y="966" fill="#e8e8e8" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">2.1M</text>
+    <text x="370" y="914" fill="#6b6b6b" font-family="monospace" font-size="11" letter-spacing="2">SENT</text>
+    <text x="370" y="966" fill="#e8e8e8" font-family="sans-serif" font-size="44">2.1M</text>
   </g><g>
     <rect x="620" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
     <rect x="620" y="880" width="3" height="120" fill="#3bb974" fill-opacity="1"/>
-    <text x="640" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">INBOX</text>
-    <text x="640" y="966" fill="#3bb974" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">99.2%</text>
+    <text x="640" y="914" fill="#6b6b6b" font-family="monospace" font-size="11" letter-spacing="2">INBOX</text>
+    <text x="640" y="966" fill="#3bb974" font-family="sans-serif" font-size="44">99.2%</text>
   </g></g></g>
   <rect x="220" y="0" width="1" height="1080" fill="#1e1e1e"/>
   <g transform="translate(300,120)"><rect x="0" y="0" width="140" height="10" fill="#161616"/><rect x="0" y="0" width="322" height="10" fill="#3bb974" fill-opacity="0.55"/>
@@ -37,7 +37,7 @@
       <rect x="0" y="484" width="140" height="10" fill="#161616"/><rect x="0" y="484" width="332" height="10" fill="#3bb974" fill-opacity="0.55"/>
       </g>
   <rect x="0" y="0" width="220" height="1080" fill="#111111" fill-opacity="0.6"/>
-  <g transform="translate(36,60)"><text x="0" y="90" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="40" letter-spacing="6" text-anchor="start">MAILGEKO</text></g>
+  <g transform="translate(36,60)"><text x="0" y="90" fill="#e8e8e8" font-family="sans-serif" font-size="40" letter-spacing="6" text-anchor="start">MAILGEKO</text></g>
   <g transform="translate(36,150) scale(1.4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.9">
   <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.9" stroke="none"/>
   <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
@@ -48,7 +48,7 @@
 </g></g>
   <rect x="0" y="0" width="1920" height="4" fill="#3bb974"/>
   <rect x="0" y="1020" width="1920" height="60" fill="#000" fill-opacity="0.6"/>
-  <text x="1860" y="1056" fill="#3bb974" font-family="'JetBrains Mono',monospace" font-size="12" letter-spacing="3" text-anchor="end">REEL · AUTOMATION</text>
+  <text x="1860" y="1056" fill="#3bb974" font-family="monospace" font-size="12" letter-spacing="3" text-anchor="end">MAILGEKO · AUTOMATION</text>
   <g transform="translate(460,80) scale(2.6) translate(-10,-4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.16">
   <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.16" stroke="none"/>
   <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
@@ -58,5 +58,5 @@
   <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
 </g></g>
   <rect width="1920" height="1080" fill="url(#vig)" opacity="0.55"/><defs><radialGradient id="vig" cx="50%" cy="42%" r="85%"><stop offset="0%" stop-color="transparent"/><stop offset="100%" stop-color="#000"/></radialGradient></defs>
-  <text x="70" y="1020" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="96" letter-spacing="10">JOURNEY BUILDER</text>
+  <text x="70" y="1020" fill="#e8e8e8" font-family="sans-serif" font-size="96" letter-spacing="10">JOURNEY BUILDER</text>
 </svg>
