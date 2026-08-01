@@ -14,15 +14,16 @@ import {
   BarChart3,
   Settings,
   ChevronRight,
-  CircleHelp,
   CreditCard,
   ChevronsUpDown,
   LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, initials } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
+import { useRouter } from "next/navigation";
 import { GeckoMark } from "@/components/brand/gecko-mark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -65,7 +66,7 @@ const sections: NavSection[] = [
       { title: "Campaigns", href: "/campaigns", icon: Send },
       { title: "Automations", href: "/automations", icon: Workflow },
       { title: "Templates", href: "/templates", icon: FileText },
-      { title: "AI Studio", href: "/ai", icon: Sparkles, badge: "New" },
+      { title: "AI Studio", href: "/ai", icon: Sparkles },
     ],
   },
   {
@@ -85,6 +86,8 @@ export function AppSidebar() {
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const [contactCount, setContactCount] = React.useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = React.useState("");
+  const [planName, setPlanName] = React.useState("");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -94,6 +97,18 @@ export function AppSidebar() {
         if (!cancelled && typeof res.total === "number") {
           setContactCount(formatNumber(res.total));
         }
+      })
+      .catch(() => {});
+    api
+      .get<{ workspace?: { name: string } }>("/api/v1/workspace")
+      .then((res) => {
+        if (!cancelled && res.workspace?.name) setWorkspaceName(res.workspace.name);
+      })
+      .catch(() => {});
+    api
+      .get<{ limits?: { planName: string } }>("/api/v1/billing")
+      .then((res) => {
+        if (!cancelled && res.limits?.planName) setPlanName(res.limits.planName);
       })
       .catch(() => {});
     return () => {
@@ -208,13 +223,31 @@ export function AppSidebar() {
           </div>
         )}
 
-        <WorkspaceSwitcher collapsed={collapsed} />
+        <WorkspaceSwitcher
+          collapsed={collapsed}
+          workspaceName={workspaceName}
+          planName={planName}
+        />
       </div>
     </aside>
   );
 }
 
-function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
+function WorkspaceSwitcher({
+  collapsed,
+  workspaceName,
+  planName,
+}: {
+  collapsed: boolean;
+  workspaceName: string;
+  planName: string;
+}) {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const displayName = workspaceName || "Your workspace";
+  const [first, ...rest] = displayName.trim().split(/\s+/);
+  const avatarText = workspaceName ? initials(first, rest[0]) : "WS";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -224,47 +257,41 @@ function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
         )}
       >
         <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-md text-[0.7rem] font-bold">
-          AC
+          {avatarText}
         </span>
         {!collapsed && (
           <>
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">Acme Corp</span>
-              <span className="text-muted-foreground text-xs">Free plan</span>
+              <span className="truncate text-sm font-medium">{displayName}</span>
+              {planName && (
+                <span className="text-muted-foreground text-xs">
+                  {planName} plan
+                </span>
+              )}
             </span>
             <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
           </>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-        <DropdownMenuItem className="cursor-pointer">
-          <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md text-[0.7rem] font-bold">
-            AC
+        <DropdownMenuLabel>
+          <span className="block text-sm font-semibold">{displayName}</span>
+          <span className="text-muted-foreground block text-xs">
+            {planName ? `${planName} plan` : "Workspace"}
+            {user?.role ? ` · ${user.role} access` : ""}
           </span>
-          <span>
-            <span className="block text-sm font-medium">Acme Corp</span>
-            <span className="text-muted-foreground block text-xs">
-              You have admin access
-            </span>
-          </span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer">
-          <span className="bg-secondary text-secondary-foreground flex size-7 items-center justify-center rounded-md text-[0.7rem] font-bold">
-            NR
-          </span>
-          <span>
-            <span className="block text-sm font-medium">Northwind Labs</span>
-            <span className="text-muted-foreground block text-xs">
-              You are a viewer
-            </span>
-          </span>
-        </DropdownMenuItem>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="cursor-pointer">
-          <CircleHelp className="size-4" /> Help center
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => router.push("/settings/billing")}
+        >
+          <CreditCard className="size-4" /> Billing & plan
         </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer">
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => router.push("/settings")}
+        >
           <Settings className="size-4" /> Workspace settings
         </DropdownMenuItem>
       </DropdownMenuContent>
