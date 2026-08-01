@@ -85,6 +85,7 @@ func (s *Server) handleListContacts(w http.ResponseWriter, r *http.Request) {
 	filter := store.ContactFilter{
 		Query:  query.Get("q"),
 		Status: query.Get("status"),
+		ListID: query.Get("listId"),
 	}
 	if v := query.Get("limit"); v != "" {
 		filter.Limit, _ = strconv.Atoi(v)

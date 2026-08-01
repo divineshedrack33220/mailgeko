@@ -54,6 +54,7 @@ type ContactFilter struct {
 	Status string
 	Limit  int
 	Offset int
+	ListID string
 }
 
 func (f ContactFilter) withDefaults() ContactFilter {
@@ -75,6 +76,13 @@ func (s *Store) ListContacts(ctx context.Context, workspaceID string, f ContactF
 		where += " AND (email LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR company LIKE ?)"
 		like := "%" + f.Query + "%"
 		args = append(args, like, like, like, like)
+	}
+	if f.ListID != "" {
+		where += ` AND contacts.id IN (
+			SELECT lm.contact_id FROM list_members lm
+			JOIN lists l ON l.id = lm.list_id
+			WHERE lm.list_id = ? AND l.workspace_id = ?)`
+		args = append(args, f.ListID, workspaceID)
 	}
 	args = append(args, f.Limit, f.Offset)
 

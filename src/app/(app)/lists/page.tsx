@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   ListFilter,
   Plus,
@@ -272,8 +273,10 @@ export default function ListsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => toast.info(`Viewing contacts in "${list.name}" is coming soon`)}>
-                            <Users /> View contacts
+                          <DropdownMenuItem asChild className="cursor-pointer">
+                            <Link href={`/lists/${list.id}`}>
+                              <Users /> View contacts
+                            </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateList(list)}>
                             <Copy /> Duplicate
