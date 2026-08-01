@@ -36,20 +36,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { templates } from "@/lib/mock";
+import { api } from "@/lib/api";
+import type { Template } from "@/lib/types";
 
-const sampleMjml = `<mjml>
+const fallbackMjml = `<mjml>
   <mj-body background-color="#f4f4f5">
     <mj-section background-color="#ffffff" padding="40px 32px" border-radius="12px">
       <mj-column>
         <mj-image src="https://mailgeko.dev/logo.png" width="120px" />
         <mj-divider border-color="#e4e4e7" />
         <mj-text font-size="28px" font-weight="700" color="#18181b">
-          Hi {{first_name}}, welcome to Mailgeko 🦎
+          Hi {{first_name}}, welcome!
         </mj-text>
         <mj-text font-size="16px" line-height="1.6" color="#52525b">
-          We're thrilled to have you on board. Here are three things you can
-          do to get the most out of your first week.
+          Start with a great subject line and a clear call to action.
         </mj-text>
         <mj-button href="{{cta_url}}" background-color="#059669" color="#ffffff" border-radius="8px" padding="14px 28px">
           Get started →
@@ -74,19 +74,45 @@ const builtInVariables = [
 
 export default function TemplateEditorPage() {
   const params = useParams<{ id: string }>();
-  const template = templates.find((t) => t.id === params.id) ?? templates[0];
+  const [template, setTemplate] = React.useState<Template | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
-  const [name, setName] = React.useState(template.name);
+  const [name, setName] = React.useState("");
   const [mode, setMode] = React.useState<"code" | "html">("code");
   const [previewDevice, setPreviewDevice] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
   const [testOpen, setTestOpen] = React.useState(false);
-  const [testEmails, setTestEmails] = React.useState("grace@mailgeko.dev");
+  const [testEmails, setTestEmails] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
-  const [code, setCode] = React.useState(sampleMjml);
-  const [history, setHistory] = React.useState<string[]>([sampleMjml]);
+  const [saving, setSaving] = React.useState(false);
+  const [code, setCode] = React.useState(fallbackMjml);
+  const [history, setHistory] = React.useState<string[]>([fallbackMjml]);
   const [historyIndex, setHistoryIndex] = React.useState(0);
   const [variablesOpen, setVariablesOpen] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ template: Template }>(`/api/v1/templates/${params.id}`);
+        if (cancelled) return;
+        setTemplate(res.template);
+        setName(res.template.name);
+        const initial = res.template.mjml || fallbackMjml;
+        setCode(initial);
+        setHistory([initial]);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : "Could not load template");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
 
   const onCodeChange = (next: string) => {
     const trimmed = history.slice(0, historyIndex + 1);
@@ -120,20 +146,63 @@ export default function TemplateEditorPage() {
     });
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Template saved");
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    if (!template) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/templates/${template.id}`, {
+        name,
+        description: template.description,
+        category: template.category,
+        thumbnail: template.thumbnail,
+        mjml: code,
+        html: code,
+        variables: template.variables,
+        tags: template.tags,
+        isFavorite: template.isFavorite,
+      });
+      setSaved(true);
+      toast.success("Template saved");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save template");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSendTest = () => {
+  const handleSendTest = async () => {
+    if (!template) return;
+    const emails = testEmails
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    if (emails.length === 0) return;
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
+    try {
+      await api.post(`/api/v1/templates/${template.id}/send-test`, {
+        emails,
+        subject: `${template.name} — test`,
+      });
       setTestOpen(false);
-      toast.success("Test email sent — check your inbox");
-    }, 1400);
+      toast.success(`Test sent to ${emails.length} recipient${emails.length > 1 ? "s" : ""}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send test email");
+    } finally {
+      setSending(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24">
+        <Loader2 className="animate-spin text-muted-foreground size-6" />
+        <p className="text-muted-foreground text-sm">Loading template…</p>
+      </div>
+    );
+  }
+
+  if (!template) return null;
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col">
@@ -166,7 +235,7 @@ export default function TemplateEditorPage() {
           <Button variant="outline" size="sm" onClick={() => setTestOpen(true)}>
             <Send /> Test send
           </Button>
-          <Button size="sm" onClick={handleSave}>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
             {saved ? <Check /> : <Save />}
             {saved ? "Saved" : "Save"}
           </Button>
@@ -243,7 +312,7 @@ export default function TemplateEditorPage() {
                   <span className="w-8" />
                 </div>
                 <div className="border-b px-4 py-3">
-                  <p className="text-sm font-semibold">Hi {"{{first_name}}"}, welcome to Mailgeko 🦎</p>
+                  <p className="text-sm font-semibold">Hi {"{{first_name}}"}, {template.name}</p>
                   <p className="text-muted-foreground text-xs">Mailgeko Team · 10:00 AM</p>
                   <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
                     We&apos;re thrilled to have you on board. Here are three things you can do to get the most…
@@ -256,7 +325,7 @@ export default function TemplateEditorPage() {
                         <span className="text-xl">🦎</span>
                       </div>
                       <h1 className="mt-4 text-center text-xl font-bold">
-                        Hi {"{{first_name}}"}, welcome to Mailgeko 🦎
+                        Hi {"{{first_name}}"}, {template.name}
                       </h1>
                       <p className="text-muted-foreground mt-2 text-center text-sm leading-relaxed">
                         We&apos;re thrilled to have you on board. Here are three

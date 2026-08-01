@@ -10,6 +10,7 @@ import {
   LogOut,
   Monitor,
   Globe,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/format";
+import { api } from "@/lib/api";
 
 const activeSessions = [
   { id: "s-1", device: "Chrome on macOS", location: "San Francisco, US", current: true, lastActive: new Date().toISOString(), icon: Monitor },
@@ -38,12 +40,44 @@ const activeSessions = [
 
 export default function SecuritySettingsPage() {
   const [twoFactor, setTwoFactor] = React.useState(true);
-  const [saved, setSaved] = React.useState(false);
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [changing, setChanging] = React.useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Security settings updated");
-    setTimeout(() => setSaved(false), 2000);
+  const handleChangePassword = async () => {
+    if (!currentPassword) {
+      toast.error("Enter your current password");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    setChanging(true);
+    try {
+      await api.post("/api/v1/auth/password", {
+        currentPassword,
+        newPassword,
+      });
+      toast.success("Password updated");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update password");
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  const handleTwoFactor = (value: boolean) => {
+    setTwoFactor(value);
+    toast.info("Two-factor authentication is coming soon");
   };
 
   return (
@@ -60,30 +94,49 @@ export default function SecuritySettingsPage() {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="current-password">Current password</Label>
-            <Input id="current-password" type="password" placeholder="••••••••••" className="sm:w-80" />
+            <Input
+              id="current-password"
+              type="password"
+              placeholder="••••••••••"
+              className="sm:w-80"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="new-password">New password</Label>
-              <Input id="new-password" type="password" placeholder="At least 8 characters" />
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="At least 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirm-password">Confirm new password</Label>
-              <Input id="confirm-password" type="password" placeholder="Repeat new password" />
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Repeat new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {["12+ characters", "Mixed case", "Number", "Symbol"].map((rule, i) => (
-              <Badge key={rule} variant={i < 2 ? "success" : "secondary"} className="gap-1">
+            {["8+ characters", "Mixed case", "Number", "Symbol"].map((rule) => (
+              <Badge key={rule} variant="secondary" className="gap-1">
                 <Check className="size-3" /> {rule}
               </Badge>
             ))}
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button onClick={handleSave}>
-              {saved ? <Check /> : <Lock />}
-              {saved ? "Updated" : "Update password"}
+            <Button onClick={handleChangePassword} disabled={changing}>
+              {changing ? <Loader2 className="animate-spin" /> : <Lock />}
+              {changing ? "Updating…" : "Update password"}
             </Button>
           </div>
         </CardContent>
@@ -111,12 +164,14 @@ export default function SecuritySettingsPage() {
                 </p>
               </div>
             </div>
-            <Switch checked={twoFactor} onCheckedChange={setTwoFactor} />
+            <Switch checked={twoFactor} onCheckedChange={handleTwoFactor} />
           </div>
           <div className="bg-muted/50 mt-3 rounded-lg border px-4 py-3">
             <p className="text-muted-foreground text-xs leading-relaxed">
               Recovery codes: 5 remaining.{" "}
-              <button className="text-primary font-medium hover:underline">Generate new codes</button>
+              <button className="text-primary font-medium hover:underline" onClick={() => toast.info("Two-factor authentication is coming soon")}>
+                Generate new codes
+              </button>
             </p>
           </div>
         </CardContent>
@@ -151,7 +206,7 @@ export default function SecuritySettingsPage() {
                   <Button
                     className="text-destructive hover:text-destructive"
                     variant="outline"
-                    onClick={() => toast.success("Other sessions signed out")}
+                    onClick={() => toast.info("Session management is coming soon")}
                   >
                     <LogOut /> Sign out others
                   </Button>
@@ -181,7 +236,7 @@ export default function SecuritySettingsPage() {
                     variant="ghost"
                     size="sm"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={() => toast.success(`${session.device} signed out`)}
+                    onClick={() => toast.info("Session management is coming soon")}
                   >
                     <LogOut /> Sign out
                   </Button>

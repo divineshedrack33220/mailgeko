@@ -35,7 +35,9 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <FitZoom className="flex flex-col items-center gap-4 text-center">
+      <>
+        <title>Check your inbox · Mailgeko</title>
+        <FitZoom className="flex flex-col items-center gap-4 text-center">
         <span className="bg-success/10 text-success flex size-14 items-center justify-center rounded-2xl">
           <Mail className="size-7" />
         </span>
@@ -50,11 +52,14 @@ export default function ForgotPasswordPage() {
           <Link href="/login">Back to sign in</Link>
         </Button>
       </FitZoom>
+      </>
     );
   }
 
   return (
-    <FitZoom className="flex flex-col gap-8">
+    <>
+      <title>Reset your password · Mailgeko</title>
+      <FitZoom className="flex flex-col gap-8">
       <div className="text-center">
         <span className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-2xl">
           <KeyRound className="size-7" />
@@ -94,5 +99,6 @@ export default function ForgotPasswordPage() {
         </Link>
       </p>
     </FitZoom>
+    </>
   );
 }

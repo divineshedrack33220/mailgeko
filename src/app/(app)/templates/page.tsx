@@ -13,6 +13,7 @@ import {
   Sparkles,
   Grid2X2,
   List,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -31,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatNumber } from "@/lib/format";
-import { templates as mockTemplates } from "@/lib/mock";
+import { api } from "@/lib/api";
 import type { Template, TemplateCategory } from "@/lib/types";
 import { EmptyState } from "@/components/shared/empty-state";
 
@@ -63,11 +64,30 @@ const categories: Array<"all" | TemplateCategory> = [
 ];
 
 export default function TemplatesPage() {
-  const [templates, setTemplates] = React.useState(mockTemplates);
+  const [templates, setTemplates] = React.useState<Template[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState<"all" | TemplateCategory>("all");
   const [onlyFavorites, setOnlyFavorites] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "list">("grid");
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ templates: Template[] }>("/api/v1/templates");
+      setTemplates(res.templates ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load templates");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
 
   const filtered = templates.filter((t) => {
     const matchesSearch =
@@ -79,10 +99,57 @@ export default function TemplatesPage() {
     return matchesSearch && matchesCategory && matchesFav;
   });
 
-  const toggleFavorite = (id: string) => {
-    setTemplates((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, isFavorite: !t.isFavorite } : t))
-    );
+  const toggleFavorite = async (id: string) => {
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    const next = { ...template, isFavorite: !template.isFavorite };
+    setTemplates((prev) => prev.map((t) => (t.id === id ? next : t)));
+    try {
+      await api.patch(`/api/v1/templates/${id}`, {
+        name: template.name,
+        description: template.description,
+        category: template.category,
+        thumbnail: template.thumbnail,
+        mjml: template.mjml,
+        html: template.html,
+        variables: template.variables,
+        tags: template.tags,
+        isFavorite: next.isFavorite,
+      });
+    } catch (err) {
+      setTemplates((prev) => prev.map((t) => (t.id === id ? template : t)));
+      toast.error(err instanceof Error ? err.message : "Could not update template");
+    }
+  };
+
+  const duplicateTemplate = async (template: Template) => {
+    try {
+      await api.post("/api/v1/templates", {
+        name: `${template.name} (copy)`,
+        description: template.description,
+        category: template.category,
+        thumbnail: template.thumbnail,
+        mjml: template.mjml,
+        html: template.html,
+        variables: template.variables,
+        tags: template.tags,
+        isFavorite: false,
+      });
+      toast.success(`"${template.name}" duplicated`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate template");
+    }
+  };
+
+  const deleteTemplate = async (template: Template) => {
+    try {
+      await api.delete(`/api/v1/templates/${template.id}`);
+      toast.success(`"${template.name}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete template");
+    }
   };
 
   return (
@@ -157,15 +224,21 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-16">
+          <Loader2 className="animate-spin text-muted-foreground size-6" />
+          <p className="text-muted-foreground text-sm">Loading templates…</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState
-          title="No templates found"
+          title={templates.length === 0 ? "No templates yet" : "No templates found"}
           description={
-            search
+            search || category !== "all" || onlyFavorites
               ? "Try a different search term or category."
               : "Create your first template or generate one with AI."
           }
-          actionLabel={search ? undefined : "Create template"}
+          actionLabel={search || category !== "all" || onlyFavorites ? undefined : "Create template"}
+          actionHref={search || category !== "all" || onlyFavorites ? undefined : "/templates/new"}
           icon={FileText}
         />
       ) : view === "grid" ? (
@@ -232,7 +305,7 @@ export default function TemplatesPage() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="cursor-pointer"
-                      onClick={() => toast.success(`"${template.name}" duplicated`)}
+                      onClick={() => duplicateTemplate(template)}
                     >
                       <Copy /> Duplicate
                     </DropdownMenuItem>
@@ -240,10 +313,7 @@ export default function TemplatesPage() {
                     <DropdownMenuItem
                       className="cursor-pointer"
                       variant="destructive"
-                      onClick={() => {
-                        setTemplates((prev) => prev.filter((t) => t.id !== template.id));
-                        toast.success(`"${template.name}" deleted`);
-                      }}
+                      onClick={() => deleteTemplate(template)}
                     >
                       <Trash2 /> Delete
                     </DropdownMenuItem>

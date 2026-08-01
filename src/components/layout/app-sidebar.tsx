@@ -114,7 +114,7 @@ export function AppSidebar() {
         {sections.map((section) => (
           <div key={section.label}>
             {!collapsed && (
-              <p className="text-muted-foreground mb-1 px-3 text-[0.68rem] font-medium tracking-wider uppercase">
+              <p className="text-muted-foreground mb-1 px-3 text-xs font-medium tracking-wider uppercase">
                 {section.label}
               </p>
             )}
@@ -142,7 +142,7 @@ export function AppSidebar() {
                     {!collapsed && item.badge && (
                       <Badge
                         variant={item.badge === "New" ? "success" : "secondary"}
-                        className="px-1.5 py-0 text-[0.65rem]"
+                        className="px-1.5 py-0 text-xs"
                       >
                         {item.badge}
                       </Badge>

@@ -43,7 +43,9 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <FitZoom className="flex flex-col gap-8">
+    <>
+      <title>Reset password · Mailgeko</title>
+      <FitZoom className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
         <p className="text-muted-foreground mt-1.5 text-sm">
@@ -103,5 +105,6 @@ export default function ResetPasswordPage() {
         </Link>
       </p>
     </FitZoom>
+    </>
   );
 }

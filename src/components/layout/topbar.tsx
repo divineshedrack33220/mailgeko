@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+import { getPageTitle } from "@/lib/page-title";
 import { useUiStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
@@ -43,24 +44,12 @@ export function Topbar() {
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
   const setAiOpen = useUiStore((s) => s.setAiOpen);
 
-  const title = React.useMemo(() => {
-    const segments = pathname.split("/").filter(Boolean);
-    const map: Record<string, string> = {
-      dashboard: "Dashboard",
-      campaigns: segments.length > 2 ? "Campaign" : "Campaigns",
-      automations: segments.length > 2 ? "Automation" : "Automations",
-      contacts: segments.length > 2 ? "Contact" : "Contacts",
-      lists: "Lists & Segments",
-      templates: segments.length > 2 ? "Template" : "Templates",
-      reports: "Reports",
-      ai: "AI Studio",
-      settings: "Settings",
-    };
-    return map[segments[0]] ?? "Dashboard";
-  }, [pathname]);
+  const title = React.useMemo(() => getPageTitle(pathname), [pathname]);
 
   return (
-    <header className="bg-background/80 sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 backdrop-blur-md lg:px-6">
+    <>
+      <title>{`${title} · Mailgeko`}</title>
+      <header className="bg-background/80 sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 backdrop-blur-md lg:px-6">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -74,7 +63,7 @@ export function Topbar() {
       <MobileNav />
 
       <div className="flex items-baseline gap-2">
-        <h1 className="text-base font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
@@ -108,7 +97,8 @@ export function Topbar() {
         <Separator orientation="vertical" className="mx-1 hidden h-6 sm:block" />
         <UserMenu />
       </div>
-    </header>
+      </header>
+    </>
   );
 }
 
@@ -194,7 +184,7 @@ function NotificationsMenu() {
       <DropdownMenuContent align="end" className="w-80 p-0">
         <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
           <span className="text-sm font-semibold">Notifications</span>
-          <Badge variant="secondary" className="text-[0.65rem]">
+          <Badge variant="secondary" className="text-xs">
             2 new
           </Badge>
         </DropdownMenuLabel>
@@ -256,7 +246,12 @@ function UserMenu() {
           <Avatar className="size-8">
             <AvatarImage src="" alt={user?.name ?? "User"} />
             <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-              GL
+              {user?.name
+                ?.split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((n) => n[0]?.toUpperCase())
+                .join("") || "U"}
             </AvatarFallback>
           </Avatar>
         </button>

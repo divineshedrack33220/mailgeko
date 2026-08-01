@@ -6,11 +6,10 @@ import {
   Zap,
   CreditCard,
   FileText,
-  Download,
   ArrowRight,
   ShieldCheck,
   RefreshCcw,
-  Plus,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,57 +23,76 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-const plans = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 19,
-    sends: "10,000 emails/mo",
-    features: ["1 user included", "2,000 contacts", "Basic reports", "Email support"],
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: 49,
-    sends: "50,000 emails/mo",
-    features: [
-      "3 users included",
-      "10,000 contacts",
-      "Advanced reports",
-      "Automations",
-      "Priority support",
-    ],
-    highlight: true,
-  },
-  {
-    id: "scale",
-    name: "Scale",
-    price: 129,
-    sends: "250,000 emails/mo",
-    features: [
-      "10 users included",
-      "50,000 contacts",
-      "AI Studio suite",
-      "Custom domain & IP",
-      "24/7 support",
-    ],
-  },
-];
+import { api } from "@/lib/api";
+import type { BillingLimits, BillingPlan } from "@/lib/types";
 
 export default function BillingSettingsPage() {
-  const [currentPlan, setCurrentPlan] = React.useState("growth");
+  const [plans, setPlans] = React.useState<BillingPlan[]>([]);
+  const [limits, setLimits] = React.useState<BillingLimits | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [working, setWorking] = React.useState<string | null>(null);
 
-  const usage = {
-    contacts: 1248,
-    contactLimit: 10000,
-    emails: 28432,
-    emailLimit: 50000,
-    automations: 4,
-    automationLimit: 10,
+  const load = React.useCallback(async () => {
+    try {
+      const [plansRes, limitsRes] = await Promise.all([
+        api.get<{ plans: BillingPlan[] }>("/api/v1/billing/plans"),
+        api.get<{ limits: BillingLimits }>("/api/v1/billing"),
+      ]);
+      setPlans(plansRes.plans ?? []);
+      setLimits(limitsRes.limits);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load billing info");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
+
+  const currentPlan = limits?.plan;
+
+  const openPortal = async () => {
+    setWorking("portal");
+    try {
+      const res = await api.post<{ url: string }>("/api/v1/billing/portal", {});
+      window.location.assign(res.url);
+    } catch (err) {
+      setWorking(null);
+      toast.error(err instanceof Error ? err.message : "Could not open billing portal");
+    }
   };
+
+  const switchPlan = async (planId: string) => {
+    setWorking(planId);
+    try {
+      const res = await api.post<{ url: string }>("/api/v1/billing/checkout", { plan: planId });
+      window.location.assign(res.url);
+    } catch (err) {
+      setWorking(null);
+      toast.error(err instanceof Error ? err.message : "Could not start checkout");
+    }
+  };
+
+  const usageRows = [
+    {
+      label: "Contacts",
+      used: limits?.contacts ?? 0,
+      limit: limits?.maxContacts ?? 0,
+    },
+    {
+      label: "Emails sent",
+      used: limits?.emailsThisMonth ?? 0,
+      limit: limits?.maxEmailsPerMonth ?? 0,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,43 +100,52 @@ export default function BillingSettingsPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="text-primary size-5" />
-                Growth plan
-              </CardTitle>
-              <CardDescription>Billed monthly · next invoice Aug 1, 2026</CardDescription>
+              {loading ? (
+                <Skeleton className="h-6 w-40" />
+              ) : (
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="text-primary size-5" />
+                  {limits?.planName ?? "Starter"} plan
+                </CardTitle>
+              )}
+              <CardDescription>Billed monthly · manage via the billing portal</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="success">Active</Badge>
-              <Button variant="outline" size="sm" onClick={() => toast.info("Plan changes open in the billing portal")}>
-                <RefreshCcw /> Manage plan
+              {!loading && limits?.plan && <Badge variant="success">Active</Badge>}
+              <Button variant="outline" size="sm" onClick={openPortal} disabled={working !== null}>
+                {working === "portal" ? <Loader2 className="animate-spin" /> : <RefreshCcw />} Manage plan
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {[
-            { label: "Contacts", used: usage.contacts, limit: usage.contactLimit },
-            { label: "Emails sent", used: usage.emails, limit: usage.emailLimit },
-            { label: "Active automations", used: usage.automations, limit: usage.automationLimit },
-          ].map((row) => {
-            const pct = Math.min(100, (row.used / row.limit) * 100);
-            const near = pct >= 80;
-            return (
-              <div key={row.label}>
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{row.label}</span>
-                  <span className="tabular-nums">
-                    <span className={cn("font-medium", near && "text-warning")}>
-                      {row.used.toLocaleString()}
-                    </span>
-                    <span className="text-muted-foreground"> / {row.limit.toLocaleString()}</span>
-                  </span>
-                </div>
-                <Progress value={pct} className="h-2" indicatorClassName={near ? "bg-warning" : undefined} />
-              </div>
-            );
-          })}
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : (
+            <>
+              {usageRows.map((row) => {
+                const pct = row.limit > 0 ? Math.min(100, (row.used / row.limit) * 100) : 0;
+                const near = pct >= 80;
+                return (
+                  <div key={row.label}>
+                    <div className="mb-1.5 flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="tabular-nums">
+                        <span className={cn("font-medium", near && "text-warning")}>
+                          {row.used.toLocaleString()}
+                        </span>
+                        <span className="text-muted-foreground"> / {row.limit.toLocaleString()}</span>
+                      </span>
+                    </div>
+                    <Progress value={pct} className="h-2" indicatorClassName={near ? "bg-warning" : undefined} />
+                  </div>
+                );
+              })}
+            </>
+          )}
           <div className="bg-muted/50 text-muted-foreground rounded-lg border px-4 py-3 text-sm">
             Pro tip: <span className="font-medium text-foreground">Scale</span> includes
             AI Studio and a dedicated sending IP — a good fit once you pass 30,000 contacts.
@@ -132,51 +159,59 @@ export default function BillingSettingsPage() {
           <CardDescription>Switch plans anytime. Changes prorate automatically.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={cn(
-                  "relative flex flex-col rounded-xl border-2 p-5",
-                  plan.highlight
-                    ? "border-primary shadow-lg"
-                    : "border-border"
-                )}
-              >
-                {plan.highlight && (
-                  <span className="bg-primary text-primary-foreground absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-[0.6rem] font-semibold tracking-wide uppercase">
-                    Current plan
-                  </span>
-                )}
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">{plan.name}</h3>
-                  {plan.id === currentPlan && <Badge variant="success">Current</Badge>}
-                </div>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-semibold tracking-tight">${plan.price}</span>
-                  <span className="text-muted-foreground text-sm">/mo</span>
-                </div>
-                <p className="text-muted-foreground mt-1 text-xs">{plan.sends}</p>
-                <ul className="mt-4 flex flex-col gap-2">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm">
-                      <Check className="text-success mt-0.5 size-4 shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  variant={plan.highlight ? "default" : "outline"}
-                  size="sm"
-                  className="mt-5 w-full"
-                  disabled={plan.id === currentPlan}
-                  onClick={() => setCurrentPlan(plan.id)}
-                >
-                  {plan.id === currentPlan ? "Your plan" : `Switch to ${plan.name}`}
-                </Button>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              <Skeleton className="h-72 w-full" />
+              <Skeleton className="h-72 w-full" />
+              <Skeleton className="h-72 w-full" />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              {plans.map((plan) => {
+                const isCurrent = plan.id === currentPlan;
+                return (
+                  <div
+                    key={plan.id}
+                    className={cn(
+                      "relative flex flex-col rounded-xl border-2 p-5",
+                      isCurrent ? "border-primary shadow-lg" : "border-border"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">{plan.name}</h3>
+                      {isCurrent && <Badge variant="success">Current</Badge>}
+                    </div>
+                    <div className="mt-3 flex items-baseline gap-1">
+                      <span className="text-3xl font-semibold tracking-tight">${plan.priceMonthly}</span>
+                      <span className="text-muted-foreground text-sm">/mo</span>
+                    </div>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {plan.emailsPerMonth.toLocaleString()} emails/mo ·{" "}
+                      {plan.maxContacts.toLocaleString()} contacts
+                    </p>
+                    <ul className="mt-4 flex flex-col gap-2">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2 text-sm">
+                          <Check className="text-success mt-0.5 size-4 shrink-0" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      variant={isCurrent ? "default" : "outline"}
+                      size="sm"
+                      className="mt-5 w-full"
+                      disabled={isCurrent || working !== null}
+                      onClick={() => switchPlan(plan.id)}
+                    >
+                      {working === plan.id ? <Loader2 className="animate-spin" /> : null}
+                      {isCurrent ? "Your plan" : `Switch to ${plan.name}`}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -188,21 +223,17 @@ export default function BillingSettingsPage() {
             </CardTitle>
             <CardDescription>The card on file for this workspace.</CardDescription>
             <CardAction>
-              <Button variant="ghost" size="sm" onClick={() => toast.info("Update payment method is coming soon")}>
+              <Button variant="ghost" size="sm" onClick={() => toast.info("Update payment method is available in the billing portal")}>
                 Update
               </Button>
             </CardAction>
           </CardHeader>
-          <CardContent className="flex items-center gap-4">
-            <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-lg">
-              <CreditCard className="size-5" />
-            </span>
-            <div>
-              <p className="text-sm font-medium">Visa •••• 4242</p>
-              <p className="text-muted-foreground text-xs">Expires 08 / 2028</p>
-            </div>
-            <Button variant="outline" size="sm" className="ml-auto" onClick={() => toast.info("Add card is coming soon")}>
-              <Plus /> Add card
+          <CardContent>
+            <p className="text-muted-foreground text-sm">
+              Manage your payment method and invoices through the billing portal.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={openPortal} disabled={working !== null}>
+              <CreditCard /> Open billing portal
             </Button>
           </CardContent>
         </Card>
@@ -214,28 +245,11 @@ export default function BillingSettingsPage() {
             </CardTitle>
             <CardDescription>Download receipts for your records.</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {[
-                { id: "INV-2026-07", date: "Jul 1, 2026", amount: "$49.00", status: "Paid" },
-                { id: "INV-2026-06", date: "Jun 1, 2026", amount: "$49.00", status: "Paid" },
-                { id: "INV-2026-05", date: "May 1, 2026", amount: "$49.00", status: "Paid" },
-              ].map((invoice) => (
-                <div key={invoice.id} className="hover:bg-muted/40 flex items-center gap-4 px-5 py-3 transition-colors">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{invoice.id}</p>
-                    <p className="text-muted-foreground text-xs">{invoice.date}</p>
-                  </div>
-                  <span className="text-sm font-medium tabular-nums">{invoice.amount}</span>
-                  <Badge variant={invoice.status === "Paid" ? "success" : "secondary"}>
-                    {invoice.status}
-                  </Badge>
-                  <Button variant="ghost" size="icon-sm" aria-label={`Download ${invoice.id}`} onClick={() => toast.success(`Downloading ${invoice.id}`)}>
-                    <Download />
-                  </Button>
-                </div>
-              ))}
-            </div>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">
+              Invoices and receipts are generated in the billing portal once you
+              complete your first payment.
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -11,9 +11,9 @@ import {
   Pencil,
   Trash2,
   Pause,
-  Play,
   ArrowUpDown,
   Mail,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -58,15 +58,39 @@ import {
 import { CampaignStatusBadge } from "@/components/shared/status-badges";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatPercent, timeAgo } from "@/lib/format";
-import { campaigns as mockCampaigns, lists } from "@/lib/mock";
-import type { Campaign, CampaignStatus } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { Campaign, ContactList } from "@/lib/types";
 
 export default function CampaignsPage() {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [listFilter, setListFilter] = React.useState("all");
-  const [campaigns, setCampaigns] = React.useState(mockCampaigns);
+  const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+  const [lists, setLists] = React.useState<ContactList[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [deleteTarget, setDeleteTarget] = React.useState<Campaign | null>(null);
+
+  const load = React.useCallback(async () => {
+    try {
+      const [campaignsRes, listsRes] = await Promise.all([
+        api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns"),
+        api.get<{ lists: ContactList[] }>("/api/v1/lists"),
+      ]);
+      setCampaigns(campaignsRes.campaigns ?? []);
+      setLists(listsRes.lists ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load campaigns");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
 
   const filtered = campaigns.filter((c) => {
     const matchesSearch =
@@ -93,23 +117,50 @@ export default function CampaignsPage() {
     [campaigns]
   );
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setCampaigns((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    toast.success(`"${deleteTarget.name}" deleted`);
+    const target = deleteTarget;
     setDeleteTarget(null);
+    try {
+      await api.delete(`/api/v1/campaigns/${target.id}`);
+      toast.success(`"${target.name}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete campaign");
+    }
   };
 
-  const togglePause = (campaign: Campaign) => {
-    const isPaused = campaign.status === "paused";
-    setCampaigns((prev) =>
-      prev.map((c) =>
-        c.id === campaign.id
-          ? { ...c, status: (isPaused ? "sending" : "paused") as CampaignStatus }
-          : c
-      )
-    );
-    toast.success(isPaused ? "Campaign resumed" : "Campaign paused");
+  const duplicateCampaign = async (campaign: Campaign) => {
+    try {
+      await api.post("/api/v1/campaigns", {
+        name: `${campaign.name} (copy)`,
+        subject: campaign.subject,
+        templateId: campaign.templateId,
+        previewText: campaign.previewText,
+        plainText: campaign.plainText,
+        htmlContent: campaign.htmlContent,
+        status: "draft",
+        type: campaign.type,
+        listIds: campaign.listIds,
+        segmentIds: campaign.segmentIds,
+        sender: campaign.sender,
+        settings: campaign.settings,
+      });
+      toast.success(`"${campaign.name}" duplicated`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate campaign");
+    }
+  };
+
+  const cancelCampaign = async (campaign: Campaign) => {
+    try {
+      await api.post(`/api/v1/campaigns/${campaign.id}/cancel`);
+      toast.success(`"${campaign.name}" canceled`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not cancel campaign");
+    }
   };
 
   return (
@@ -179,7 +230,12 @@ export default function CampaignsPage() {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-16">
+            <Loader2 className="animate-spin text-muted-foreground size-6" />
+            <p className="text-muted-foreground text-sm">Loading campaigns…</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <span className="bg-secondary text-secondary-foreground mb-3 flex size-12 items-center justify-center rounded-2xl">
               <Mail className="size-6" />
@@ -216,6 +272,7 @@ export default function CampaignsPage() {
                   ? (campaign.stats.uniqueClicks / campaign.stats.delivered) * 100
                   : 0;
                 const recipients = campaign.type === "automated" ? campaign.stats.sent : campaign.stats.recipients;
+                const canCancel = campaign.status === "scheduled" || campaign.status === "paused" || campaign.status === "sending";
                 return (
                   <TableRow key={campaign.id} className="group">
                     <TableCell className="pl-6">
@@ -260,16 +317,6 @@ export default function CampaignsPage() {
                     </TableCell>
                     <TableCell className="pr-6">
                       <div className="flex items-center justify-end gap-1">
-                        {campaign.status === "sending" || campaign.status === "paused" ? (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => togglePause(campaign)}
-                            aria-label={campaign.status === "paused" ? "Resume" : "Pause"}
-                          >
-                            {campaign.status === "paused" ? <Play /> : <Pause />}
-                          </Button>
-                        ) : null}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -290,10 +337,18 @@ export default function CampaignsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() => toast.success(`"${campaign.name}" duplicated`)}
+                              onClick={() => duplicateCampaign(campaign)}
                             >
                               <Copy /> Duplicate
                             </DropdownMenuItem>
+                            {canCancel && (
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => cancelCampaign(campaign)}
+                              >
+                                <Pause /> Cancel campaign
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="cursor-pointer"

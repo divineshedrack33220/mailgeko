@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   Zap,
@@ -23,6 +23,7 @@ import {
   Maximize,
   Settings2,
   Check,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { automations } from "@/lib/mock";
-import type { AutomationStepType } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { Automation, AutomationStatus, AutomationStep, AutomationStepType } from "@/lib/types";
 
 const stepMeta: Record<
   AutomationStepType,
@@ -125,10 +126,13 @@ interface CanvasNode {
 
 export default function AutomationBuilderPage() {
   const params = useParams<{ id: string }>();
-  const automation = automations.find((a) => a.id === params.id) ?? automations[0];
+  const router = useRouter();
 
-  const [name, setName] = React.useState(automation.name);
-  const [status, setStatus] = React.useState(automation.status);
+  const [automation, setAutomation] = React.useState<Automation | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [status, setStatus] = React.useState<AutomationStatus>("draft");
   const [selected, setSelected] = React.useState<string | null>("trigger");
   const [zoom, setZoom] = React.useState(1);
   const [saved, setSaved] = React.useState(false);
@@ -136,16 +140,47 @@ export default function AutomationBuilderPage() {
   const [dropIndex, setDropIndex] = React.useState<number | null>(null);
   const [flashNodeId, setFlashNodeId] = React.useState<string | null>(null);
 
-  const [nodes, setNodes] = React.useState<CanvasNode[]>([
-    { id: "trigger", type: "trigger", label: automation.trigger.label, detail: automation.trigger.type, x: 0, y: 0 },
-    ...automation.steps.map((step, index) => ({
-      id: step.id,
-      type: step.type as CanvasNode["type"],
-      label: step.label,
-      x: 0,
-      y: (index + 1) * 130,
-    })),
-  ]);
+  const [nodes, setNodes] = React.useState<CanvasNode[]>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ automation: Automation }>(`/api/v1/automations/${params.id}`);
+        if (cancelled) return;
+        setAutomation(res.automation);
+        setName(res.automation.name);
+        setStatus(res.automation.status);
+        setNodes([
+          {
+            id: "trigger",
+            type: "trigger",
+            label: res.automation.trigger.label,
+            detail: res.automation.trigger.type,
+            x: 0,
+            y: 0,
+          },
+          ...res.automation.steps.map((step, index) => ({
+            id: step.id,
+            type: step.type as CanvasNode["type"],
+            label: step.label,
+            x: 0,
+            y: (index + 1) * 130,
+          })),
+        ]);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : "Could not load automation");
+          router.replace("/automations");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id, router]);
 
   const flashNode = (id: string) => {
     setFlashNodeId(id);
@@ -231,11 +266,61 @@ export default function AutomationBuilderPage() {
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, label } : n)));
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Automation saved");
-    setTimeout(() => setSaved(false), 2000);
+  const buildPayload = (nextStatus: AutomationStatus) => ({
+    name: name.trim(),
+    description: automation?.description ?? "",
+    trigger: {
+      type: automation?.trigger.type ?? "welcome",
+      label: automation?.trigger.label ?? "New subscriber",
+      conditions: automation?.trigger.conditions ?? [],
+      delay: automation?.trigger.delay ?? 0,
+    },
+    steps: nodes
+      .filter((n) => n.type !== "trigger")
+      .map((n): AutomationStep => ({ id: n.id, type: n.type as AutomationStepType, label: n.label, config: {} })),
+    status: nextStatus,
+  });
+
+  const handleSave = async () => {
+    if (!automation) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/automations/${automation.id}`, buildPayload(status));
+      setSaved(true);
+      toast.success("Automation saved");
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save automation");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const toggleStatus = async () => {
+    if (!automation) return;
+    const next: AutomationStatus = status === "active" ? "paused" : "active";
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/automations/${automation.id}`, buildPayload(next));
+      setStatus(next);
+      toast.success(next === "active" ? "Automation activated" : "Automation paused");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update automation");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24">
+        <Loader2 className="animate-spin text-muted-foreground size-6" />
+        <p className="text-muted-foreground text-sm">Loading automation…</p>
+      </div>
+    );
+  }
+
+  if (!automation) return null;
 
   const selectedNode = nodes.find((n) => n.id === selected);
 
@@ -257,16 +342,16 @@ export default function AutomationBuilderPage() {
         </Badge>
         <div className="ml-auto flex items-center gap-2">
           {status !== "active" ? (
-            <Button variant="outline" size="sm" onClick={() => { setStatus("active"); toast.success("Automation activated"); }}>
+            <Button variant="outline" size="sm" onClick={toggleStatus} disabled={saving}>
               <Play /> Activate
             </Button>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => { setStatus("paused"); toast.success("Automation paused"); }}>
+            <Button variant="outline" size="sm" onClick={toggleStatus} disabled={saving}>
               <Pause /> Pause
             </Button>
           )}
-          <Button size="sm" onClick={handleSave}>
-            {saved ? <Check /> : <Save />}
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
             {saved ? "Saved" : "Save"}
           </Button>
         </div>
@@ -595,7 +680,7 @@ function NodeInspector({
   onRemove,
 }: {
   node?: CanvasNode;
-  automation: (typeof automations)[number];
+  automation: Automation;
   onLabelChange: (id: string, label: string) => void;
   onRemove?: () => void;
 }) {
@@ -653,7 +738,7 @@ function NodeInspector({
   );
 }
 
-function TriggerConfig({ automation }: { automation: (typeof automations)[number] }) {
+function TriggerConfig({ automation }: { automation: Automation }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">

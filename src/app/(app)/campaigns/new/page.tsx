@@ -38,7 +38,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatNumber } from "@/lib/format";
-import { lists, segments, templates } from "@/lib/mock";
+import { api } from "@/lib/api";
+import type { Campaign, ContactList, Segment, Template } from "@/lib/types";
 
 const steps = [
   { id: 1, label: "Recipients", icon: Users },
@@ -47,20 +48,16 @@ const steps = [
   { id: 4, label: "Review", icon: Rocket },
 ];
 
-const aiSubjects = [
-  "What shipped this month",
-  "Your insider look at what's new",
-  "5 things worth your time today",
-  "Don't miss what's coming next",
-  "A quick update on your account",
-];
-
 export default function NewCampaignPage() {
   const router = useRouter();
   const [step, setStep] = React.useState(1);
   const [sending, setSending] = React.useState(false);
 
-  const [selectedLists, setSelectedLists] = React.useState<string[]>(["list-001"]);
+  const [lists, setLists] = React.useState<ContactList[]>([]);
+  const [segments, setSegments] = React.useState<Segment[]>([]);
+  const [templates, setTemplates] = React.useState<Template[]>([]);
+
+  const [selectedLists, setSelectedLists] = React.useState<string[]>([]);
   const [segment, setSegment] = React.useState("none");
 
   const [template, setTemplate] = React.useState<string>("");
@@ -79,6 +76,28 @@ export default function NewCampaignPage() {
   const [trackOpens, setTrackOpens] = React.useState(true);
   const [trackClicks, setTrackClicks] = React.useState(true);
   const [allowUnsubscribe, setAllowUnsubscribe] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [listsRes, segmentsRes, templatesRes] = await Promise.all([
+          api.get<{ lists: ContactList[] }>("/api/v1/lists"),
+          api.get<{ segments: Segment[] }>("/api/v1/segments"),
+          api.get<{ templates: Template[] }>("/api/v1/templates"),
+        ]);
+        if (cancelled) return;
+        setLists(listsRes.lists ?? []);
+        setSegments(segmentsRes.segments ?? []);
+        setTemplates(templatesRes.templates ?? []);
+      } catch (err) {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load campaign data");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const recipients = selectedLists.reduce(
     (sum, id) => sum + (lists.find((l) => l.id === id)?.contactCount ?? 0),
@@ -102,13 +121,39 @@ export default function NewCampaignPage() {
     return true;
   }, [step, selectedLists.length, subject, fromName, fromEmail, scheduleMode, scheduleDate]);
 
-  const finish = () => {
+  const finish = async () => {
     setSending(true);
-    setTimeout(() => {
+    let scheduleAt: string | undefined;
+    if (scheduleMode === "later" || scheduleMode === "recurring") {
+      if (scheduleDate) {
+        scheduleAt = new Date(`${scheduleDate}T${scheduleTime || "10:00"}`).toISOString();
+      }
+    }
+    try {
+      const res = await api.post<{ campaign: Campaign }>("/api/v1/campaigns", {
+        name: subject || "Untitled campaign",
+        subject,
+        templateId: template,
+        previewText,
+        plainText: "",
+        htmlContent: "",
+        status: "draft",
+        type: "regular",
+        listIds: selectedLists,
+        segmentIds: segment !== "none" ? [segment] : [],
+        scheduleAt,
+        sender: { fromName, fromEmail, replyTo },
+        settings: { trackOpens, trackClicks, allowUnsubscribe },
+      });
+      if (scheduleMode === "now") {
+        await api.post(`/api/v1/campaigns/${res.campaign.id}/send`);
+      }
+      toast.success(scheduleMode === "now" ? "Campaign queued for delivery" : "Campaign scheduled");
+      router.push(`/campaigns/${res.campaign.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create campaign");
       setSending(false);
-      toast.success(scheduleMode === "now" ? "Campaign queued for delivery 🦎" : "Campaign scheduled");
-      router.push("/campaigns");
-    }, 1600);
+    }
   };
 
   return (
@@ -138,6 +183,8 @@ export default function NewCampaignPage() {
       >
         {step === 1 && (
           <RecipientsStep
+            lists={lists}
+            segments={segments}
             selectedLists={selectedLists}
             onToggleList={(id) =>
               setSelectedLists((prev) =>
@@ -152,6 +199,7 @@ export default function NewCampaignPage() {
 
         {step === 2 && (
           <ContentStep
+            templates={templates}
             template={template}
             onTemplateChange={setTemplate}
             subject={subject}
@@ -308,12 +356,16 @@ function StepHeading({
 }
 
 function RecipientsStep({
+  lists,
+  segments,
   selectedLists,
   onToggleList,
   segment,
   onSegmentChange,
   recipientCount,
 }: {
+  lists: ContactList[];
+  segments: Segment[];
   selectedLists: string[];
   onToggleList: (id: string) => void;
   segment: string;
@@ -379,7 +431,7 @@ function RecipientsStep({
               <SelectItem value="none">All contacts in selected lists</SelectItem>
               {segments.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.name} ({formatNumber(s.contactCount)})
+                  {s.name} ({formatNumber(s.contactCount ?? 0)})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -403,6 +455,7 @@ function RecipientsStep({
 }
 
 function ContentStep({
+  templates,
   template,
   onTemplateChange,
   subject,
@@ -416,6 +469,7 @@ function ContentStep({
   replyTo,
   onReplyToChange,
 }: {
+  templates: Template[];
   template: string;
   onTemplateChange: (v: string) => void;
   subject: string;
@@ -429,6 +483,40 @@ function ContentStep({
   replyTo: string;
   onReplyToChange: (v: string) => void;
 }) {
+  const [aiGenerating, setAiGenerating] = React.useState(false);
+  const [aiIndex, setAiIndex] = React.useState(0);
+
+  const selectedTemplate = templates.find((t) => t.id === template);
+  const aiTopic = subject.trim() || selectedTemplate?.name || "your latest announcement";
+
+  const handleGenerateSubject = async () => {
+    if (aiGenerating) return;
+    setAiGenerating(true);
+    try {
+      const res = await api.post<{ subjects: string[] }>("/api/v1/ai/subject", {
+        topic: aiTopic,
+        count: 3,
+      });
+      const subjects = (res.subjects ?? []).filter((s) => s.trim());
+      if (subjects.length === 0) {
+        toast.info("No suggestions were generated — try again");
+        return;
+      }
+      const next = aiIndex % subjects.length;
+      setAiIndex(next + 1);
+      onSubjectChange(subjects[next]);
+      if (subjects.length > 1) {
+        toast.success(`Picked suggestion ${next + 1} of ${subjects.length} — click again to cycle`);
+      } else {
+        toast.success("Subject generated");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate subject lines");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <StepHeading
@@ -472,14 +560,16 @@ function ContentStep({
               <Label htmlFor="subject">Subject line</Label>
               <button
                 type="button"
-                onClick={() => {
-                  const next = aiSubjects[Math.floor(Math.random() * aiSubjects.length)];
-                  onSubjectChange(next);
-                  toast.success("Subject line generated with AI ✨");
-                }}
-                className="text-primary flex cursor-pointer items-center gap-1 text-xs font-medium hover:underline"
+                onClick={handleGenerateSubject}
+                disabled={aiGenerating}
+                className="text-primary flex cursor-pointer items-center gap-1 text-xs font-medium hover:underline disabled:cursor-wait disabled:opacity-60"
               >
-                <Sparkles className="size-3.5" /> Generate with AI
+                {aiGenerating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                {aiGenerating ? "Generating…" : "Generate with AI"}
               </button>
             </div>
             <Input

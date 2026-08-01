@@ -15,10 +15,6 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "Mailgeko — AI-Powered Email Marketing",
-    template: "%s · Mailgeko",
-  },
   description:
     "The privacy-first, AI-powered email marketing platform. Your email, your data, your rules.",
   icons: {

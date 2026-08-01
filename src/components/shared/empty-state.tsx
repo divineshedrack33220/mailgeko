@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GeckoMark } from "@/components/brand/gecko-mark";
@@ -19,6 +20,7 @@ export function EmptyState({
   description,
   actionLabel,
   onAction,
+  actionHref,
   icon: Icon,
   compact,
   className,
@@ -40,11 +42,16 @@ export function EmptyState({
           {description}
         </p>
       )}
-      {actionLabel && (
-        <Button onClick={onAction} className="mt-5">
-          {actionLabel}
-        </Button>
-      )}
+      {actionLabel &&
+        (actionHref ? (
+          <Button asChild className="mt-5">
+            <Link href={actionHref}>{actionLabel}</Link>
+          </Button>
+        ) : (
+          <Button onClick={onAction} className="mt-5">
+            {actionLabel}
+          </Button>
+        ))}
     </div>
   );
 }

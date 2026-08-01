@@ -14,11 +14,15 @@ import {
   ArrowRight,
   Zap,
   Sparkles,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import type { AutomationStep } from "@/lib/types";
 
 const triggerOptions: {
   id: string;
@@ -100,17 +104,83 @@ const templates = [
   },
 ] as const;
 
+function step(type: AutomationStep["type"], label: string): AutomationStep {
+  return { id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, type, label, config: {} };
+}
+
+function stepsForTemplate(id: string): AutomationStep[] {
+  switch (id) {
+    case "welcome":
+      return [
+        step("send-email", "Welcome email"),
+        step("delay", "Wait 1 day"),
+        step("send-email", "Getting started guide"),
+        step("delay", "Wait 3 days"),
+        step("send-email", "Community + resources"),
+      ];
+    case "abandoned-cart":
+      return [
+        step("send-email", "You left something behind"),
+        step("delay", "Wait 24 hours"),
+        step("send-email", "Back in stock reminder"),
+        step("delay", "Wait 2 days"),
+        step("send-email", "Last chance + discount"),
+      ];
+    case "win-back":
+      return [
+        step("send-email", "We miss you"),
+        step("delay", "Wait 5 days"),
+        step("send-email", "Come back + offer"),
+      ];
+    case "re-order":
+      return [
+        step("send-email", "Time to re-order"),
+        step("delay", "Wait 3 days"),
+        step("send-email", "Order reminder"),
+      ];
+    default:
+      return [];
+  }
+}
+
 export default function NewAutomationPage() {
   const router = useRouter();
   const [name, setName] = React.useState("");
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
+
+  const create = async (triggerId: string, triggerLabel: string, steps: AutomationStep[]) => {
+    setCreating(true);
+    try {
+      const res = await api.post<{ automation: { id: string } }>("/api/v1/automations", {
+        name: name.trim() || triggerLabel,
+        description: "",
+        trigger: {
+          type: triggerId,
+          label: triggerLabel,
+          conditions: [],
+          delay: 0,
+        },
+        steps,
+        status: "draft",
+      });
+      router.push(`/automations/${res.automation.id}`);
+    } catch (err) {
+      setCreating(false);
+      toast.error(err instanceof Error ? err.message : "Could not create automation");
+    }
+  };
 
   const startFromTemplate = (id: string) => {
-    router.push(`/automations/${id}`);
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    create(template.id, template.title, stepsForTemplate(id));
   };
 
   const createBlank = () => {
-    router.push("/automations/aut-001");
+    const trigger =
+      triggerOptions.find((t) => t.id === selected) ?? triggerOptions.find((t) => t.id === "welcome");
+    create(trigger!.id, trigger!.title, []);
   };
 
   return (
@@ -223,6 +293,7 @@ export default function NewAutomationPage() {
 
       <div className="sticky bottom-4 mt-10 flex justify-end">
         <Button size="lg" onClick={createBlank} disabled={!name && !selected} className="shadow-lg">
+          {creating ? <Loader2 className="animate-spin" /> : null}
           Continue to builder <ArrowRight />
         </Button>
       </div>

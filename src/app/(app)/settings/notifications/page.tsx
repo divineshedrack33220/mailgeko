@@ -1,19 +1,48 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Save, Check, Mail, Send, TrendingUp, ShieldAlert, CreditCard } from "lucide-react";
+import { Bell, Save, Check, Mail, Send, TrendingUp, ShieldAlert, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+
+const prefKeys = [
+  "camp-sent",
+  "camp-scheduled",
+  "camp-failed",
+  "aud-spikes",
+  "aud-bounces",
+  "aud-list",
+  "sec-login",
+  "sec-key",
+  "bill-invoice",
+  "bill-limit",
+] as const;
+type PrefKey = (typeof prefKeys)[number];
+
+const defaultPrefs: Record<PrefKey, boolean> = {
+  "camp-sent": true,
+  "camp-scheduled": false,
+  "camp-failed": true,
+  "aud-spikes": true,
+  "aud-bounces": true,
+  "aud-list": false,
+  "sec-login": true,
+  "sec-key": true,
+  "bill-invoice": true,
+  "bill-limit": true,
+};
 
 interface PrefGroup {
   id: string;
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
-  prefs: { id: string; label: string; description: string; enabled: boolean }[];
+  prefs: { id: PrefKey; label: string; description: string }[];
 }
 
 const groups: PrefGroup[] = [
@@ -23,9 +52,9 @@ const groups: PrefGroup[] = [
     description: "Activity around your sends.",
     icon: Send,
     prefs: [
-      { id: "camp-sent", label: "Campaign sent", description: "When a campaign finishes sending.", enabled: true },
-      { id: "camp-scheduled", label: "Campaign scheduled", description: "Confirmation when a campaign is queued.", enabled: false },
-      { id: "camp-failed", label: "Campaign failed", description: "Immediately when a send encounters an error.", enabled: true },
+      { id: "camp-sent", label: "Campaign sent", description: "When a campaign finishes sending." },
+      { id: "camp-scheduled", label: "Campaign scheduled", description: "Confirmation when a campaign is queued." },
+      { id: "camp-failed", label: "Campaign failed", description: "Immediately when a send encounters an error." },
     ],
   },
   {
@@ -34,9 +63,9 @@ const groups: PrefGroup[] = [
     description: "Subscriber growth and health.",
     icon: TrendingUp,
     prefs: [
-      { id: "aud-spikes", label: "Unsubscribe spikes", description: "When unsubscribes jump above your baseline.", enabled: true },
-      { id: "aud-bounces", label: "High bounce rate", description: "When bounce rate exceeds 3% in a day.", enabled: true },
-      { id: "aud-list", label: "List milestone", description: "When a list crosses a round-number threshold.", enabled: false },
+      { id: "aud-spikes", label: "Unsubscribe spikes", description: "When unsubscribes jump above your baseline." },
+      { id: "aud-bounces", label: "High bounce rate", description: "When bounce rate exceeds 3% in a day." },
+      { id: "aud-list", label: "List milestone", description: "When a list crosses a round-number threshold." },
     ],
   },
   {
@@ -45,8 +74,8 @@ const groups: PrefGroup[] = [
     description: "Sign-ins and account safety.",
     icon: ShieldAlert,
     prefs: [
-      { id: "sec-login", label: "New sign-in", description: "When a new device or location signs in.", enabled: true },
-      { id: "sec-key", label: "API key created", description: "Whenever a new API key is generated.", enabled: true },
+      { id: "sec-login", label: "New sign-in", description: "When a new device or location signs in." },
+      { id: "sec-key", label: "API key created", description: "Whenever a new API key is generated." },
     ],
   },
   {
@@ -55,28 +84,76 @@ const groups: PrefGroup[] = [
     description: "Charges and plan changes.",
     icon: CreditCard,
     prefs: [
-      { id: "bill-invoice", label: "Invoices", description: "Send an invoice copy to your inbox.", enabled: true },
-      { id: "bill-limit", label: "Usage warnings", description: "When you approach plan limits.", enabled: true },
+      { id: "bill-invoice", label: "Invoices", description: "Send an invoice copy to your inbox." },
+      { id: "bill-limit", label: "Usage warnings", description: "When you approach plan limits." },
     ],
   },
 ];
 
 export default function NotificationsSettingsPage() {
-  const [state, setState] = React.useState(() =>
-    Object.fromEntries(
-      groups.flatMap((g) => g.prefs.map((p) => [p.id, p.enabled]))
-    )
-  );
+  const [prefs, setPrefs] = React.useState<Record<PrefKey, boolean>>(defaultPrefs);
   const [emailDigest, setEmailDigest] = React.useState("weekly");
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
-  const toggle = (id: string) => setState((prev) => ({ ...prev, [id]: !prev[id] }));
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<{ prefs: Record<string, boolean>; digest: string }>("/api/v1/notifications/prefs");
+        setPrefs((prev) => {
+          const next = { ...prev };
+          for (const key of prefKeys) {
+            if (typeof res.prefs?.[key] === "boolean") next[key] = res.prefs[key];
+          }
+          return next;
+        });
+        if (res.digest) setEmailDigest(res.digest);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not load notification preferences");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Notification preferences saved");
-    setTimeout(() => setSaved(false), 2000);
+  const toggle = (id: PrefKey) => setPrefs((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put("/api/v1/notifications/prefs", { prefs, digest: emailDigest });
+      setSaved(true);
+      toast.success("Notification preferences saved");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save notification preferences");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="text-primary size-4" /> Notification preferences
+            </CardTitle>
+            <CardDescription>
+              Choose what activity triggers an email or in-app notification.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,7 +193,7 @@ export default function NotificationsSettingsPage() {
                       </div>
                     </div>
                     <Switch
-                      checked={state[pref.id]}
+                      checked={prefs[pref.id]}
                       onCheckedChange={() => toggle(pref.id)}
                     />
                   </div>
@@ -158,9 +235,9 @@ export default function NotificationsSettingsPage() {
             ))}
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleSave}>
-              {saved ? <Check /> : <Save />}
-              {saved ? "Saved" : "Save preferences"}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
+              {saving ? "Saving…" : saved ? "Saved" : "Save preferences"}
             </Button>
           </div>
         </CardContent>

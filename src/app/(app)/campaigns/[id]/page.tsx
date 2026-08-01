@@ -8,17 +8,19 @@ import {
   ChevronLeft,
   MoreHorizontal,
   Copy,
-  Pencil,
   Trash2,
   MailOpen,
   MousePointerClick,
   TrendingUp,
-  ExternalLink,
   Repeat,
   Pause,
   CheckCircle2,
   XCircle,
+  Loader2,
+  Link2,
+  MonitorSmartphone,
   Globe,
+  Clock3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,20 +37,170 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StatCard } from "@/components/shared/stat-card";
-import { AreaChart } from "@/components/charts/area-chart";
-import { DonutChart } from "@/components/charts/donut-chart";
 import { CampaignStatusBadge } from "@/components/shared/status-badges";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatDateTime, formatNumber, formatPercent, timeAgo } from "@/lib/format";
-import { campaigns, countries, devices, topClickedLinks } from "@/lib/mock";
+import { api } from "@/lib/api";
+import type { Campaign } from "@/lib/types";
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const campaign = campaigns.find((c) => c.id === params.id) ?? campaigns[0];
+  const [campaign, setCampaign] = React.useState<Campaign | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [testOpen, setTestOpen] = React.useState(false);
+  const [testEmails, setTestEmails] = React.useState("");
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${params.id}`);
+      setCampaign(res.campaign);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load campaign");
+      router.replace("/campaigns");
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id, router]);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
+
+  const sendNow = async () => {
+    if (!campaign) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/v1/campaigns/${campaign.id}/send`);
+      toast.success("Campaign queued for sending");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send campaign");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelCampaign = async () => {
+    if (!campaign) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/v1/campaigns/${campaign.id}/cancel`);
+      toast.success("Campaign canceled");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not cancel campaign");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const duplicateCampaign = async () => {
+    if (!campaign) return;
+    try {
+      await api.post("/api/v1/campaigns", {
+        name: `${campaign.name} (copy)`,
+        subject: campaign.subject,
+        templateId: campaign.templateId,
+        previewText: campaign.previewText,
+        plainText: campaign.plainText,
+        htmlContent: campaign.htmlContent,
+        status: "draft",
+        type: campaign.type,
+        listIds: campaign.listIds,
+        segmentIds: campaign.segmentIds,
+        sender: campaign.sender,
+        settings: campaign.settings,
+      });
+      toast.success("Campaign duplicated");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate campaign");
+    }
+  };
+
+  const deleteCampaign = async () => {
+    if (!campaign) return;
+    try {
+      await api.delete(`/api/v1/campaigns/${campaign.id}`);
+      toast.success("Campaign deleted");
+      router.replace("/campaigns");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete campaign");
+    }
+  };
+
+  const sendTest = async () => {
+    const emails = testEmails
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    if (emails.length === 0) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/v1/campaigns/${campaign?.id}/send-test`, { emails });
+      setTestOpen(false);
+      setTestEmails("");
+      toast.success("Test email sent");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send test");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSetting = async (key: "trackOpens" | "trackClicks" | "allowUnsubscribe", value: boolean) => {
+    if (!campaign) return;
+    const next = { ...campaign, settings: { ...campaign.settings, [key]: value } };
+    setCampaign(next);
+    try {
+      await api.patch(`/api/v1/campaigns/${campaign.id}`, {
+        name: campaign.name,
+        subject: campaign.subject,
+        templateId: campaign.templateId,
+        previewText: campaign.previewText,
+        plainText: campaign.plainText,
+        htmlContent: campaign.htmlContent,
+        status: campaign.status,
+        type: campaign.type,
+        listIds: campaign.listIds,
+        segmentIds: campaign.segmentIds,
+        sender: campaign.sender,
+        settings: next.settings,
+      });
+      toast.success("Settings updated");
+    } catch (err) {
+      setCampaign(campaign);
+      toast.error(err instanceof Error ? err.message : "Could not update settings");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24">
+        <Loader2 className="animate-spin text-muted-foreground size-6" />
+        <p className="text-muted-foreground text-sm">Loading campaign…</p>
+      </div>
+    );
+  }
+
+  if (!campaign) return null;
 
   const delivered = campaign.stats.delivered;
   const openRate = delivered ? (campaign.stats.uniqueOpens / delivered) * 100 : 0;
@@ -58,20 +210,10 @@ export default function CampaignDetailPage() {
     ? (campaign.stats.sent / Math.max(campaign.stats.recipients, 1)) * 100
     : 0;
 
-  const chartData = [
-    { date: "12:00", opens: 8, clicks: 3 },
-    { date: "13:00", opens: 24, clicks: 9 },
-    { date: "14:00", opens: 51, clicks: 21 },
-    { date: "15:00", opens: 83, clicks: 34 },
-    { date: "16:00", opens: 67, clicks: 27 },
-    { date: "17:00", opens: 94, clicks: 41 },
-    { date: "18:00", opens: 72, clicks: 29 },
-    { date: "19:00", opens: 60, clicks: 24 },
-    { date: "20:00", opens: 31, clicks: 12 },
-  ];
-
   const isSending = campaign.status === "sending";
   const isSent = campaign.status === "sent" || campaign.status === "completed";
+  const canSend = campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused";
+  const hasAnalytics = campaign.stats.delivered > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,19 +241,20 @@ export default function CampaignDetailPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => toast.success("Campaign duplicated")}>
+            {canSend && (
+              <Button size="sm" onClick={sendNow} disabled={busy}>
+                {busy ? <Loader2 className="animate-spin" /> : <Send />}
+                Send now
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={duplicateCampaign}>
               <Copy /> Duplicate
             </Button>
             {isSending && (
-              <Button variant="outline" size="sm" onClick={() => toast.success("Campaign paused")}>
-                <Pause /> Pause
+              <Button variant="outline" size="sm" onClick={cancelCampaign} disabled={busy}>
+                <Pause /> Cancel
               </Button>
             )}
-            <Button size="sm" asChild>
-              <Link href="/campaigns/new">
-                <Pencil /> Edit
-              </Link>
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon-sm" aria-label="More actions">
@@ -120,7 +263,7 @@ export default function CampaignDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => toast.success("Test email sent to team@acme.co")}>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => setTestOpen(true)}>
                   <Repeat /> Send test
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/reports")}>
@@ -130,10 +273,7 @@ export default function CampaignDetailPage() {
                 <DropdownMenuItem
                   className="cursor-pointer"
                   variant="destructive"
-                  onClick={() => {
-                    toast.success("Campaign deleted");
-                    router.push("/campaigns");
-                  }}
+                  onClick={deleteCampaign}
                 >
                   <Trash2 /> Delete campaign
                 </DropdownMenuItem>
@@ -179,130 +319,126 @@ export default function CampaignDetailPage() {
             <StatCard
               label="Open rate"
               value={formatPercent(openRate)}
-              change={6.2}
               icon={MailOpen}
               hint={`${formatNumber(campaign.stats.uniqueOpens)} unique opens`}
             />
             <StatCard
               label="Click rate"
               value={formatPercent(clickRate)}
-              change={3.1}
               icon={MousePointerClick}
               hint={`${formatNumber(campaign.stats.uniqueClicks)} unique clicks`}
             />
             <StatCard
               label="Bounces"
               value={formatPercent(bounceRate)}
-              change={0}
               icon={XCircle}
               hint={`${formatNumber(campaign.stats.bounced)} bounced`}
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Opens & clicks over time</CardTitle>
-                    <CardDescription>Hourly engagement after sending</CardDescription>
+          {!hasAnalytics && (
+            <EmptyState
+              title="No analytics yet"
+              description="Open, click, device, and location data will appear here after your campaign is sent."
+              icon={Clock3}
+            />
+          )}
+          {hasAnalytics && (
+            <>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Engagement</CardTitle>
+                      <CardDescription>Totals for this campaign</CardDescription>
+                    </div>
+                    <CardAction>
+                      <Badge variant="secondary">Per-campaign breakdown coming soon</Badge>
+                    </CardAction>
                   </div>
-                  <CardAction>
-                    <Badge variant="secondary">Last 12 hours</Badge>
-                  </CardAction>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <AreaChart
-                  data={chartData}
-                  height={260}
-                  xKey="date"
-                  series={[
-                    { key: "opens", name: "Opens", color: "var(--chart-1)" },
-                    { key: "clicks", name: "Clicks", color: "var(--chart-2)" },
-                  ]}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Top clicked links</CardTitle>
-                <CardDescription>Most popular destinations</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {topClickedLinks.map((link, index) => (
-                  <div key={link.url} className="flex items-center gap-3">
-                    <span className="text-muted-foreground w-4 text-xs font-medium tabular-nums">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium">{link.url}</p>
-                      <div className="bg-muted mt-1 h-1 overflow-hidden rounded-full">
-                        <div
-                          className="bg-primary h-full rounded-full"
-                          style={{ width: `${(link.clicks / topClickedLinks[0].clicks) * 100}%` }}
-                        />
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="flex items-center gap-3">
+                      <span className="bg-secondary text-secondary-foreground flex size-9 items-center justify-center rounded-lg">
+                        <MailOpen className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.opened)}</p>
+                        <p className="text-muted-foreground text-xs">total opens</p>
                       </div>
                     </div>
-                    <span className="text-muted-foreground text-xs tabular-nums">
-                      {formatNumber(link.clicks)}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-secondary text-secondary-foreground flex size-9 items-center justify-center rounded-lg">
+                        <MousePointerClick className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.clicked)}</p>
+                        <p className="text-muted-foreground text-xs">total clicks</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-secondary text-secondary-foreground flex size-9 items-center justify-center rounded-lg">
+                        <MonitorSmartphone className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.uniqueOpens)}</p>
+                        <p className="text-muted-foreground text-xs">unique opens</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-secondary text-secondary-foreground flex size-9 items-center justify-center rounded-lg">
+                        <Link2 className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.uniqueClicks)}</p>
+                        <p className="text-muted-foreground text-xs">unique clicks</p>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Opens by device</CardTitle>
-                <CardDescription>Where your email was opened</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DonutChart
-                  data={devices.map((d) => ({ name: d.name, value: d.count }))}
-                  centerValue={formatNumber(devices.reduce((s, d) => s + d.count, 0))}
-                  centerLabel="opens"
-                  height={190}
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Globe className="text-muted-foreground size-4" />
-                  <CardTitle>Opens by country</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-                  {countries.slice(0, 8).map((country) => {
-                    const max = countries[0].opens;
-                    return (
-                      <div key={country.code} className="flex items-center gap-3">
-                        <span className="w-6 text-center text-sm">{country.code}</span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{country.country}</span>
-                            <span className="tabular-nums">{formatNumber(country.opens)}</span>
-                          </div>
-                          <div className="bg-muted mt-1 h-1 overflow-hidden rounded-full">
-                            <div
-                              className="bg-chart-3 h-full rounded-full"
-                              style={{ width: `${(country.opens / max) * 100}%` }}
-                            />
-                          </div>
+                  <Separator />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-3">
+                      <Globe className="text-muted-foreground size-4" />
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Delivered</span>
+                          <span className="tabular-nums">{formatNumber(campaign.stats.delivered)}</span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <XCircle className="text-muted-foreground size-4" />
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Bounced</span>
+                          <span className="tabular-nums">{formatNumber(campaign.stats.bounced)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <MailOpen className="text-muted-foreground size-4" />
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Complained</span>
+                          <span className="tabular-nums">{formatNumber(campaign.stats.complained)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <XCircle className="text-muted-foreground size-4" />
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Unsubscribed</span>
+                          <span className="tabular-nums">{formatNumber(campaign.stats.unsubscribed)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="content" className="mt-5">
@@ -316,10 +452,10 @@ export default function CampaignDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <ExternalLink /> Preview
+                  <Button variant="outline" size="sm" onClick={() => toast.info("Email preview is coming soon")}>
+                    <TrendingUp /> Preview
                   </Button>
-                  <Button size="sm">
+                  <Button size="sm" onClick={() => setTestOpen(true)}>
                     <Send /> Send test
                   </Button>
                 </div>
@@ -367,16 +503,19 @@ export default function CampaignDetailPage() {
             </div>
             <div className="divide-y px-6">
               {[
-                { label: "Track opens", desc: "Count recipients who open this email", defaultOn: campaign.settings.trackOpens },
-                { label: "Track clicks", desc: "Record clicks on all links", defaultOn: campaign.settings.trackClicks },
-                { label: "Allow unsubscribe", desc: "Include one-click unsubscribe footer", defaultOn: campaign.settings.allowUnsubscribe },
+                { key: "trackOpens" as const, label: "Track opens", desc: "Count recipients who open this email", defaultOn: campaign.settings.trackOpens },
+                { key: "trackClicks" as const, label: "Track clicks", desc: "Record clicks on all links", defaultOn: campaign.settings.trackClicks },
+                { key: "allowUnsubscribe" as const, label: "Allow unsubscribe", desc: "Include one-click unsubscribe footer", defaultOn: campaign.settings.allowUnsubscribe },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium">{row.label}</p>
                     <p className="text-muted-foreground text-xs">{row.desc}</p>
                   </div>
-                  <Switch defaultChecked={row.defaultOn} />
+                  <Switch
+                    checked={row.defaultOn}
+                    onCheckedChange={(v) => updateSetting(row.key, v)}
+                  />
                 </div>
               ))}
             </div>
@@ -387,8 +526,7 @@ export default function CampaignDetailPage() {
           <Card className="gap-0 overflow-hidden py-0">
             <div className="divide-y">
               {[
-                { action: "Campaign created", detail: "by Grace Lee", time: campaign.createdAt },
-                { action: "Template attached", detail: campaign.templateId ?? "—", time: campaign.createdAt },
+                { action: "Campaign created", detail: "by your workspace", time: campaign.createdAt },
                 { action: "Content updated", detail: "Subject line finalized", time: campaign.updatedAt },
                 ...(isSending
                   ? [{ action: "Started sending", detail: "Queued for delivery", time: campaign.updatedAt }]
@@ -414,6 +552,38 @@ export default function CampaignDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={testOpen} onOpenChange={setTestOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send a test email</DialogTitle>
+            <DialogDescription>
+              Deliver this campaign to yourself or colleagues before sending.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="test-emails">Recipients</Label>
+            <Input
+              id="test-emails"
+              value={testEmails}
+              onChange={(e) => setTestEmails(e.target.value)}
+              placeholder="you@company.com, colleague@company.com"
+            />
+            <p className="text-muted-foreground text-xs">
+              Separate multiple addresses with commas.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTestOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={sendTest} disabled={busy || !testEmails.includes("@")}>
+              {busy && <Loader2 className="animate-spin" />}
+              Send test
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -24,76 +24,113 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { getChartColor } from "@/components/charts/chart-tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { campaigns, topClickedLinks, devices, countries } from "@/lib/mock";
-
-const deliveryData = [
-  { name: "Delivered", value: 10084 },
-  { name: "Opened", value: 4458 },
-  { name: "Clicked", value: 1830 },
-  { name: "Bounced", value: 214 },
-  { name: "Spam", value: 36 },
-];
-
-const sendTimeData = [
-  [1, 2, 3, 4, 5, 6, 7],
-  [2, 3, 4, 5, 6, 7, 8],
-  [4, 6, 8, 9, 10, 12, 14],
-  [8, 12, 16, 20, 24, 28, 32],
-  [14, 20, 28, 36, 44, 52, 60],
-  [22, 32, 44, 58, 72, 86, 100],
-  [30, 44, 60, 78, 94, 72, 58],
-  [38, 56, 76, 96, 80, 60, 46],
-  [44, 64, 88, 70, 54, 40, 30],
-  [36, 52, 70, 56, 42, 32, 24],
-  [24, 34, 46, 38, 28, 22, 16],
-  [12, 18, 24, 20, 16, 12, 9],
-];
+import { api } from "@/lib/api";
+import type { Campaign } from "@/lib/types";
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const bestCampaigns = campaigns
-  .filter((c) => c.stats.delivered > 0 && c.type !== "test")
-  .map((c) => ({
-    id: c.id,
-    name: c.name,
-    openRate: (c.stats.uniqueOpens / c.stats.delivered) * 100,
-    clickRate: (c.stats.uniqueClicks / c.stats.delivered) * 100,
-  }))
-  .sort((a, b) => b.openRate - a.openRate)
-  .slice(0, 6);
+interface OverviewTotals {
+  sent: number;
+  delivered: number;
+  uniqueOpens: number;
+  uniqueClicks: number;
+  bounced: number;
+  complained: number;
+  unsubscribed: number;
+}
 
-const peakCell = sendTimeData.reduce(
-  (best, row, hour) =>
-    row.reduce((b, value, day) => (value > b.value ? { hour, day, value } : b), best),
-  { hour: 0, day: 0, value: -1 }
-);
+interface Rates {
+  deliverability: number;
+  openRate: number;
+  clickRate: number;
+  bounceRate: number;
+  unsubscribeRate: number;
+}
 
 export default function ReportsPage() {
   const [range, setRange] = React.useState("30d");
+  const [loading, setLoading] = React.useState(true);
+  const [totals, setTotals] = React.useState<OverviewTotals | null>(null);
+  const [rates, setRates] = React.useState<Rates | null>(null);
+  const [links, setLinks] = React.useState<{ url: string; clicks: number }[]>([]);
+  const [devices, setDevices] = React.useState<{ name: string; count: number }[]>([]);
+  const [countries, setCountries] = React.useState<{ country: string; code: string; opens: number }[]>([]);
+  const [grid, setGrid] = React.useState<number[][]>([]);
+  const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+
+  React.useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+      try {
+        const [overviewRes, linksRes, devicesRes, countriesRes, heatmapRes, campaignsRes] = await Promise.all([
+          api.get<{ totals: OverviewTotals; rates: Rates }>(`/api/v1/analytics/overview?range=${range}`),
+          api.get<{ links: { url: string; clicks: number }[] }>(`/api/v1/analytics/links?range=${range}`),
+          api.get<{ devices: { name: string; count: number }[] }>(`/api/v1/analytics/devices?range=${range}`),
+          api.get<{ countries: { country: string; code: string; opens: number }[] }>(`/api/v1/analytics/countries?range=${range}`),
+          api.get<{ grid: number[][] }>(`/api/v1/analytics/heatmap?range=${range}`),
+          api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns"),
+        ]);
+        setTotals(overviewRes.totals);
+        setRates(overviewRes.rates);
+        setLinks(linksRes.links ?? []);
+        setDevices(devicesRes.devices ?? []);
+        setCountries(countriesRes.countries ?? []);
+        setGrid(heatmapRes.grid ?? []);
+        setCampaigns(campaignsRes.campaigns ?? []);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not load reports");
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [range]);
 
   const rangeLabel =
     range === "7d" ? "7 days" : range === "90d" ? "90 days" : range === "12m" ? "12 months" : "30 days";
 
-  const totalSends = campaigns
-    .filter((c) => c.type !== "test")
-    .reduce((sum, c) => sum + c.stats.sent, 0);
-  const totalDelivered = campaigns
-    .filter((c) => c.type !== "test")
-    .reduce((sum, c) => sum + c.stats.delivered, 0);
-  const totalOpens = campaigns
-    .filter((c) => c.type !== "test")
-    .reduce((sum, c) => sum + c.stats.uniqueOpens, 0);
-  const totalClicks = campaigns
-    .filter((c) => c.type !== "test")
-    .reduce((sum, c) => sum + c.stats.uniqueClicks, 0);
-  const totalBounced = campaigns
-    .filter((c) => c.type !== "test")
-    .reduce((sum, c) => sum + c.stats.bounced, 0);
+  const openRate = rates?.openRate ?? 0;
+  const clickRate = rates?.clickRate ?? 0;
+  const deliverability = rates?.deliverability ?? 0;
+  const bounceRate = rates?.bounceRate ?? 0;
+  const unsubscribeRate = rates?.unsubscribeRate ?? 0;
+  const totalDelivered = totals?.delivered ?? 0;
 
-  const openRate = totalDelivered ? (totalOpens / totalDelivered) * 100 : 0;
-  const clickRate = totalOpens ? (totalClicks / totalOpens) * 100 : 0;
-  const deliverability = totalSends ? ((totalSends - totalBounced) / totalSends) * 100 : 0;
+  const deliveryData = [
+    { name: "Sent", value: totals?.sent ?? 0 },
+    { name: "Delivered", value: totals?.delivered ?? 0 },
+    { name: "Opened", value: totals?.uniqueOpens ?? 0 },
+    { name: "Clicked", value: totals?.uniqueClicks ?? 0 },
+    { name: "Bounced", value: totals?.bounced ?? 0 },
+  ];
+
+  const bestCampaigns = campaigns
+    .filter((c) => c.stats.delivered > 0 && c.type !== "test")
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      openRate: (c.stats.uniqueOpens / c.stats.delivered) * 100,
+    }))
+    .sort((a, b) => b.openRate - a.openRate)
+    .slice(0, 6);
+
+  const heatRows = grid.length ? grid.slice(7, 19) : [];
+  const heatMax = heatRows.length
+    ? Math.max(1, ...heatRows.flat().map((v) => Number(v) || 0))
+    : 1;
+
+  const peakCell = heatRows.reduce(
+    (best, row, hour) =>
+      row.reduce(
+        (b, value, day) => (Number(value) > b.value ? { hour, day, value: Number(value) } : b),
+        best
+      ),
+    { hour: 0, day: 0, value: -1 }
+  );
+  const hasHeatmap = peakCell.value > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -126,30 +163,30 @@ export default function ReportsPage() {
         <StatCard
           label="Deliverability"
           value={formatPercent(deliverability)}
-          change={0.8}
           icon={ShieldCheck}
-          hint="2.1% bounce rate"
+          hint={`${formatPercent(bounceRate, 1)} bounce rate`}
+          loading={loading}
         />
         <StatCard
           label="Avg. open rate"
           value={formatPercent(openRate)}
-          change={3.2}
           icon={MailOpen}
-          hint="vs. industry average"
+          hint="Unique opens ÷ delivered"
+          loading={loading}
         />
         <StatCard
           label="Click-through rate"
           value={formatPercent(clickRate)}
-          change={-0.9}
           icon={MousePointerClick}
           hint="Clicks per unique open"
+          loading={loading}
         />
         <StatCard
           label="Emails delivered"
           value={formatNumber(totalDelivered)}
-          change={14.6}
           icon={Send}
           hint="Across all live campaigns"
+          loading={loading}
         />
       </div>
 
@@ -169,34 +206,44 @@ export default function ReportsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <BarChart
-              data={deliveryData}
-              xKey="name"
-              height={280}
-              series={[
-                { key: "value", name: "Contacts", color: "var(--chart-1)" },
-              ]}
-            />
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {deliveryData.map((step, i) => {
-                const pct = (step.value / deliveryData[0].value) * 100;
-                return (
-                  <div key={step.name} className="rounded-lg border bg-muted/40 px-3 py-2.5">
-                    <p className="text-muted-foreground text-[0.65rem] font-medium uppercase">
-                      {step.name}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums">{formatNumber(step.value)}</p>
-                    <div className="mt-1.5 flex items-center gap-1 text-[0.65rem] text-muted-foreground">
-                      <span
-                        className="size-1.5 rounded-full"
-                        style={{ backgroundColor: getChartColor(i) }}
-                      />
-                      {formatPercent(pct, 0)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : deliveryData.every((d) => d.value === 0) ? (
+              <div className="flex h-64 items-center justify-center">
+                <p className="text-muted-foreground text-sm">No sends recorded in this period.</p>
+              </div>
+            ) : (
+              <>
+                <BarChart
+                  data={deliveryData}
+                  xKey="name"
+                  height={280}
+                  series={[
+                    { key: "value", name: "Contacts", color: "var(--chart-1)" },
+                  ]}
+                />
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  {deliveryData.map((step, i) => {
+                    const pct = deliveryData[0].value > 0 ? (step.value / deliveryData[0].value) * 100 : 0;
+                    return (
+                      <div key={step.name} className="rounded-lg border bg-muted/40 px-3 py-2.5">
+                        <p className="text-muted-foreground text-[0.65rem] font-medium uppercase">
+                          {step.name}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums">{formatNumber(step.value)}</p>
+                        <div className="mt-1.5 flex items-center gap-1 text-[0.65rem] text-muted-foreground">
+                          <span
+                            className="size-1.5 rounded-full"
+                            style={{ backgroundColor: getChartColor(i) }}
+                          />
+                          {formatPercent(pct, 0)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -206,24 +253,35 @@ export default function ReportsPage() {
             <CardDescription>Most engaged destinations this period</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {topClickedLinks.map((link, i) => {
-              const max = topClickedLinks[0].clicks;
-              return (
-                <div key={link.url} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="size-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: getChartColor(i) }}
-                      />
-                      <span className="text-muted-foreground truncate">{link.url.replace("https://", "")}</span>
-                    </span>
-                    <span className="font-medium tabular-nums">{formatNumber(link.clicks)}</span>
+            {loading ? (
+              <Skeleton className="h-48 w-full" />
+            ) : links.length === 0 ? (
+              <EmptyState
+                title="No clicks yet"
+                description="Links your subscribers click will show up here."
+                icon={Send}
+                compact
+              />
+            ) : (
+              links.map((link, i) => {
+                const max = links[0].clicks;
+                return (
+                  <div key={link.url} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="size-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: getChartColor(i) }}
+                        />
+                        <span className="text-muted-foreground truncate">{link.url.replace("https://", "")}</span>
+                      </span>
+                      <span className="font-medium tabular-nums">{formatNumber(link.clicks)}</span>
+                    </div>
+                    <Progress value={(link.clicks / max) * 100} className="h-1.5" />
                   </div>
-                  <Progress value={(link.clicks / max) * 100} className="h-1.5" />
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </CardContent>
         </Card>
       </div>
@@ -235,29 +293,42 @@ export default function ReportsPage() {
             <CardDescription>Best performing sends</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {bestCampaigns.map((campaign, i) => (
-                <Link
-                  key={campaign.id}
-                  href={`/campaigns/${campaign.id}`}
-                  className="hover:bg-muted/40 flex items-center gap-4 px-5 py-3 transition-colors"
-                >
-                  <span className="text-muted-foreground w-4 text-xs font-semibold tabular-nums">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{campaign.name}</p>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <Progress value={campaign.openRate} className="h-1 flex-1" />
-                      <span className="text-xs font-medium tabular-nums">
-                        {formatPercent(campaign.openRate)}
-                      </span>
+            {loading ? (
+              <div className="p-6">
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : bestCampaigns.length === 0 ? (
+              <EmptyState
+                title="No data yet"
+                description="Campaigns with opens will rank here."
+                icon={Send}
+                compact
+              />
+            ) : (
+              <div className="divide-y">
+                {bestCampaigns.map((campaign, i) => (
+                  <Link
+                    key={campaign.id}
+                    href={`/campaigns/${campaign.id}`}
+                    className="hover:bg-muted/40 flex items-center gap-4 px-5 py-3 transition-colors"
+                  >
+                    <span className="text-muted-foreground w-4 text-xs font-semibold tabular-nums">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{campaign.name}</p>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <Progress value={campaign.openRate} className="h-1 flex-1" />
+                        <span className="text-xs font-medium tabular-nums">
+                          {formatPercent(campaign.openRate)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <ArrowUpRight className="text-muted-foreground size-4 shrink-0" />
-                </Link>
-              ))}
-            </div>
+                    <ArrowUpRight className="text-muted-foreground size-4 shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -271,24 +342,37 @@ export default function ReportsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DonutChart
-              data={devices.map((d) => ({ name: d.name, value: d.count }))}
-              centerValue={formatNumber(devices.reduce((s, d) => s + d.count, 0))}
-              centerLabel="opens"
-              height={200}
-            />
-            <div className="mt-3 space-y-2">
-              {devices.slice(0, 4).map((device, i) => (
-                <div key={device.name} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <span className="size-2 rounded-full" style={{ backgroundColor: getChartColor(i) }} />
-                    <MonitorSmartphone className="size-3.5" />
-                    {device.name}
-                  </span>
-                  <span className="font-medium tabular-nums">{formatNumber(device.count)}</span>
+            {loading ? (
+              <Skeleton className="h-52 w-full" />
+            ) : devices.length === 0 ? (
+              <EmptyState
+                title="No device data yet"
+                description="Opened emails will be split by device here."
+                icon={MonitorSmartphone}
+                compact
+              />
+            ) : (
+              <>
+                <DonutChart
+                  data={devices.map((d) => ({ name: d.name, value: d.count }))}
+                  centerValue={formatNumber(devices.reduce((s, d) => s + d.count, 0))}
+                  centerLabel="opens"
+                  height={200}
+                />
+                <div className="mt-3 space-y-2">
+                  {devices.slice(0, 4).map((device, i) => (
+                    <div key={device.name} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <span className="size-2 rounded-full" style={{ backgroundColor: getChartColor(i) }} />
+                        <MonitorSmartphone className="size-3.5" />
+                        {device.name}
+                      </span>
+                      <span className="font-medium tabular-nums">{formatNumber(device.count)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -298,25 +382,40 @@ export default function ReportsPage() {
             <CardDescription>Open volume by location</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {countries.slice(0, 5).map((country) => {
-                const max = countries[0].opens;
-                return (
-                  <div key={country.code} className="flex items-center gap-3 px-5 py-3">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold">
-                      {country.code}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{country.country}</p>
-                      <Progress value={(country.opens / max) * 100} className="mt-1.5 h-1" />
+            {loading ? (
+              <div className="p-6">
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : countries.length === 0 ? (
+              <div className="p-6">
+                <EmptyState
+                  title="No location data yet"
+                  description="Open locations will show up here."
+                  icon={Send}
+                  compact
+                />
+              </div>
+            ) : (
+              <div className="divide-y">
+                {countries.slice(0, 5).map((country) => {
+                  const max = countries[0].opens;
+                  return (
+                    <div key={country.code} className="flex items-center gap-3 px-5 py-3">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold">
+                        {country.code}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{country.country}</p>
+                        <Progress value={(country.opens / max) * 100} className="mt-1.5 h-1" />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums">
+                        {formatNumber(country.opens)}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium tabular-nums">
-                      {formatNumber(country.opens)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -332,50 +431,61 @@ export default function ReportsPage() {
                 </CardDescription>
               </div>
               <CardAction>
-                <span className="text-success flex items-center gap-1 text-xs font-medium">
-                  <Flame className="size-3.5" /> Peak: {weekdays[peakCell.day]} {formatSendTime(peakCell.hour)}
-                </span>
+                {hasHeatmap && (
+                  <span className="text-success flex items-center gap-1 text-xs font-medium">
+                    <Flame className="size-3.5" /> Peak: {weekdays[peakCell.day]} {formatSendTime(peakCell.hour)}
+                  </span>
+                )}
               </CardAction>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <div className="min-w-[540px]">
-                <div className="grid grid-cols-[3rem_repeat(7,1fr)] gap-1.5">
-                  <div />
-                  {weekdays.map((day) => (
-                    <div key={day} className="text-muted-foreground pb-1 text-center text-[0.65rem] font-medium">
-                      {day}
-                    </div>
-                  ))}
-                  {sendTimeData.map((row, hour) => (
-                    <React.Fragment key={hour}>
-                      <div className="text-muted-foreground flex items-center text-[0.65rem] font-medium">
-                        {formatSendTime(hour)}
+            {loading ? (
+              <Skeleton className="h-72 w-full" />
+            ) : !hasHeatmap ? (
+              <div className="flex h-72 items-center justify-center">
+                <p className="text-muted-foreground text-sm">Not enough open data to show a heatmap yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[540px]">
+                  <div className="grid grid-cols-[3rem_repeat(7,1fr)] gap-1.5">
+                    <div />
+                    {weekdays.map((day) => (
+                      <div key={day} className="text-muted-foreground pb-1 text-center text-[0.65rem] font-medium">
+                        {day}
                       </div>
-                      {row.map((value, day) => {
-                        const opacity = 0.08 + (value / 100) * 0.92;
-                        const peak = value >= 90;
-                        return (
-                          <div
-                            key={`${hour}-${day}`}
-                            className="relative flex h-8 items-center justify-center rounded-md"
-                            style={{
-                              backgroundColor: peak
-                                ? "var(--primary)"
-                                : `rgba(16, 185, 129, ${opacity})`,
-                              boxShadow: peak ? "0 0 0 1px var(--primary)" : undefined,
-                            }}
-                          >
-                            {peak && <span className="absolute -top-1 right-1 size-1.5 animate-pulse rounded-full bg-background" />}
-                          </div>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))}
+                    ))}
+                    {heatRows.map((row, hour) => (
+                      <React.Fragment key={hour}>
+                        <div className="text-muted-foreground flex items-center text-[0.65rem] font-medium">
+                          {formatSendTime(hour)}
+                        </div>
+                        {row.map((value, day) => {
+                          const num = Number(value) || 0;
+                          const opacity = 0.08 + (num / heatMax) * 0.92;
+                          const peak = heatMax > 0 && num === heatMax;
+                          return (
+                            <div
+                              key={`${hour}-${day}`}
+                              className="relative flex h-8 items-center justify-center rounded-md"
+                              style={{
+                                backgroundColor: peak
+                                  ? "var(--primary)"
+                                  : `rgba(16, 185, 129, ${opacity})`,
+                                boxShadow: peak ? "0 0 0 1px var(--primary)" : undefined,
+                              }}
+                            >
+                              {peak && <span className="absolute -top-1 right-1 size-1.5 animate-pulse rounded-full bg-background" />}
+                            </div>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -388,22 +498,24 @@ export default function ReportsPage() {
             {[
               { label: "Open rate", value: openRate, benchmark: 38.4, better: true },
               { label: "Click rate", value: clickRate, benchmark: 2.7, better: true },
-              { label: "Bounce rate", value: 2.1, benchmark: 4.6, better: true },
-              { label: "Unsubscribe rate", value: 0.4, benchmark: 0.8, better: true },
+              { label: "Bounce rate", value: bounceRate, benchmark: 4.6, better: false },
+              { label: "Unsubscribe rate", value: unsubscribeRate, benchmark: 0.8, better: false },
             ].map((row) => {
+              const better = row.value <= row.benchmark;
               const diff = row.value - row.benchmark;
+              const goodForYou = row.better ? better : !better;
               return (
                 <div key={row.label}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{row.label}</span>
                     <div className="flex items-center gap-2">
-                      {diff > 0 ? (
+                      {goodForYou ? (
                         <span className="text-success flex items-center text-xs font-medium">
-                          <TrendingUp className="size-3" /> +{Math.abs(diff).toFixed(1)} pts
+                          <TrendingUp className="size-3" /> {Math.abs(diff).toFixed(1)} pts better
                         </span>
                       ) : (
                         <span className="text-destructive flex items-center text-xs font-medium">
-                          <TrendingDown className="size-3" /> -{Math.abs(diff).toFixed(1)} pts
+                          <TrendingDown className="size-3" /> {Math.abs(diff).toFixed(1)} pts below
                         </span>
                       )}
                     </div>

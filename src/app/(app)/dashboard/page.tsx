@@ -12,46 +12,120 @@ import {
   Sparkles,
   TrendingUp,
   Clock,
+  Workflow,
 } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CampaignStatusBadge } from "@/components/shared/status-badges";
+import { CampaignStatusBadge, AutomationStatusBadge } from "@/components/shared/status-badges";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime, formatNumber, formatPercent } from "@/lib/format";
-import {
-  audienceGrowth,
-  campaignPerformance,
-  campaigns,
-  devices,
-} from "@/lib/mock";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
+import type { Automation, Campaign } from "@/lib/types";
+
+interface AnalyticsTotals {
+  recipients: number;
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  complained: number;
+  unsubscribed: number;
+  uniqueOpens: number;
+  uniqueClicks: number;
+}
+
+interface OverviewResponse {
+  totals: AnalyticsTotals;
+  rates: {
+    deliverability: number;
+    openRate: number;
+    clickRate: number;
+    bounceRate: number;
+    unsubscribeRate: number;
+  };
+  analyticsAvailable: boolean;
+  series: { date: string; value: number; secondary: number }[];
+}
 
 export default function DashboardPage() {
   const setAiOpen = useUiStore((s) => s.setAiOpen);
-  const [loading] = React.useState(false);
+  const user = useAuthStore((s) => s.user);
   const [range, setRange] = React.useState("7d");
   const [metric, setMetric] = React.useState<"opens" | "clicks">("opens");
+  const [loading, setLoading] = React.useState(true);
+  const [overview, setOverview] = React.useState<OverviewResponse | null>(null);
+  const [devices, setDevices] = React.useState<{ name: string; count: number }[]>([]);
+  const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+  const [automations, setAutomations] = React.useState<Automation[]>([]);
 
-  const totalOpens = campaignPerformance.reduce((sum, p) => sum + p.opens, 0);
-  const totalClicks = campaignPerformance.reduce((sum, p) => sum + p.clicks, 0);
-  const totalSends = campaignPerformance.reduce((sum, p) => sum + p.sends, 0);
-  const openRate = totalSends > 0 ? (totalOpens / totalSends) * 100 : 0;
+  const loadOverview = React.useCallback(async () => {
+    try {
+      const [overviewRes, devicesRes] = await Promise.all([
+        api.get<OverviewResponse>(`/api/v1/analytics/overview?range=${range}`),
+        api.get<{ devices: { name: string; count: number }[] }>(`/api/v1/analytics/devices?range=${range}`),
+      ]);
+      setOverview(overviewRes);
+      setDevices(devicesRes.devices ?? []);
+    } catch (err) {
+      console.error("Failed to load dashboard analytics", err);
+    }
+  }, [range]);
+
+  React.useEffect(() => {
+    const run = async () => {
+      setLoading(true);
+      try {
+        await loadOverview();
+        const [campRes, autoRes] = await Promise.all([
+          api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns"),
+          api.get<{ automations: Automation[] }>("/api/v1/automations"),
+        ]);
+        setCampaigns(campRes.campaigns ?? []);
+        setAutomations(autoRes.automations ?? []);
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [loadOverview]);
+
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+
+  const seriesData = (overview?.series ?? []).map((p) => ({
+    date: p.date,
+    opens: p.value,
+    clicks: p.secondary,
+  }));
+
+  const totalOpens = overview?.totals?.uniqueOpens ?? 0;
+  const totalSends = overview?.totals?.sent ?? 0;
+  const openRate = overview?.rates?.openRate ?? 0;
+  const clickRate = overview?.rates?.clickRate ?? 0;
 
   const recentCampaigns = campaigns
     .filter((c) => c.type !== "test")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 4);
+
+  const scheduledCampaigns = campaigns.filter((c) => c.status === "scheduled");
+  const activeAutomations = automations.filter((a) => a.status === "active");
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Good morning, Grace 🦎</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Good morning, {firstName} 🦎</h2>
           <p className="text-muted-foreground mt-1 text-sm">
             Here&apos;s what&apos;s happening across your audience today.
           </p>
@@ -78,34 +152,30 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Subscribers"
-          value={formatNumber(1248)}
-          change={7.5}
+          value={formatNumber(overview?.totals?.recipients ?? 0)}
           icon={Users}
-          hint="+87 new this month"
+          hint="Total contacts in your account"
           loading={loading}
         />
         <StatCard
           label="Emails sent"
           value={formatNumber(totalSends)}
-          change={12.3}
           icon={Send}
-          hint="Across 14 campaigns"
+          hint={`Across ${campaigns.length} campaigns`}
           loading={loading}
         />
         <StatCard
           label="Open rate"
           value={formatPercent(openRate)}
-          change={3.2}
           icon={MailOpen}
-          hint="vs. industry avg"
+          hint="Unique opens ÷ delivered"
           loading={loading}
         />
         <StatCard
           label="Click rate"
-          value={formatPercent((totalClicks / Math.max(totalSends, 1)) * 100)}
-          change={-1.1}
+          value={formatPercent(clickRate)}
           icon={MousePointerClick}
-          hint="vs last month"
+          hint="Unique clicks ÷ unique opens"
           loading={loading}
         />
       </div>
@@ -129,9 +199,13 @@ export default function DashboardPage() {
           <CardContent>
             {loading ? (
               <Skeleton className="h-64 w-full" />
+            ) : seriesData.length === 0 ? (
+              <div className="flex h-64 items-center justify-center">
+                <p className="text-muted-foreground text-sm">No opens or clicks recorded yet.</p>
+              </div>
             ) : (
               <AreaChart
-                data={campaignPerformance}
+                data={seriesData}
                 height={280}
                 series={
                   metric === "opens"
@@ -153,26 +227,36 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DonutChart
-              data={devices.map((d) => ({ name: d.name, value: d.count }))}
-              centerValue={formatNumber(devices.reduce((s, d) => s + d.count, 0))}
-              centerLabel="opens"
-              height={220}
-            />
-            <div className="mt-2 space-y-2">
-              {devices.slice(0, 4).map((device, i) => (
-                <div key={device.name} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <span
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: `var(--chart-${i + 1})` }}
-                    />
-                    {device.name}
-                  </span>
-                  <span className="font-medium tabular-nums">{formatNumber(device.count)}</span>
+            {loading ? (
+              <Skeleton className="h-52 w-full" />
+            ) : devices.length === 0 ? (
+              <div className="flex h-52 items-center justify-center">
+                <p className="text-muted-foreground text-sm">No device data yet.</p>
+              </div>
+            ) : (
+              <>
+                <DonutChart
+                  data={devices.map((d) => ({ name: d.name, value: d.count }))}
+                  centerValue={formatNumber(devices.reduce((s, d) => s + d.count, 0))}
+                  centerLabel="opens"
+                  height={220}
+                />
+                <div className="mt-2 space-y-2">
+                  {devices.slice(0, 4).map((device, i) => (
+                    <div key={device.name} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: `var(--chart-${i + 1})` }}
+                        />
+                        {device.name}
+                      </span>
+                      <span className="font-medium tabular-nums">{formatNumber(device.count)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -195,46 +279,61 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {recentCampaigns.map((campaign) => {
-                const openRate = campaign.stats.delivered
-                  ? (campaign.stats.uniqueOpens / campaign.stats.delivered) * 100
-                  : 0;
-                const clickRate = campaign.stats.delivered
-                  ? (campaign.stats.uniqueClicks / campaign.stats.delivered) * 100
-                  : 0;
-                return (
-                  <Link
-                    key={campaign.id}
-                    href={`/campaigns/${campaign.id}`}
-                    className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
-                  >
-                    <span className="bg-secondary text-secondary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-                      <Send className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{campaign.name}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {campaign.subject}
-                      </p>
-                    </div>
-                    <div className="hidden w-24 text-right sm:block">
-                      <p className="text-sm font-medium tabular-nums">
-                        {formatPercent(openRate)}
-                      </p>
-                      <p className="text-muted-foreground text-xs">open rate</p>
-                    </div>
-                    <div className="hidden w-24 text-right sm:block">
-                      <p className="text-sm font-medium tabular-nums">
-                        {formatPercent(clickRate)}
-                      </p>
-                      <p className="text-muted-foreground text-xs">click rate</p>
-                    </div>
-                    <CampaignStatusBadge status={campaign.status} />
-                  </Link>
-                );
-              })}
-            </div>
+            {loading ? (
+              <div className="p-6">
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : recentCampaigns.length === 0 ? (
+              <EmptyState
+                title="No campaigns yet"
+                description="Create your first campaign to start engaging your audience."
+                actionLabel="New campaign"
+                actionHref="/campaigns/new"
+                icon={Send}
+                className="border-0"
+              />
+            ) : (
+              <div className="divide-y">
+                {recentCampaigns.map((campaign) => {
+                  const openRate = campaign.stats.delivered
+                    ? (campaign.stats.uniqueOpens / campaign.stats.delivered) * 100
+                    : 0;
+                  const clickRate = campaign.stats.delivered
+                    ? (campaign.stats.uniqueClicks / campaign.stats.delivered) * 100
+                    : 0;
+                  return (
+                    <Link
+                      key={campaign.id}
+                      href={`/campaigns/${campaign.id}`}
+                      className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
+                    >
+                      <span className="bg-secondary text-secondary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+                        <Send className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{campaign.name}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {campaign.subject}
+                        </p>
+                      </div>
+                      <div className="hidden w-24 text-right sm:block">
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatPercent(openRate)}
+                        </p>
+                        <p className="text-muted-foreground text-xs">open rate</p>
+                      </div>
+                      <div className="hidden w-24 text-right sm:block">
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatPercent(clickRate)}
+                        </p>
+                        <p className="text-muted-foreground text-xs">click rate</p>
+                      </div>
+                      <CampaignStatusBadge status={campaign.status} />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -252,46 +351,62 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed">
-                Your open rate is{" "}
-                <span className="font-semibold">6.2% above</span> your 90-day
-                average. Tuesday mornings convert best — schedule your next
-                campaign for{" "}
-                <span className="font-semibold">Aug 4 at 10:00 AM</span>.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 w-full"
-                onClick={() => setAiOpen(true)}
-              >
-                <Sparkles /> Ask Geko
-              </Button>
+              {loading ? (
+                <Skeleton className="h-24 w-full" />
+              ) : (
+                <>
+                  <p className="text-sm leading-relaxed">
+                    Your open rate is{" "}
+                    <span className="font-semibold">{formatPercent(openRate)}</span> with{" "}
+                    <span className="font-semibold">{formatNumber(totalOpens)}</span> unique opens
+                    in the last {range.replace("d", " days")}. Send a follow-up to
+                    anyone who opened but didn&apos;t click to recover attention.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 w-full"
+                    onClick={() => setAiOpen(true)}
+                  >
+                    <Sparkles /> Ask Geko
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Audience growth</CardTitle>
-              <CardDescription>Subscribers over the last 7 months</CardDescription>
+              <CardTitle>Open volume</CardTitle>
+              <CardDescription>Opens over the selected period</CardDescription>
             </CardHeader>
             <CardContent>
-              <AreaChart
-                data={audienceGrowth}
-                xKey="date"
-                height={180}
-                series={[
-                  { key: "subscribers", name: "Subscribers", color: "var(--chart-3)" },
-                ]}
-                xTickFormatter={(v) => v.slice(5)}
-              />
-              <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
-                <TrendingUp className="text-success size-4" />
-                <p className="text-xs text-muted-foreground">
-                  <span className="text-success font-semibold">+201%</span> growth
-                  since January
-                </p>
-              </div>
+              {seriesData.length === 0 ? (
+                <div className="flex h-44 items-center justify-center">
+                  <p className="text-muted-foreground text-sm">No data yet.</p>
+                </div>
+              ) : (
+                <>
+                  <AreaChart
+                    data={seriesData}
+                    xKey="date"
+                    height={180}
+                    series={[
+                      { key: "opens", name: "Opens", color: "var(--chart-3)" },
+                    ]}
+                    xTickFormatter={(v) => v.slice(5)}
+                  />
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
+                    <TrendingUp className="text-success size-4" />
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-success font-semibold">
+                        {formatNumber(totalOpens)}
+                      </span>{" "}
+                      unique opens this period
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -303,32 +418,56 @@ export default function DashboardPage() {
           <CardDescription>Automations and campaigns in the pipeline</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y">
-            <div className="flex items-center gap-4 px-6 py-4">
-              <span className="bg-info/10 text-info flex size-9 items-center justify-center rounded-lg">
-                <Clock className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Product Launch — New AI Studio</p>
-                <p className="text-muted-foreground text-xs">
-                  Scheduled for {formatDateTime("2026-08-05T09:00:00Z")}
-                </p>
-              </div>
-              <Badge variant="info">Aug 5</Badge>
+          {loading ? (
+            <div className="p-6">
+              <Skeleton className="h-16 w-full" />
             </div>
-            <div className="flex items-center gap-4 px-6 py-4">
-              <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-                <Sparkles className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Automation: Welcome Series</p>
-                <p className="text-muted-foreground text-xs">
-                  {formatNumber(96)} contacts in flow this week
-                </p>
-              </div>
-              <Badge variant="success">Running</Badge>
+          ) : scheduledCampaigns.length === 0 && activeAutomations.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <p className="text-muted-foreground text-sm">Nothing scheduled right now.</p>
             </div>
-          </div>
+          ) : (
+            <div className="divide-y">
+              {scheduledCampaigns.map((campaign) => (
+                <Link
+                  key={campaign.id}
+                  href={`/campaigns/${campaign.id}`}
+                  className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
+                >
+                  <span className="bg-info/10 text-info flex size-9 items-center justify-center rounded-lg">
+                    <Clock className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{campaign.name}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {campaign.scheduleAt
+                        ? `Scheduled for ${formatDateTime(campaign.scheduleAt)}`
+                        : "Ready to send"}
+                    </p>
+                  </div>
+                  <CampaignStatusBadge status={campaign.status} />
+                </Link>
+              ))}
+              {activeAutomations.map((automation) => (
+                <Link
+                  key={automation.id}
+                  href={`/automations/${automation.id}`}
+                  className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
+                >
+                  <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
+                    <Workflow className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">Automation: {automation.name}</p>
+                    <p className="text-muted-foreground text-xs">
+                      Trigger: {automation.trigger.label}
+                    </p>
+                  </div>
+                  <AutomationStatusBadge status={automation.status} />
+                </Link>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

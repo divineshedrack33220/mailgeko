@@ -30,7 +30,7 @@ export function PageHeader({
           </span>
         )}
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+          <div className="text-xl font-semibold tracking-tight">{title}</div>
           {description && (
             <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
               {description}

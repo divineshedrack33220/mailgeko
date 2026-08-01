@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   Mail,
@@ -20,6 +20,7 @@ import {
   Pencil,
   MailPlus,
   Globe,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,19 +40,58 @@ import { StatCard } from "@/components/shared/stat-card";
 import { ContactStatusBadge } from "@/components/shared/status-badges";
 import { Separator } from "@/components/ui/separator";
 import { initials, timeAgo } from "@/lib/format";
-import { contacts } from "@/lib/mock";
-
-const activity = [
-  { id: 1, type: "opened", campaign: "July Product Digest", detail: "Opened the email", time: "2026-07-28T14:03:00Z", icon: MailOpen, color: "text-primary" },
-  { id: 2, type: "clicked", campaign: "July Product Digest", detail: "Clicked “See what shipped”", time: "2026-07-28T14:03:00Z", icon: MousePointerClick, color: "text-primary" },
-  { id: 3, type: "sent", campaign: "Product Launch — AI Studio", detail: "Received the email", time: "2026-07-05T09:00:00Z", icon: Send, color: "text-muted-foreground" },
-  { id: 4, type: "opened", campaign: "Welcome Campaign", detail: "Opened the email", time: "2026-06-30T10:12:00Z", icon: MailOpen, color: "text-primary" },
-  { id: 5, type: "sent", campaign: "June Product Digest", detail: "Received the email", time: "2026-06-01T09:00:00Z", icon: Send, color: "text-muted-foreground" },
-];
+import { api } from "@/lib/api";
+import type { Contact } from "@/lib/types";
 
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>();
-  const contact = contacts.find((c) => c.id === params.id) ?? contacts[0];
+  const router = useRouter();
+  const [contact, setContact] = React.useState<Contact | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [deleting, setDeleting] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ contact: Contact }>(`/api/v1/contacts/${params.id}`);
+        if (!cancelled) setContact(res.contact);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : "Could not load contact");
+          router.replace("/contacts");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id, router]);
+
+  const deleteContact = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/api/v1/contacts/${params.id}`);
+      toast.success("Contact deleted");
+      router.replace("/contacts");
+    } catch (err) {
+      setDeleting(false);
+      toast.error(err instanceof Error ? err.message : "Could not delete contact");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24">
+        <Loader2 className="animate-spin text-muted-foreground size-6" />
+        <p className="text-muted-foreground text-sm">Loading contact…</p>
+      </div>
+    );
+  }
+
+  if (!contact) return null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,9 +144,8 @@ export default function ContactDetailPage() {
                 <DropdownMenuItem
                   className="cursor-pointer"
                   variant="destructive"
-                  onClick={() => {
-                    toast.success("Contact deleted");
-                  }}
+                  onClick={deleteContact}
+                  disabled={deleting}
                 >
                   <Trash2 /> Delete contact
                 </DropdownMenuItem>
@@ -117,9 +156,9 @@ export default function ContactDetailPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total emails sent" value="14" icon={Send} hint="Last 6 months" />
-        <StatCard label="Opens" value="11" change={8.1} icon={MailOpen} hint="78.6% open rate" />
-        <StatCard label="Clicks" value="7" change={4.3} icon={MousePointerClick} hint="50.0% click rate" />
+        <StatCard label="Total emails sent" value="—" icon={Send} hint="No data yet" />
+        <StatCard label="Opens" value="—" change={0} icon={MailOpen} hint="No data yet" />
+        <StatCard label="Clicks" value="—" change={0} icon={MousePointerClick} hint="No data yet" />
         <StatCard label="Last engaged" value={contact.lastEngagementAt ? timeAgo(contact.lastEngagementAt) : "—"} icon={CalendarDays} hint="Most recent activity" />
       </div>
 
@@ -205,25 +244,9 @@ export default function ContactDetailPage() {
             <CardContent className="p-0">
               <div className="relative">
                 <Separator orientation="vertical" className="absolute top-0 bottom-0 left-[38px]" />
-                <div className="divide-y">
-                  {activity.map((item) => (
-                    <div key={item.id} className="relative flex items-start gap-4 px-6 py-4">
-                      <span
-                        className={`bg-card border flex size-8 shrink-0 items-center justify-center rounded-full ${item.color}`}
-                      >
-                        <item.icon className="size-3.5" />
-                      </span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">{item.campaign}</p>
-                          <span className="text-muted-foreground text-xs whitespace-nowrap">
-                            {timeAgo(item.time)}
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground text-xs">{item.detail}</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex flex-col items-center justify-center gap-2 px-6 py-16">
+                  <MailOpen className="text-muted-foreground size-6" />
+                  <p className="text-muted-foreground text-sm">No engagement data yet</p>
                 </div>
               </div>
             </CardContent>

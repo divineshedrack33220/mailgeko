@@ -11,6 +11,7 @@ import {
   Copy,
   Filter,
   X,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -44,13 +45,13 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { formatNumber, timeAgo } from "@/lib/format";
-import { lists as mockLists, segments as mockSegments } from "@/lib/mock";
-import type { Segment, SegmentCondition } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { ContactList, Segment, SegmentCondition } from "@/lib/types";
 
-let resourceSeq = 0;
-function resourceId(prefix: string): string {
-  resourceSeq += 1;
-  return `${prefix}-${resourceSeq}`;
+let conditionSeq = 0;
+function conditionId(): string {
+  conditionSeq += 1;
+  return `c-${conditionSeq}-${Date.now()}`;
 }
 
 const fields = [
@@ -80,33 +81,76 @@ const operators: Record<string, string[]> = {
 };
 
 export default function ListsPage() {
-  const [lists, setLists] = React.useState(mockLists);
-  const [segments, setSegments] = React.useState(mockSegments);
+  const [lists, setLists] = React.useState<ContactList[]>([]);
+  const [segments, setSegments] = React.useState<Segment[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [listOpen, setListOpen] = React.useState(false);
   const [listName, setListName] = React.useState("");
   const [segmentOpen, setSegmentOpen] = React.useState(false);
   const [segmentName, setSegmentName] = React.useState("");
   const [matchType, setMatchType] = React.useState<"all" | "any">("all");
   const [conditions, setConditions] = React.useState<SegmentCondition[]>([
-    { id: resourceId("c"), field: "status", operator: "is", value: "active" },
+    { id: conditionId(), field: "status", operator: "is", value: "active" },
   ]);
   const [editingSegment, setEditingSegment] = React.useState<Segment | null>(null);
+  const [saving, setSaving] = React.useState(false);
 
-  const createList = () => {
+  const load = React.useCallback(async () => {
+    try {
+      const [listsRes, segmentsRes] = await Promise.all([
+        api.get<{ lists: ContactList[] }>("/api/v1/lists"),
+        api.get<{ segments: Segment[] }>("/api/v1/segments"),
+      ]);
+      setLists(listsRes.lists ?? []);
+      setSegments(segmentsRes.segments ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load lists");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
+
+  const createList = async () => {
     if (!listName.trim()) return;
-    setLists((prev) => [
-      ...prev,
-      {
-        id: resourceId("list"),
-        name: listName.trim(),
-        description: "New list",
-        contactCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    setListName("");
-    setListOpen(false);
-    toast.success(`List "${listName}" created`);
+    setSaving(true);
+    try {
+      await api.post("/api/v1/lists", { name: listName.trim(), description: "New list" });
+      setListName("");
+      setListOpen(false);
+      toast.success("List created");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create list");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const duplicateList = async (list: ContactList) => {
+    try {
+      await api.post("/api/v1/lists", { name: `${list.name} (copy)`, description: list.description ?? "" });
+      toast.success("List duplicated");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate list");
+    }
+  };
+
+  const deleteList = async (list: ContactList) => {
+    try {
+      await api.delete(`/api/v1/lists/${list.id}`);
+      toast.success(`List "${list.name}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete list");
+    }
   };
 
   const openSegmentBuilder = (segment?: Segment) => {
@@ -114,43 +158,67 @@ export default function ListsPage() {
     setSegmentName(segment?.name ?? "");
     setMatchType(segment?.matchType ?? "all");
     setConditions(
-      segment?.conditions ?? [{ id: resourceId("c"), field: "status", operator: "is", value: "active" }]
+      segment?.conditions && segment.conditions.length > 0
+        ? segment.conditions
+        : [{ id: conditionId(), field: "status", operator: "is", value: "active" }]
     );
     setSegmentOpen(true);
   };
 
-  const saveSegment = () => {
+  const saveSegment = async () => {
     if (!segmentName.trim() || conditions.length === 0) return;
-    const now = new Date().toISOString();
-    if (editingSegment) {
-      setSegments((prev) =>
-        prev.map((s) =>
-          s.id === editingSegment.id
-            ? { ...s, name: segmentName.trim(), matchType, conditions, updatedAt: now }
-            : s
-        )
-      );
-      toast.success("Segment updated");
-    } else {
-      setSegments((prev) => [
-        ...prev,
-        {
-          id: resourceId("seg"),
-          name: segmentName.trim(),
-          description: "Custom segment",
-          matchType,
-          conditions,
-          contactCount: (resourceSeq % 280) + 20,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]);
-      toast.success("Segment created");
+    if (conditions.some((c) => !c.value.trim())) {
+      toast.error("Complete every condition value first");
+      return;
     }
-    setSegmentOpen(false);
+    setSaving(true);
+    const payload = {
+      name: segmentName.trim(),
+      description: editingSegment?.description ?? "Custom segment",
+      matchType,
+      conditions: conditions.map((c) => ({ id: c.id, field: c.field, operator: c.operator, value: c.value })),
+    };
+    try {
+      if (editingSegment) {
+        await api.patch(`/api/v1/segments/${editingSegment.id}`, payload);
+        toast.success("Segment updated");
+      } else {
+        await api.post("/api/v1/segments", payload);
+        toast.success("Segment created");
+      }
+      setSegmentOpen(false);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save segment");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const estimatePreview = conditions.filter((c) => c.value).length === conditions.length;
+  const duplicateSegment = async (segment: Segment) => {
+    try {
+      await api.post("/api/v1/segments", {
+        name: `${segment.name} (copy)`,
+        description: segment.description,
+        matchType: segment.matchType,
+        conditions: segment.conditions,
+      });
+      toast.success("Segment duplicated");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate segment");
+    }
+  };
+
+  const deleteSegment = async (segment: Segment) => {
+    try {
+      await api.delete(`/api/v1/segments/${segment.id}`);
+      toast.success(`Segment "${segment.name}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete segment");
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -183,161 +251,151 @@ export default function ListsPage() {
         </TabsList>
 
         <TabsContent value="lists" className="mt-5">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {lists.map((list) => (
-              <Card key={list.id} className="card-hover gap-4 py-5">
-                <CardHeader className="px-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
-                      <Users className="size-5" />
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16">
+              <Loader2 className="animate-spin text-muted-foreground size-6" />
+              <p className="text-muted-foreground text-sm">Loading lists…</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {lists.map((list) => (
+                <Card key={list.id} className="card-hover gap-4 py-5">
+                  <CardHeader className="px-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
+                        <Users className="size-5" />
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" aria-label="List actions">
+                            <MoreHorizontal />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => toast.info(`Viewing contacts in "${list.name}" is coming soon`)}>
+                            <Users /> View contacts
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateList(list)}>
+                            <Copy /> Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            variant="destructive"
+                            onClick={() => deleteList(list)}
+                          >
+                            <Trash2 /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="mt-2">
+                      <CardTitle className="text-[0.95rem]">{list.name}</CardTitle>
+                      <CardDescription className="mt-1 line-clamp-1">
+                        {list.description}
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                  <div className="flex items-center justify-between border-t px-5 pt-4">
+                    <div>
+                      <p className="text-xl font-semibold tabular-nums">
+                        {formatNumber(list.contactCount)}
+                      </p>
+                      <p className="text-muted-foreground text-xs">contacts</p>
+                    </div>
+                    <span className="text-muted-foreground text-xs">
+                      Created {timeAgo(list.createdAt)}
                     </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="List actions">
-                          <MoreHorizontal />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem className="cursor-pointer" onClick={() => toast.info(`Viewing contacts in "${list.name}" is coming soon`)}>
-                          <Users /> View contacts
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setLists((prev) => [
-                              ...prev,
-                              { ...list, id: resourceId("list"), name: `${list.name} (copy)`, createdAt: new Date().toISOString() },
-                            ]);
-                            toast.success(`List "${list.name}" duplicated`);
-                          }}
-                        >
-                          <Copy /> Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          variant="destructive"
-                          onClick={() => {
-                            setLists((prev) => prev.filter((l) => l.id !== list.id));
-                            toast.success(`List "${list.name}" deleted`);
-                          }}
-                        >
-                          <Trash2 /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
-                  <div className="mt-2">
-                    <CardTitle className="text-[0.95rem]">{list.name}</CardTitle>
-                    <CardDescription className="mt-1 line-clamp-1">
-                      {list.description}
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                <div className="flex items-center justify-between border-t px-5 pt-4">
-                  <div>
-                    <p className="text-xl font-semibold tabular-nums">
-                      {formatNumber(list.contactCount)}
-                    </p>
-                    <p className="text-muted-foreground text-xs">contacts</p>
-                  </div>
-                  <span className="text-muted-foreground text-xs">
-                    Created {timeAgo(list.createdAt)}
-                  </span>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))}
 
-            <button
-              onClick={() => setListOpen(true)}
-              className="border-border hover:border-primary/40 hover:bg-muted/40 flex min-h-[190px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-colors"
-            >
-              <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
-                <Plus className="size-5" />
-              </span>
-              <span className="text-sm font-medium">Create a new list</span>
-            </button>
-          </div>
+              <button
+                onClick={() => setListOpen(true)}
+                className="border-border hover:border-primary/40 hover:bg-muted/40 flex min-h-[190px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-colors"
+              >
+                <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
+                  <Plus className="size-5" />
+                </span>
+                <span className="text-sm font-medium">Create a new list</span>
+              </button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="segments" className="mt-5">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {segments.map((segment) => (
-              <Card key={segment.id} className="card-hover gap-4 py-5">
-                <CardHeader className="px-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl">
-                      <Filter className="size-5" />
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="Segment actions">
-                          <MoreHorizontal />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem className="cursor-pointer" onClick={() => openSegmentBuilder(segment)}>
-                          <Pencil /> Edit rules
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setSegments((prev) => [
-                              ...prev,
-                              { ...segment, id: resourceId("segment"), name: `${segment.name} (copy)` },
-                            ]);
-                            toast.success(`Segment "${segment.name}" duplicated`);
-                          }}
-                        >
-                          <Copy /> Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          variant="destructive"
-                          onClick={() => {
-                            setSegments((prev) => prev.filter((s) => s.id !== segment.id));
-                            toast.success(`Segment "${segment.name}" deleted`);
-                          }}
-                        >
-                          <Trash2 /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="mt-2">
-                    <CardTitle className="text-[0.95rem]">{segment.name}</CardTitle>
-                    <CardDescription className="mt-1 line-clamp-1">
-                      {segment.description}
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                <div className="border-t px-5 pt-4">
-                  <p className="text-muted-foreground mb-3 text-xs font-medium uppercase">
-                    Matches {segment.matchType === "all" ? "all" : "any"} rules:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {segment.conditions.map((c) => (
-                      <Badge key={c.id} variant="secondary" className="text-[0.65rem]">
-                        {c.field} {c.operator} {c.value}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-xl font-semibold tabular-nums">
-                        {formatNumber(segment.contactCount)}
-                      </p>
-                      <p className="text-muted-foreground text-xs">contacts match</p>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16">
+              <Loader2 className="animate-spin text-muted-foreground size-6" />
+              <p className="text-muted-foreground text-sm">Loading segments…</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {segments.map((segment) => (
+                <Card key={segment.id} className="card-hover gap-4 py-5">
+                  <CardHeader className="px-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl">
+                        <Filter className="size-5" />
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" aria-label="Segment actions">
+                            <MoreHorizontal />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => openSegmentBuilder(segment)}>
+                            <Pencil /> Edit rules
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateSegment(segment)}>
+                            <Copy /> Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            variant="destructive"
+                            onClick={() => deleteSegment(segment)}
+                          >
+                            <Trash2 /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <span className="text-muted-foreground text-xs">
-                      Updated {timeAgo(segment.updatedAt)}
-                    </span>
+                    <div className="mt-2">
+                      <CardTitle className="text-[0.95rem]">{segment.name}</CardTitle>
+                      <CardDescription className="mt-1 line-clamp-1">
+                        {segment.description}
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                  <div className="border-t px-5 pt-4">
+                    <p className="text-muted-foreground mb-3 text-xs font-medium uppercase">
+                      Matches {segment.matchType === "all" ? "all" : "any"} rules:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {segment.conditions.map((c) => (
+                        <Badge key={c.id} variant="secondary" className="text-xs">
+                          {c.field} {c.operator} {c.value}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-xl font-semibold tabular-nums">
+                          {segment.contactCount != null ? formatNumber(segment.contactCount) : "—"}
+                        </p>
+                        <p className="text-muted-foreground text-xs">contacts match</p>
+                      </div>
+                      <span className="text-muted-foreground text-xs">
+                        Updated {timeAgo(segment.updatedAt)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -361,10 +419,11 @@ export default function ListsPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setListOpen(false)}>
+            <Button variant="outline" onClick={() => setListOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={createList} disabled={!listName.trim()}>
+            <Button onClick={createList} disabled={!listName.trim() || saving}>
+              {saving && <Loader2 className="animate-spin" />}
               Create list
             </Button>
           </DialogFooter>
@@ -381,7 +440,7 @@ export default function ListsPage() {
         conditions={conditions}
         onConditionsChange={setConditions}
         onSave={saveSegment}
-        estimatePreview={estimatePreview}
+        saving={saving}
         isEditing={!!editingSegment}
       />
     </div>
@@ -398,7 +457,7 @@ function SegmentBuilderDialog({
   conditions,
   onConditionsChange,
   onSave,
-  estimatePreview,
+  saving,
   isEditing,
 }: {
   open: boolean;
@@ -410,7 +469,7 @@ function SegmentBuilderDialog({
   conditions: SegmentCondition[];
   onConditionsChange: (c: SegmentCondition[]) => void;
   onSave: () => void;
-  estimatePreview: boolean;
+  saving: boolean;
   isEditing: boolean;
 }) {
   const update = (id: string, patch: Partial<SegmentCondition>) =>
@@ -419,11 +478,13 @@ function SegmentBuilderDialog({
   const addCondition = () =>
     onConditionsChange([
       ...conditions,
-      { id: `c-${Date.now()}`, field: "status", operator: "is", value: "" },
+      { id: conditionId(), field: "status", operator: "is", value: "" },
     ]);
 
   const removeCondition = (id: string) =>
     onConditionsChange(conditions.filter((c) => c.id !== id));
+
+  const complete = name.trim() !== "" && conditions.length > 0 && conditions.every((c) => c.value.trim() !== "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -521,24 +582,14 @@ function SegmentBuilderDialog({
           <Button variant="outline" size="sm" className="self-start" onClick={addCondition}>
             <Plus /> Add condition
           </Button>
-
-          <div className="bg-muted/50 flex items-center justify-between rounded-lg border px-4 py-3">
-            <span className="text-muted-foreground text-sm">Estimated contacts</span>
-            {estimatePreview ? (
-              <span className="text-primary text-lg font-semibold tabular-nums">
-                {formatNumber(128 + conditions.length * 63)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground text-sm">Complete the rules</span>
-            )}
-          </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={!name.trim() || !estimatePreview}>
+          <Button onClick={onSave} disabled={!complete || saving}>
+            {saving && <Loader2 className="animate-spin" />}
             {isEditing ? "Save changes" : "Create segment"}
           </Button>
         </DialogFooter>

@@ -11,6 +11,7 @@ import {
   Upload,
   Save,
   Store,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +23,78 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { initials } from "@/lib/format";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 export default function ProfileSettingsPage() {
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [workspaceName, setWorkspaceName] = React.useState("");
+  const [workspaceSaving, setWorkspaceSaving] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Profile updated");
-    setTimeout(() => setSaved(false), 2000);
+  React.useEffect(() => {
+    const run = async () => {
+      try {
+        const res = await api.get<{ workspace: { id: string; name: string } }>("/api/v1/workspace");
+        setWorkspaceName(res.workspace?.name ?? "");
+      } catch {
+        // Keep the input editable; the save action will surface errors.
+      }
+    };
+    run();
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      if (user) {
+        setName(user.name);
+        setEmail(user.email);
+      }
+    };
+    run();
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.patch<{ user: { id: string; name: string; email: string; role: string } }>(
+        "/api/v1/me",
+        { name: name.trim() }
+      );
+      setUser(res.user);
+      setSaved(true);
+      toast.success("Profile updated");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveWorkspace = async () => {
+    if (!workspaceName.trim()) {
+      toast.error("Workspace name cannot be empty");
+      return;
+    }
+    setWorkspaceSaving(true);
+    try {
+      await api.patch("/api/v1/workspace", { name: workspaceName.trim() });
+      toast.success("Workspace updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update workspace");
+    } finally {
+      setWorkspaceSaving(false);
+    }
   };
 
   return (
@@ -38,11 +103,13 @@ export default function ProfileSettingsPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center gap-4">
             <Avatar className="size-16">
-              <AvatarFallback className="bg-primary/15 text-primary text-lg">GL</AvatarFallback>
+              <AvatarFallback className="bg-primary/15 text-primary text-lg">
+                {initials(name.split(" ")[0], name.split(" ")[1])}
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <CardTitle>Grace Lee</CardTitle>
-              <CardDescription>Owner at Acme Corp</CardDescription>
+              <CardTitle>{name || "Your profile"}</CardTitle>
+              <CardDescription>{user?.role ? `${user.role} · ${user.email}` : email}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => toast.info("Photo upload is coming soon")}>
@@ -52,7 +119,7 @@ export default function ProfileSettingsPage() {
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Remove photo"
-                onClick={() => toast.success("Photo removed")}
+                onClick={() => toast.info("Photo upload is coming soon")}
               >
                 <Camera />
               </Button>
@@ -60,25 +127,18 @@ export default function ProfileSettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="first-name">First name</Label>
-              <Input id="first-name" defaultValue="Grace" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="last-name">Last name</Label>
-              <Input id="last-name" defaultValue="Lee" />
-            </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="sm:w-96" />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email address</Label>
             <div className="relative">
               <Mail className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input id="email" defaultValue="grace@mailgeko.dev" className="pl-9" />
+              <Input id="email" value={email} disabled className="pl-9 sm:w-96" />
             </div>
             <p className="text-muted-foreground text-xs">
-              Used for logins and notifications. Your login email can be
-              changed in Security.
+              Used for logins and notifications. Your login email can be changed in Security.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -100,15 +160,14 @@ export default function ProfileSettingsPage() {
             <Textarea
               id="bio"
               placeholder="A short bio shown to your team…"
-              defaultValue="I run marketing at Acme Corp. Coffee first, campaigns second."
-              className="min-h-20"
+              className="min-h-20 sm:w-[30rem]"
             />
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button onClick={handleSave}>
-              {saved ? <Check /> : <Save />}
-              {saved ? "Saved" : "Save changes"}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
+              {saving ? "Saving…" : saved ? "Saved" : "Save changes"}
             </Button>
           </div>
         </CardContent>
@@ -130,7 +189,7 @@ export default function ProfileSettingsPage() {
               <Button variant="outline" size="sm" onClick={() => toast.info("Logo upload is coming soon")}>
                 <Upload /> Upload logo
               </Button>
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.success("Logo removed")}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info("Logo upload is coming soon")}>
                 Remove
               </Button>
             </div>
@@ -138,7 +197,12 @@ export default function ProfileSettingsPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="workspace-name">Workspace name</Label>
-              <Input id="workspace-name" defaultValue="Acme Corp" />
+              <Input
+                id="workspace-name"
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                placeholder="Your workspace name"
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="workspace-slug">Workspace URL</Label>
@@ -157,9 +221,9 @@ export default function ProfileSettingsPage() {
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button onClick={handleSave}>
-              {saved ? <Check /> : <Save />}
-              {saved ? "Saved" : "Save changes"}
+            <Button onClick={saveWorkspace} disabled={workspaceSaving}>
+              {workspaceSaving ? <Loader2 className="animate-spin" /> : <Save />}
+              {workspaceSaving ? "Saving…" : "Save changes"}
             </Button>
           </div>
         </CardContent>
@@ -205,9 +269,8 @@ export default function ProfileSettingsPage() {
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button onClick={handleSave}>
-              {saved ? <Check /> : <Save />}
-              {saved ? "Saved" : "Save changes"}
+            <Button variant="outline" onClick={() => toast.info("Sending defaults are coming soon")}>
+              Save changes
             </Button>
           </div>
         </CardContent>

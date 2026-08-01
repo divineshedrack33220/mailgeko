@@ -10,6 +10,7 @@ import {
   KeyRound,
   ShieldCheck,
   Eye,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,9 +34,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { toast } from "sonner";
 import { formatDate, timeAgo } from "@/lib/format";
-import { apiKeys as initialKeys } from "@/lib/mock";
+import { api } from "@/lib/api";
 import type { ApiKey } from "@/lib/types";
 
 const scopeOptions = [
@@ -47,40 +50,93 @@ const scopeOptions = [
   "events:read",
 ];
 
+interface KeyResponse {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsed?: string;
+}
+
 export default function ApiKeysSettingsPage() {
-  const [keys, setKeys] = React.useState(initialKeys);
+  const [keys, setKeys] = React.useState<ApiKey[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [creating, setCreating] = React.useState(false);
+  const [revoking, setRevoking] = React.useState<string | null>(null);
   const [keyName, setKeyName] = React.useState("");
   const [scopes, setScopes] = React.useState<string[]>(["campaigns:write", "contacts:write"]);
-  const [revealed, setRevealed] = React.useState<string | null>(null);
-  const [revealedKey, setRevealedKey] = React.useState<string | null>(null);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [revealedId, setRevealedId] = React.useState<string | null>(null);
+  const [revealedSecret, setRevealedSecret] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState<string | null>(null);
 
-  const createKey = () => {
-    if (!keyName.trim()) return;
-    const fakeKey = `mgk_live_${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 6)}`;
-    const newKey: ApiKey = {
-      id: `k-${Date.now()}`,
-      name: keyName.trim(),
-      prefix: fakeKey.slice(0, 13),
-      scopes,
-      createdAt: new Date().toISOString(),
+  const load = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ keys: KeyResponse[] }>("/api/v1/api-keys");
+      setKeys(
+        (res.keys ?? []).map((k) => ({
+          id: k.id,
+          name: k.name,
+          prefix: k.prefix,
+          scopes: k.scopes ?? [],
+          createdAt: k.createdAt,
+          lastUsed: k.lastUsed,
+        }))
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load API keys");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
     };
-    setKeys((prev) => [newKey, ...prev]);
-    setKeyName("");
-    setRevealed(newKey.id);
-    setRevealedKey(fakeKey);
-    navigator.clipboard?.writeText(fakeKey).catch(() => {});
-    toast.success("API key created — copy it now, it won't be shown again");
+    run();
+  }, [load]);
+
+  const createKey = async () => {
+    if (!keyName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await api.post<{ key: KeyResponse; secret: string }>("/api/v1/api-keys", {
+        name: keyName.trim(),
+        scopes,
+      });
+      const newKey: ApiKey = { ...res.key, scopes: res.key.scopes ?? [] };
+      setKeys((prev) => [newKey, ...prev]);
+      setKeyName("");
+      setCreateOpen(false);
+      setRevealedId(newKey.id);
+      setRevealedSecret(res.secret);
+      navigator.clipboard?.writeText(res.secret).catch(() => {});
+      toast.success("API key created — copy it now, it won't be shown again");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create API key");
+    } finally {
+      setCreating(false);
+    }
   };
 
-  const revokeKey = (id: string, name: string) => {
-    setKeys((prev) => prev.filter((k) => k.id !== id));
-    toast.success(`Revoked key "${name}"`);
+  const revokeKey = async (id: string, name: string) => {
+    setRevoking(id);
+    try {
+      await api.delete(`/api/v1/api-keys/${id}`);
+      toast.success(`Revoked key "${name}"`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke key");
+    } finally {
+      setRevoking(null);
+    }
   };
 
-  const copyPrefix = (id: string, prefix: string) => {
+  const copyValue = (id: string, value: string) => {
     setCopied(id);
-    navigator.clipboard?.writeText(prefix).catch(() => {});
+    navigator.clipboard?.writeText(value).catch(() => {});
     setTimeout(() => setCopied(null), 1500);
   };
 
@@ -95,7 +151,7 @@ export default function ApiKeysSettingsPage() {
                 Keys authenticate server-side requests to the Mailgeko API.
               </CardDescription>
             </div>
-            <Dialog>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus /> Create key
@@ -145,8 +201,8 @@ export default function ApiKeysSettingsPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={createKey} disabled={!keyName.trim()}>
-                    <KeyRound /> Create key
+                  <Button onClick={createKey} disabled={!keyName.trim() || creating}>
+                    {creating ? <Loader2 className="animate-spin" /> : <KeyRound />} Create key
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -154,83 +210,101 @@ export default function ApiKeysSettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y">
-            {keys.map((key) => (
-              <div key={key.id} className="hover:bg-muted/40 flex flex-wrap items-center gap-3 px-5 py-4 transition-colors">
-                <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
-                  <KeyRound className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium">{key.name}</p>
-                    {revealed === key.id ? (
-                      <Badge variant="success">New — copy it now</Badge>
-                    ) : (
-                      <Badge variant="outline">{key.scopes.length} scopes</Badge>
-                    )}
-                  </div>
-                  <div className="text-muted-foreground mt-0.5 flex items-center gap-2 font-mono text-xs">
-                    {revealed === key.id ? (
-                      <span className="text-foreground">
-                        {revealedKey ?? `${key.prefix}•••••••••••••••`}
-                      </span>
-                    ) : (
+          {loading ? (
+            <div className="flex flex-col gap-3 p-6">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ) : keys.length === 0 ? (
+            <EmptyState
+              title="No API keys yet"
+              description="Create a key to authenticate server-side requests."
+              actionLabel="Create key"
+              onAction={() => setCreateOpen(true)}
+              icon={KeyRound}
+              compact
+            />
+          ) : (
+            <div className="divide-y">
+              {keys.map((key) => (
+                <div key={key.id} className="hover:bg-muted/40 flex flex-wrap items-center gap-3 px-5 py-4 transition-colors">
+                  <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                    <KeyRound className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{key.name}</p>
+                      {revealedId === key.id ? (
+                        <Badge variant="success">New — copy it now</Badge>
+                      ) : (
+                        <Badge variant="outline">{key.scopes.length} scopes</Badge>
+                      )}
+                    </div>
+                    <div className="text-muted-foreground mt-0.5 flex items-center gap-2 font-mono text-xs">
+                      {revealedId === key.id ? (
+                        <span className="text-foreground">
+                          {revealedSecret ?? `${key.prefix}•••••••••••••••`}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setRevealedId(key.id)}
+                          className="hover:text-foreground flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {key.prefix}••••••••••••••• <Eye className="size-3.5" />
+                        </button>
+                      )}
                       <button
-                        onClick={() => setRevealed(key.id)}
-                        className="hover:text-foreground flex items-center gap-1.5 cursor-pointer"
+                        onClick={() =>
+                          copyValue(key.id, revealedId === key.id && revealedSecret ? revealedSecret : key.prefix)
+                        }
+                        className="hover:text-foreground cursor-pointer"
+                        aria-label="Copy key"
                       >
-                        {key.prefix}••••••••••••••• <Eye className="size-3.5" />
+                        {copied === key.id ? <Check className="text-success size-3.5" /> : <Copy className="size-3.5" />}
                       </button>
-                    )}
-                    <button
-                      onClick={() => copyPrefix(key.id, key.prefix)}
-                      className="hover:text-foreground cursor-pointer"
-                      aria-label="Copy key"
-                    >
-                      {copied === key.id ? <Check className="text-success size-3.5" /> : <Copy className="size-3.5" />}
-                    </button>
+                    </div>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Created {formatDate(key.createdAt)}
+                      {key.lastUsed ? ` · Last used ${timeAgo(key.lastUsed)}` : " · Never used"}
+                    </p>
                   </div>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    Created {formatDate(key.createdAt)}
-                    {key.lastUsed ? ` · Last used ${timeAgo(key.lastUsed)}` : " · Never used"}
-                    {key.expiresAt ? ` · Expires ${formatDate(key.expiresAt)}` : ""}
-                  </p>
+                  <div className="hidden flex-wrap gap-1 md:flex">
+                    {key.scopes.slice(0, 2).map((scope) => (
+                      <Badge key={scope} variant="secondary" className="text-xs">
+                        {scope}
+                      </Badge>
+                    ))}
+                    {key.scopes.length > 2 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{key.scopes.length - 2}
+                      </Badge>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${key.name}`}>
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuLabel>{key.name}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => setRevealedId(key.id)}>
+                        <Eye /> Reveal key
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive cursor-pointer"
+                        disabled={revoking === key.id}
+                        onClick={() => revokeKey(key.id, key.name)}
+                      >
+                        <Trash2 /> Revoke key
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <div className="hidden flex-wrap gap-1 md:flex">
-                  {key.scopes.slice(0, 2).map((scope) => (
-                    <Badge key={scope} variant="secondary" className="text-[0.65rem]">
-                      {scope}
-                    </Badge>
-                  ))}
-                  {key.scopes.length > 2 && (
-                    <Badge variant="secondary" className="text-[0.65rem]">
-                      +{key.scopes.length - 2}
-                    </Badge>
-                  )}
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${key.name}`}>
-                      <MoreHorizontal />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuLabel>{key.name}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => setRevealed(key.id)}>
-                      <Eye /> Reveal key
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive cursor-pointer"
-                      onClick={() => revokeKey(key.id, key.name)}
-                    >
-                      <Trash2 /> Revoke key
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

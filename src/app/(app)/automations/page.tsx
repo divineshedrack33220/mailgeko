@@ -19,6 +19,7 @@ import {
   Webhook,
   UserMinus,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -37,7 +38,7 @@ import {
 import { AutomationStatusBadge } from "@/components/shared/status-badges";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatNumber, timeAgo } from "@/lib/format";
-import { automations as mockAutomations } from "@/lib/mock";
+import { api } from "@/lib/api";
 import type { Automation, AutomationStatus, AutomationStepType } from "@/lib/types";
 
 const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: string }>> = {
@@ -51,8 +52,27 @@ const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: st
 };
 
 export default function AutomationsPage() {
-  const [automations, setAutomations] = React.useState(mockAutomations);
+  const [automations, setAutomations] = React.useState<Automation[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState("all");
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ automations: Automation[] }>("/api/v1/automations");
+      setAutomations(res.automations ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load automations");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [load]);
 
   const filtered = automations.filter(
     (a) => tab === "all" || a.status === (tab as AutomationStatus)
@@ -65,12 +85,48 @@ export default function AutomationsPage() {
     draft: automations.filter((a) => a.status === "draft").length,
   };
 
-  const toggleStatus = (automation: Automation) => {
+  const payloadFor = (a: Automation, status: AutomationStatus) => ({
+    name: a.name,
+    description: a.description,
+    trigger: {
+      type: a.trigger.type,
+      label: a.trigger.label,
+      conditions: a.trigger.conditions,
+      delay: a.trigger.delay,
+    },
+    steps: a.steps,
+    status,
+  });
+
+  const toggleStatus = async (automation: Automation) => {
     const next: AutomationStatus = automation.status === "active" ? "paused" : "active";
-    setAutomations((prev) =>
-      prev.map((a) => (a.id === automation.id ? { ...a, status: next } : a))
-    );
-    toast.success(next === "active" ? "Automation activated" : "Automation paused");
+    try {
+      await api.patch(`/api/v1/automations/${automation.id}`, payloadFor(automation, next));
+      toast.success(next === "active" ? "Automation activated" : "Automation paused");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update automation");
+    }
+  };
+
+  const duplicateAutomation = async (automation: Automation) => {
+    try {
+      await api.post(`/api/v1/automations/${automation.id}/duplicate`, {});
+      toast.success(`"${automation.name}" duplicated`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not duplicate automation");
+    }
+  };
+
+  const deleteAutomation = async (automation: Automation) => {
+    try {
+      await api.delete(`/api/v1/automations/${automation.id}`);
+      toast.success(`"${automation.name}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete automation");
+    }
   };
 
   return (
@@ -114,11 +170,17 @@ export default function AutomationsPage() {
         </TabsList>
       </Tabs>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-16">
+          <Loader2 className="animate-spin text-muted-foreground size-6" />
+          <p className="text-muted-foreground text-sm">Loading automations…</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState
-          title="No automations yet"
+          title={automations.length === 0 ? "No automations yet" : "No automations found"}
           description="Build a workflow that runs on its own — like a welcome series or abandoned-cart recovery."
-          actionLabel="New automation"
+          actionLabel={automations.length === 0 ? "New automation" : undefined}
+          actionHref={automations.length === 0 ? "/automations/new" : undefined}
           icon={Workflow}
         />
       ) : (
@@ -165,20 +227,7 @@ export default function AutomationsPage() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="cursor-pointer"
-                        onClick={() => {
-                          setAutomations((prev) => [
-                            ...prev,
-                            {
-                            ...automation,
-                            id: `a-${Date.now()}`,
-                            name: `${automation.name} (copy)`,
-                            status: "draft",
-                            contacts: 0,
-                            activeCount: 0,
-                            },
-                          ]);
-                          toast.success(`"${automation.name}" duplicated`);
-                        }}
+                        onClick={() => duplicateAutomation(automation)}
                       >
                         <Copy /> Duplicate
                       </DropdownMenuItem>
@@ -186,10 +235,7 @@ export default function AutomationsPage() {
                       <DropdownMenuItem
                         className="cursor-pointer"
                         variant="destructive"
-                        onClick={() => {
-                          setAutomations((prev) => prev.filter((a) => a.id !== automation.id));
-                          toast.success(`"${automation.name}" deleted`);
-                        }}
+                        onClick={() => deleteAutomation(automation)}
                       >
                         <Trash2 /> Delete
                       </DropdownMenuItem>
@@ -246,14 +292,14 @@ export default function AutomationsPage() {
               <div className="flex items-center justify-between px-5">
                 <div>
                   <p className="text-lg font-semibold tabular-nums">
-                    {formatNumber(automation.activeCount)}
+                    {automation.activeCount != null ? formatNumber(automation.activeCount) : "—"}
                   </p>
                   <p className="text-muted-foreground text-xs">in flow this week</p>
                 </div>
                 <div className="text-right">
                   <AutomationStatusBadge status={automation.status} />
                   <p className="text-muted-foreground mt-1 text-[0.7rem]">
-                    {automation.contacts.toLocaleString()} contacts · Updated {timeAgo(automation.updatedAt)}
+                    Updated {timeAgo(automation.updatedAt)}
                   </p>
                 </div>
               </div>

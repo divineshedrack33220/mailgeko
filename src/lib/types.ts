@@ -39,7 +39,7 @@ export interface Segment {
   description?: string;
   matchType: "all" | "any";
   conditions: SegmentCondition[];
-  contactCount: number;
+  contactCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +80,7 @@ export interface Campaign {
   status: CampaignStatus;
   type: CampaignType;
   listIds: string[];
+  segmentIds?: string[];
   scheduleAt?: string;
   sender: {
     fromName: string;
@@ -127,8 +128,8 @@ export interface Automation {
   };
   steps: AutomationStep[];
   status: AutomationStatus;
-  contacts: number;
-  activeCount: number;
+  contacts?: number;
+  activeCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -165,7 +166,8 @@ export interface TeamMember {
   role: "Owner" | "Admin" | "Manager" | "Viewer";
   status: "active" | "invited";
   lastActive?: string;
-  twoFactorEnabled: boolean;
+  invitedAt?: string;
+  twoFactorEnabled?: boolean;
 }
 
 export interface ApiKey {
@@ -198,4 +200,30 @@ export interface CountryStat {
   country: string;
   code: string;
   opens: number;
+}
+
+export interface BillingPlan {
+  id: string;
+  name: string;
+  priceMonthly: number;
+  emailsPerMonth: number;
+  maxContacts: number;
+  maxUsers: number;
+  features: string[];
+}
+
+export interface BillingUsage {
+  contacts: number;
+  emailsThisMonth: number;
+}
+
+export interface BillingLimits {
+  plan: string;
+  planName: string;
+  maxContacts: number;
+  maxEmailsPerMonth: number;
+  contacts: number;
+  emailsThisMonth: number;
+  contactsExceeded: boolean;
+  emailsExceeded: boolean;
 }
