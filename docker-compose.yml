@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "8080"
+      APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      TIDB_DSN: ${TIDB_DSN:?set TIDB_DSN}
+      POSTGRES_DSN: ${POSTGRES_DSN:-}
+      REDIS_ADDR: ${REDIS_ADDR:?set REDIS_ADDR}
+      RESEND_API_KEYS: ${RESEND_API_KEYS:-}
+      RESEND_API_ENDPOINT: ${RESEND_API_ENDPOINT:-https://api.resend.com}
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-none}
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBED_MODEL: ${EMBED_MODEL:-}
+      EMBED_DIMS: ${EMBED_DIMS:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_IDS: ${STRIPE_PRICE_IDS:-}
+    restart: unless-stopped

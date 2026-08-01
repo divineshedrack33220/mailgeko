@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+build
+coverage
+.git
+backend/bin
+*.log
+*.pem
+.env*
+Dockerfile
+docker-compose.yml
+docker-entrypoint.sh
