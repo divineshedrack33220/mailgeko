@@ -16,6 +16,20 @@ func TestSubstitute(t *testing.T) {
 	}
 }
 
+func TestSubstituteDoubleBraces(t *testing.T) {
+	vars := map[string]string{"first_name": "Sarah", "last_name": "Lee"}
+	got := Substitute("Hi {{first_name}} {{last_name}}!", vars)
+	want := "Hi Sarah Lee!"
+	if got != want {
+		t.Errorf("Substitute(double braces) = %q, want %q", got, want)
+	}
+	got = Substitute("Hi {first_name} and {{first_name}}", vars)
+	want = "Hi Sarah and Sarah"
+	if got != want {
+		t.Errorf("Substitute(mixed) = %q, want %q", got, want)
+	}
+}
+
 func TestRenderHTML(t *testing.T) {
 	html := `<html><body><h1>Hello {first_name}</h1><a href="https://example.com/pricing">Pricing</a></body></html>`
 	got := RenderHTML(html, map[string]string{"first_name": "Ada"}, RenderOptions{

@@ -303,7 +303,18 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		body = "<p>" + c.PlainText + "</p>"
 	}
 
-	html := RenderHTML(body, map[string]string{"first_name": "Test"}, RenderOptions{
+	vars := map[string]string{
+		"first_name": "Test",
+		"last_name":  "User",
+		"email":      to,
+		"company":    "Acme Inc.",
+		"position":   "Manager",
+		"country":    "United States",
+		"city":       "San Francisco",
+		"phone":      "+1 555 0100",
+	}
+
+	html := RenderHTML(body, vars, RenderOptions{
 		BaseURL:          e.baseURL,
 		TrackOpens:       c.TrackOpens,
 		TrackClicks:      c.TrackClicks,
@@ -323,7 +334,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 	_, err := e.sender.Send(ctx, sender.Message{
 		From:    from,
 		To:      to,
-		Subject: c.Subject,
+		Subject: Substitute(c.Subject, vars),
 		HTML:    html,
 		Text:    c.PlainText,
 		ReplyTo: c.ReplyTo,

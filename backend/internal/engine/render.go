@@ -40,8 +40,9 @@ func Substitute(content string, vars map[string]string) string {
 	if !strings.Contains(content, "{") {
 		return content
 	}
-	pairs := make([]string, 0, len(vars)*2)
+	pairs := make([]string, 0, len(vars)*4)
 	for k, v := range vars {
+		pairs = append(pairs, "{{"+k+"}}", v)
 		pairs = append(pairs, "{"+k+"}", v)
 	}
 	return strings.NewReplacer(pairs...).Replace(content)
