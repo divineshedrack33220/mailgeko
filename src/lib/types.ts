@@ -1,5 +1,17 @@
 export type ContactStatus = "active" | "unsubscribed" | "bounced" | "spam";
 
+export interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link?: string;
+  read: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+
 export interface Contact {
   id: string;
   email: string;

@@ -63,8 +63,8 @@ func (s *Store) MarkRecipientSkipped(ctx context.Context, campaignID, contactID 
 	return err
 }
 
-func (s *Store) CompleteCampaignIfDone(ctx context.Context, campaignID string) error {
-	_, err := s.db.ExecContext(ctx,
+func (s *Store) CompleteCampaignIfDone(ctx context.Context, campaignID string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
 		`UPDATE campaigns SET status = 'sent', updated_at = ?
 		 WHERE id = ? AND status = 'sending'
 		   AND NOT EXISTS (
@@ -72,7 +72,11 @@ func (s *Store) CompleteCampaignIfDone(ctx context.Context, campaignID string) e
 		     WHERE campaign_id = ? AND status = 'queued'
 		   )`,
 		time.Now().UTC(), campaignID, campaignID)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 func (s *Store) firstOccurrence(ctx context.Context, campaignID, contactID, column string) (bool, error) {

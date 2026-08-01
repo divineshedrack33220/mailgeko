@@ -11,6 +11,7 @@ import {
   Moon,
   Sun,
   Command,
+  Loader2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { api } from "@/lib/api";
+import { timeAgo } from "@/lib/format";
+import { AppNotification } from "@/lib/types";
 
 export function Topbar() {
   const pathname = usePathname();
@@ -138,91 +142,153 @@ function ThemeToggle() {
   );
 }
 
-const notifications = [
-  {
-    id: 1,
-    title: "Campaign finished sending",
-    detail: "July Product Digest reached 1,089 inboxes.",
-    time: "2h ago",
-    unread: true,
-  },
-  {
-    id: 2,
-    title: "Bounce rate spike detected",
-    detail: "Bounce rate on Acme mailing is above 3%.",
-    time: "5h ago",
-    unread: true,
-  },
-  {
-    id: 3,
-    title: "AI Studio ready",
-    detail: "New subject line generator is live.",
-    time: "1d ago",
-    unread: false,
-  },
-  {
-    id: 4,
-    title: "New subscriber milestone",
-    detail: "You passed 1,200 active subscribers.",
-    time: "2d ago",
-    unread: false,
-  },
-];
-
 function NotificationsMenu() {
+  const router = useRouter();
   const open = useUiStore((s) => s.notificationsOpen);
   const setOpen = useUiStore((s) => s.setNotificationsOpen);
+  const [notifications, setNotifications] = React.useState<AppNotification[]>([]);
+  const [unread, setUnread] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<{ notifications: AppNotification[]; unread: number }>(
+        "/api/v1/notifications"
+      );
+      setNotifications(res.notifications ?? []);
+      setUnread(res.unread ?? 0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const run = async () => {
+      await load();
+    };
+    run();
+  }, [open, load]);
+
+  const markRead = async (n: AppNotification) => {
+    if (!n.read) {
+      void api.post(`/api/v1/notifications/${n.id}/read`).catch(() => {});
+      setUnread((u) => Math.max(0, u - 1));
+      setNotifications((list) =>
+        list.map((x) => (x.id === n.id ? { ...x, read: true } : x))
+      );
+    }
+    if (n.link) router.push(n.link);
+    setOpen(false);
+  };
+
+  const markAllRead = async () => {
+    try {
+      await api.post("/api/v1/notifications/read-all");
+      setUnread(0);
+      setNotifications((list) => list.map((x) => ({ ...x, read: true })));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update notifications");
+    }
+  };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon-sm" className="relative" aria-label="Notifications">
           <Bell className="size-[1.15rem]" />
-          <span className="bg-primary absolute top-1.5 right-1.5 size-1.5 rounded-full ring-2 ring-background" />
+          {unread > 0 && (
+            <span className="bg-primary absolute top-1 right-1 flex size-3.5 items-center justify-center rounded-full text-[0.55rem] font-semibold text-primary-foreground ring-2 ring-background">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0">
         <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
           <span className="text-sm font-semibold">Notifications</span>
-          <Badge variant="secondary" className="text-xs">
-            2 new
-          </Badge>
+          <div className="flex items-center gap-2">
+            {unread > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {unread} new
+              </Badge>
+            )}
+            {unread > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-muted-foreground hover:text-foreground cursor-pointer text-xs font-medium"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <ScrollArea className="max-h-80">
-          {notifications.map((n) => (
-            <DropdownMenuItem
-              key={n.id}
-              className={cn(
-                "cursor-pointer items-start gap-3 px-4 py-3",
-                !n.unread && "opacity-60"
-              )}
-            >
-              <span className="bg-primary/10 text-primary mt-1 flex size-2 shrink-0 rounded-full" />
-              <span className="flex flex-col gap-0.5">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  {n.title}
-                  {n.unread && (
-                    <span className="bg-primary size-1.5 rounded-full" />
+          {loading && notifications.length === 0 ? (
+            <div className="text-muted-foreground flex items-center gap-2 px-4 py-8 text-sm">
+              <Loader2 className="animate-spin" />
+              Loading…
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-1 px-4 py-8 text-center text-sm">
+              <span>You&apos;re all caught up.</span>
+              <span className="text-xs">Campaign and account updates will show up here.</span>
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  void markRead(n);
+                }}
+                className={cn(
+                  "cursor-pointer items-start gap-3 px-4 py-3",
+                  n.read && "opacity-60"
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-1 flex size-2 shrink-0 rounded-full",
+                    n.read ? "bg-muted-foreground/40" : "bg-primary/10"
                   )}
+                >
+                  {!n.read && <span className="bg-primary size-1.5 self-center rounded-full" />}
                 </span>
-                <span className="text-muted-foreground text-xs leading-relaxed">
-                  {n.detail}
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    {n.title}
+                    {!n.read && (
+                      <span className="bg-primary size-1.5 rounded-full" />
+                    )}
+                  </span>
+                  <span className="text-muted-foreground text-xs leading-relaxed">{n.body}</span>
+                  <span className="text-muted-foreground mt-0.5 text-[0.7rem]">
+                    {timeAgo(n.createdAt)}
+                  </span>
                 </span>
-                <span className="text-muted-foreground mt-0.5 text-[0.7rem]">
-                  {n.time}
-                </span>
-              </span>
-            </DropdownMenuItem>
-          ))}
+              </DropdownMenuItem>
+            ))
+          )}
         </ScrollArea>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="cursor-pointer justify-center py-2 text-center text-xs font-medium"
-          onClick={() => toast.info("Notification center is coming soon")}
-        >
-          View all notifications
-        </DropdownMenuItem>
+        {notifications.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="justify-center py-2 text-center text-xs font-medium"
+              onSelect={(e) => {
+                e.preventDefault();
+                setOpen(false);
+              }}
+            >
+              View all notifications
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

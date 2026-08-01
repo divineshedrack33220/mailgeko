@@ -14,9 +14,10 @@ existing API can support it today:
 
 ## Topbar — src/components/layout/topbar.tsx
 
-- [ ] **Notification center** — hardcoded `notifications` array (`topbar.tsx:141`), hardcoded
-      "2 new" badge (`:187`), "View all notifications" → toast (`:220`) — Backend? No (only
-      email prefs exist; no in-app notifications endpoint)
+- [x] **Notification center** — bell dropdown fetches `GET /api/v1/notifications` on open, shows real
+      unread count badge, mark-as-read on click (navigates to link), "Mark all as read" (`POST
+      /notifications/read-all`), empty/loading states. Backend generates notifications on campaign
+      send/failure via engine hooks.
 
 ## Contacts list — src/app/(app)/contacts/page.tsx
 

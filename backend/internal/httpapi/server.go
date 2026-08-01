@@ -181,6 +181,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/notifications/prefs", s.withAuth(http.HandlerFunc(s.handleGetNotificationPrefs)))
 	mux.Handle("PUT /api/v1/notifications/prefs", s.withAuth(http.HandlerFunc(s.handleUpdateNotificationPrefs)))
 
+	mux.Handle("GET /api/v1/notifications", s.withAuth(http.HandlerFunc(s.handleListNotifications)))
+	mux.Handle("POST /api/v1/notifications/read-all", s.withAuth(http.HandlerFunc(s.handleReadAllNotifications)))
+	mux.Handle("POST /api/v1/notifications/{id}/read", s.withAuth(http.HandlerFunc(s.handleMarkNotificationRead)))
+
 	mux.Handle("GET /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleGetWorkspace)))
 	mux.Handle("PATCH /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspace)))
 

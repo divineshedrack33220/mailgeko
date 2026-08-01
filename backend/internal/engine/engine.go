@@ -62,6 +62,10 @@ func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
 
 	ids, err := e.resolveRecipients(ctx, campaign)
 	if err != nil {
+		_ = e.notify(ctx, campaign.WorkspaceID, "campaign-failed",
+			"Campaign failed to start",
+			"Your campaign \""+campaign.Name+"\" could not start because its audience could not be resolved.",
+			"/campaigns/"+campaign.ID)
 		return err
 	}
 
@@ -214,10 +218,33 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 }
 
 func (e *Engine) maybeCompleteCampaign(ctx context.Context, campaign *store.Campaign) error {
-	if err := e.store.CompleteCampaignIfDone(ctx, campaign.ID); err != nil {
+	done, err := e.store.CompleteCampaignIfDone(ctx, campaign.ID)
+	if err != nil {
 		return err
 	}
+	if done {
+		_ = e.notify(ctx, campaign.WorkspaceID, "campaign-sent",
+			"Campaign finished sending",
+			"Your campaign \""+campaign.Name+"\" finished sending.",
+			"/campaigns/"+campaign.ID)
+	}
 	return nil
+}
+
+func (e *Engine) notify(ctx context.Context, workspaceID, typ, title, body, link string) error {
+	userID, err := e.store.WorkspaceOwnerUserID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	return e.store.CreateNotification(ctx, &store.Notification{
+		ID:          uuid.NewString(),
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Type:        typ,
+		Title:       title,
+		Body:        body,
+		Link:        link,
+	})
 }
 
 func (e *Engine) RecordEvent(ctx context.Context, in EventInput) error {
