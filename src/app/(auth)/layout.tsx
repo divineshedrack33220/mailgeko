@@ -23,7 +23,7 @@ export default function AuthLayout({
         <div className="relative z-10 max-w-md">
           <Badge variant="success" className="mb-5">
             <span className="size-1.5 animate-pulse rounded-full bg-current" />
-            Trusted by 100+ growing teams
+            Trusted by 42,000+ growing teams
           </Badge>
           <blockquote className="text-2xl leading-snug font-medium tracking-tight text-balance">
             “Mailgeko replaced three tools. We own our data, our deliverability

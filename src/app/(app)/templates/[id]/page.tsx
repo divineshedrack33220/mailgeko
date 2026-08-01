@@ -51,7 +51,7 @@ const fallbackMjml = `<mjml>
         <mj-text font-size="16px" line-height="1.6" color="#52525b">
           Start with a great subject line and a clear call to action.
         </mj-text>
-        <mj-button href="{{cta_url}}" background-color="#059669" color="#ffffff" border-radius="8px" padding="14px 28px">
+        <mj-button href="{{cta_url}}" background-color="#3bb974" color="#ffffff" border-radius="8px" padding="14px 28px">
           Get started →
         </mj-button>
         <mj-spacer height="24px" />

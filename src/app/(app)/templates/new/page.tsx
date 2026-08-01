@@ -23,7 +23,7 @@ const initialMjml = `<mjml>
         <mj-text font-size="16px" line-height="1.6" color="#52525b">
           Write your email copy here.
         </mj-text>
-        <mj-button href="{{cta_url}}" background-color="#059669" color="#ffffff" border-radius="8px">
+        <mj-button href="{{cta_url}}" background-color="#3bb974" color="#ffffff" border-radius="8px">
           Call to action →
         </mj-button>
       </mj-column>
