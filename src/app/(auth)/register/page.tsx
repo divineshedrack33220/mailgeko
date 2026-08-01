@@ -72,12 +72,12 @@ export default function RegisterPage() {
             <Label htmlFor="first-name">First name</Label>
             <div className="relative">
               <User className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input id="first-name" placeholder="Grace" className="pl-9" required />
+              <Input id="first-name" name="first-name" placeholder="Grace" className="pl-9" required />
             </div>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="last-name">Last name</Label>
-            <Input id="last-name" placeholder="Lee" required />
+            <Input id="last-name" name="last-name" placeholder="Lee" required />
           </div>
         </div>
         <div className="flex flex-col gap-2">
@@ -86,6 +86,7 @@ export default function RegisterPage() {
             <Mail className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               id="email"
+              name="email"
               type="email"
               placeholder="you@company.com"
               className="pl-9"

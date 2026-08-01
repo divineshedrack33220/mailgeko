@@ -79,6 +79,7 @@ export default function ForgotPasswordPage() {
             <Mail className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               id="email"
+              name="email"
               type="email"
               placeholder="you@company.com"
               className="pl-9"

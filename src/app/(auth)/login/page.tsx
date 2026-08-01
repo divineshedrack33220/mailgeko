@@ -63,6 +63,7 @@ export default function LoginPage() {
               <Mail className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="you@company.com"
                 className="pl-9"
@@ -85,6 +86,7 @@ export default function LoginPage() {
               <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 className="pr-9 pl-9"
