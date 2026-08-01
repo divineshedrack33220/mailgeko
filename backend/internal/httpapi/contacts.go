@@ -208,6 +208,16 @@ func (s *Server) handleDeleteContact(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleListTags(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	tags, err := s.db.TagCounts(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load tags")
+		return
+	}
+	writeOK(w, map[string]any{"tags": tags})
+}
+
 func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	var req struct {

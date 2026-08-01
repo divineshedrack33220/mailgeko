@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"sort"
 	"time"
 )
 
@@ -218,4 +219,43 @@ func sqlIn(columns, table, wsCol, idCol, workspaceID string, ids []string) (stri
 		args = append(args, id)
 	}
 	return "SELECT " + columns + " FROM " + table + " WHERE " + wsCol + " = ? AND " + idCol + " IN (" + placeholders + ")", args, nil
+}
+
+type TagCount struct {
+	Tag   string `json:"tag"`
+	Count int64  `json:"count"`
+}
+
+func (s *Store) TagCounts(ctx context.Context, workspaceID string) ([]TagCount, error) {
+	rows, err := s.db.QueryxContext(ctx,
+		`SELECT tags FROM contacts WHERE workspace_id = ?`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int64)
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		for _, t := range unmarshalStringSlice(raw) {
+			counts[t]++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]TagCount, 0, len(counts))
+	for tag, count := range counts {
+		out = append(out, TagCount{Tag: tag, Count: count})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Tag < out[j].Tag
+	})
+	return out, nil
 }

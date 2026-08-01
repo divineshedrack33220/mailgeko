@@ -47,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Automation, AutomationStatus, AutomationStep, AutomationStepType } from "@/lib/types";
@@ -903,13 +904,36 @@ function ConditionConfig() {
 }
 
 function TagConfig({ action }: { action: "Add" | "Remove" }) {
+  const [value, setValue] = React.useState("");
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [tags, setTags] = React.useState<{ tag: string; count: number }[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    setLoading(true);
+    try {
+      const res = await api.get<{ tags: { tag: string; count: number }[] }>("/api/v1/tags");
+      setTags(res.tags ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load tags");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>{action} tag</Label>
         <div className="flex gap-2">
-          <Input placeholder="e.g. re-engaged" className="flex-1" />
-          <Button variant="outline" size="icon-sm" aria-label="Choose tag" onClick={() => toast.info("Tag picker is coming soon")}>
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="e.g. re-engaged"
+            className="flex-1"
+          />
+          <Button variant="outline" size="icon-sm" aria-label="Choose tag" onClick={openPicker}>
             <Tag />
           </Button>
         </div>
@@ -919,6 +943,49 @@ function TagConfig({ action }: { action: "Add" | "Remove" }) {
           Tags are instant — the change applies before the next step runs.
         </p>
       </div>
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose a tag</DialogTitle>
+            <DialogDescription>
+              Pick an existing tag to {action.toLowerCase()} on contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-6">
+                <Loader2 className="animate-spin text-muted-foreground size-4" />
+                <p className="text-muted-foreground text-sm">Loading tags…</p>
+              </div>
+            ) : tags.length === 0 ? (
+              <p className="text-muted-foreground py-4 text-center text-sm">
+                No tags yet — type a new one in the field above.
+              </p>
+            ) : (
+              tags.map((t) => (
+                <button
+                  key={t.tag}
+                  type="button"
+                  onClick={() => {
+                    setValue(t.tag);
+                    setPickerOpen(false);
+                  }}
+                  className="flex cursor-pointer items-center justify-between rounded-lg border-2 px-3 py-2 text-left transition-all hover:border-primary/40"
+                >
+                  <span className="flex items-center gap-2">
+                    <Tag className="text-muted-foreground size-3.5" />
+                    <span className="text-sm font-medium">{t.tag}</span>
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {t.count} contacts
+                  </Badge>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
