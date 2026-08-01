@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
+  <rect width="600" height="800" fill="#0a0a0a"/>
+  <g stroke="#ffffff" stroke-opacity="0.035" fill="none"><line x1="0" y1="0" x2="0" y2="800"/><line x1="48" y1="0" x2="48" y2="800"/><line x1="96" y1="0" x2="96" y2="800"/><line x1="144" y1="0" x2="144" y2="800"/><line x1="192" y1="0" x2="192" y2="800"/><line x1="240" y1="0" x2="240" y2="800"/><line x1="288" y1="0" x2="288" y2="800"/><line x1="336" y1="0" x2="336" y2="800"/><line x1="384" y1="0" x2="384" y2="800"/><line x1="432" y1="0" x2="432" y2="800"/><line x1="480" y1="0" x2="480" y2="800"/><line x1="528" y1="0" x2="528" y2="800"/><line x1="576" y1="0" x2="576" y2="800"/><line x1="0" y1="0" x2="600" y2="0"/><line x1="0" y1="48" x2="600" y2="48"/><line x1="0" y1="96" x2="600" y2="96"/><line x1="0" y1="144" x2="600" y2="144"/><line x1="0" y1="192" x2="600" y2="192"/><line x1="0" y1="240" x2="600" y2="240"/><line x1="0" y1="288" x2="600" y2="288"/><line x1="0" y1="336" x2="600" y2="336"/><line x1="0" y1="384" x2="600" y2="384"/><line x1="0" y1="432" x2="600" y2="432"/><line x1="0" y1="480" x2="600" y2="480"/><line x1="0" y1="528" x2="600" y2="528"/><line x1="0" y1="576" x2="600" y2="576"/><line x1="0" y1="624" x2="600" y2="624"/><line x1="0" y1="672" x2="600" y2="672"/><line x1="0" y1="720" x2="600" y2="720"/><line x1="0" y1="768" x2="600" y2="768"/></g>
+  <g><circle cx="300" cy="330" r="150" fill="none" stroke="#1e1e1e" stroke-width="12"/>
+  <circle cx="300" cy="330" r="150" fill="none" stroke="#3bb974" stroke-width="12" stroke-linecap="round" stroke-dasharray="819.2 942.5" transform="rotate(-90 300 330)"/><g transform="translate(300,330) scale(2.6) translate(-4,-4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.9">
+  <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.9" stroke="none"/>
+  <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M32 30.5C28.5 32.5 25 31.5 25.5 28.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M22 21.5C22 24.5 21 26 18 27.5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29.5 23.5C30.5 26 31.5 27.5 30.5 30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
+</g></g></g>
+  <rect x="0" y="792" width="600" height="8" fill="#3bb974"/>
+  <text x="60" y="96" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="64" letter-spacing="5">DELIVERABILITY</text>
+  <text x="62" y="132" fill="#3bb974" font-family="'JetBrains Mono',monospace" font-size="13" letter-spacing="4">INBOX FIRST</text>
+  <rect x="60" y="150" width="110" height="3" fill="#3bb974"/>
+</svg>

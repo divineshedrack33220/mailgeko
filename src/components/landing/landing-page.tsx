@@ -27,16 +27,22 @@ interface LandingPageProps {
 }
 
 const REEL_IMAGES = [
-  "https://picsum.photos/seed/mailgekoA/1920/1080.jpg",
-  "https://picsum.photos/seed/mailgekoB/1920/1080.jpg",
-  "https://picsum.photos/seed/mailgekoC/1920/1080.jpg",
-  "https://picsum.photos/seed/mailgekoD/1920/1080.jpg",
-  "https://picsum.photos/seed/mailgekoE/1920/1080.jpg",
+  "/landing/reel-1.svg",
+  "/landing/reel-2.svg",
+  "/landing/reel-3.svg",
+  "/landing/reel-4.svg",
+  "/landing/reel-5.svg",
 ];
 
 const TICKER = [
+  "AGILE",
+  "SMART",
+  "RELIABLE",
+  "STICKY",
   "SEND SMART",
-  "BUILD RELATIONSHIPS",
+  "STICKY DELIVERABILITY",
+  "CLINGS TO THE INBOX",
+  "QUICK ON ITS FEET",
   "AUTOMATE EVERYTHING",
   "PRIVACY FIRST",
   "DELIVERABILITY IS EARNED",
@@ -58,6 +64,7 @@ const PLATFORMS = [
     tag: "CAMPAIGNS",
     intensity: "DRAG · DROP",
     title: "CAMPAIGN STUDIO",
+    img: "/landing/card-campaign.svg",
     body: "A visual drag-and-drop editor, reusable templates, and granular audience targeting. Design once, send everywhere — no code required.",
     meta: [
       ["Setup", "5 MIN"],
@@ -71,6 +78,7 @@ const PLATFORMS = [
     tag: "AUTOMATION",
     intensity: "ZERO CODE",
     title: "JOURNEY BUILDER",
+    img: "/landing/card-journey.svg",
     body: "Visual automation flows for welcome series, abandoned carts, and win-back campaigns. Trigger on real behavior, not guesswork.",
     meta: [
       ["Triggers", "12+ EVENTS"],
@@ -84,6 +92,7 @@ const PLATFORMS = [
     tag: "ANALYTICS",
     intensity: "LIVE METRICS",
     title: "REAL-TIME REPORTS",
+    img: "/landing/card-reports.svg",
     body: "Opens, clicks, and revenue attribution streaming live — plus AI suggestions that tell you what to improve next.",
     meta: [
       ["Latency", "< 1s"],
@@ -99,6 +108,7 @@ const FEATURES = [
     num: "/ 01",
     badge: "10× FASTER",
     name: "AI WRITER",
+    img: "/landing/flip-aiwriter.svg",
     role: "Copywriting Engine",
     creds: "12 YRS · GPT",
     hover: "HOVER →",
@@ -116,6 +126,7 @@ const FEATURES = [
     num: "/ 02",
     badge: "0.3s QUERIES",
     name: "SEGMENTATION",
+    img: "/landing/flip-segmentation.svg",
     role: "Audience Engine",
     creds: "RFM · TAGS",
     hover: "HOVER →",
@@ -133,6 +144,7 @@ const FEATURES = [
     num: "/ 03",
     badge: "99.2% INBOX",
     name: "DELIVERABILITY",
+    img: "/landing/flip-deliverability.svg",
     role: "Inbox First",
     creds: "SPF · DKIM · DMARC",
     hover: "HOVER →",
@@ -144,12 +156,13 @@ const FEATURES = [
       "Blacklist monitoring, always on",
     ],
     signature: "INBOX FIRST",
-    sigNote: "Land in the inbox, not the spam folder.",
+    sigNote: "Inbox placement that sticks — and keeps sticking.",
   },
   {
     num: "/ 04",
     badge: "GDPR NATIVE",
     name: "DATA PRIVACY",
+    img: "/landing/flip-privacy.svg",
     role: "Own Your Data",
     creds: "EU HOSTED",
     hover: "HOVER →",
@@ -274,8 +287,12 @@ function useInViewAnimation(rootRef: React.RefObject<HTMLDivElement | null>) {
   React.useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const revealEls = Array.from(root.querySelectorAll<HTMLElement>("[data-lgreveal]"));
-    const staggerEls = Array.from(root.querySelectorAll<HTMLElement>("[data-lgstagger]"));
+    const revealEls = Array.from(
+      root.querySelectorAll<HTMLElement>(".lg-reveal:not(.lg-in-view)")
+    );
+    const staggerEls = Array.from(
+      root.querySelectorAll<HTMLElement>(".lg-reveal-stagger:not(.lg-in-view)")
+    );
     const counters = Array.from(root.querySelectorAll<HTMLElement>("[data-count]"));
 
     const observer = new IntersectionObserver(
@@ -313,7 +330,7 @@ function useInViewAnimation(rootRef: React.RefObject<HTMLDivElement | null>) {
           counterObserver.unobserve(el);
         });
       },
-      { threshold: 0.5 }
+      { threshold: 0.25 }
     );
     counters.forEach((el) => counterObserver.observe(el));
 
@@ -443,7 +460,7 @@ function StoriesCarousel() {
             <article key={s.tag} className="lg-story-card">
               <div className="relative h-56 overflow-hidden">
                 <img
-                  src={`https://picsum.photos/seed/story${i}/600/400.jpg`}
+                  src={`/landing/story-${i}.svg`}
                   className="lg-img-noir h-full w-full object-cover"
                   alt={s.name}
                 />
@@ -591,13 +608,17 @@ export function LandingPage({ fonts }: LandingPageProps) {
       {/* ===================== NAV ===================== */}
       <header className="border-b border-white/5 bg-black/50 fixed top-0 right-0 left-0 z-50 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/" className="group flex items-center gap-3">
+          <Link href="/" className="lg-group group flex items-center gap-3">
             <div className="bg-[var(--lg-accent)] relative flex h-9 w-9 items-center justify-center">
-              <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+              <span className="lg-gecko-nudge">
+                <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+              </span>
               <div className="absolute -inset-1 border border-[var(--lg-accent)] opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
             <div>
-              <div className="lg-font-display text-2xl leading-none tracking-wider">MAILGEKO</div>
+              <div className="lg-font-display text-2xl leading-none tracking-wider">
+                MAIL<span className="text-[var(--lg-accent)]">GEKO</span>
+              </div>
               <div className="lg-font-mono mt-0.5 text-[10px] tracking-[0.3em] text-[var(--lg-muted)]">
                 EMAIL · AUTOMATION · AI
               </div>
@@ -635,7 +656,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
             </Link>
             <Link
               href="/register"
-              className="bg-[var(--lg-silver)] font-heading text-xs uppercase tracking-[0.2em] text-black px-5 py-2.5 transition-colors hover:bg-white"
+              className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-black uppercase px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
             >
               Start Free
             </Link>
@@ -655,6 +676,12 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
         <div className="lg-hero-overlay" />
         <div className="lg-scan-line" />
+
+        <div className="lg-gecko-hero" aria-hidden="true">
+          <div className="lg-gecko-tail-anim">
+            <GeckoMark className="h-24 w-24 text-[var(--lg-accent)]" eyeColor="var(--lg-bg)" />
+          </div>
+        </div>
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] flex-col justify-end px-6 pt-32 pb-20 lg:px-10">
           <div className="absolute top-32 right-6 z-20 flex items-center gap-6 lg:right-10">
@@ -686,7 +713,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
           <div className="lg-reveal lg-in-view max-w-5xl">
             <div className="lg-section-marker mb-6">
-              <span>EST. 2025 · YOUR EMAIL, YOUR RULES</span>
+              <span>EST. 2025 · YOUR EMAIL, YOUR RULES · STICKY BY DESIGN</span>
             </div>
             <h1 className="lg-font-display mb-8 text-[14vw] leading-[0.85] md:text-[10vw] lg:text-[8.5vw]">
               <span className="lg-headline-line">
@@ -702,8 +729,8 @@ export function LandingPage({ fonts }: LandingPageProps) {
               </span>
             </h1>
             <p className="lg-font-body max-w-xl text-base leading-relaxed text-[var(--lg-fg-dim)] md:text-lg">
-              The privacy-first, AI-powered email marketing platform. Campaigns, automations, and
-              analytics built for teams who refuse average —{" "}
+              The privacy-first, AI-powered email marketing platform. Agile, quick-footed, and
+              built to stick in the inbox —{" "}
               <span className="text-[var(--lg-fg)]">without selling your data</span>.
             </p>
           </div>
@@ -712,22 +739,22 @@ export function LandingPage({ fonts }: LandingPageProps) {
             <div className="flex items-center gap-4">
               <div className="flex -space-x-3">
                 <img
-                  src="https://picsum.photos/seed/lgcoach1/120/120.jpg"
+                  src="/landing/avatar-1.svg"
                   className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
                   alt="Team member"
                 />
                 <img
-                  src="https://picsum.photos/seed/lgcoach2/120/120.jpg"
+                  src="/landing/avatar-2.svg"
                   className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
                   alt="Team member"
                 />
                 <img
-                  src="https://picsum.photos/seed/lgcoach3/120/120.jpg"
+                  src="/landing/avatar-3.svg"
                   className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
                   alt="Team member"
                 />
                 <img
-                  src="https://picsum.photos/seed/lgcoach4/120/120.jpg"
+                  src="/landing/avatar-4.svg"
                   className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
                   alt="Team member"
                 />
@@ -797,7 +824,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
       </section>
 
       {/* ===================== PLATFORM ===================== */}
-      <section className="relative py-28 lg:py-36" id="lg-platform">
+      <section className="relative py-28 scroll-mt-24 lg:py-36" id="lg-platform">
         <div className="mx-auto max-w-[1600px] px-6 lg:px-10">
           <div className="lg-reveal mb-20 grid gap-8 lg:grid-cols-12">
             <div className="lg:col-span-5">
@@ -814,8 +841,8 @@ export function LandingPage({ fonts }: LandingPageProps) {
             <div className="flex flex-col justify-end lg:col-span-6 lg:col-start-7">
               <p className="mb-6 text-lg leading-relaxed text-[var(--lg-fg-dim)]">
                 Mailgeko is engineered around one objective — measurable, aggressive growth. Choose
-                your flow. We bring the tools, the automation, and the deliverability that refuses
-                to let your emails land in spam.
+                your flow. We bring the tools, the automation, and the sticky deliverability that
+                refuses to let your emails land in spam.
               </p>
               <div className="flex flex-wrap gap-3">
                 {["All Tools", "Campaigns", "Automation", "Analytics"].map((p) => (
@@ -832,7 +859,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <article key={p.title} className="lg-program-card lg-info-card lg-notch-corner group">
                 <div className="relative h-72 overflow-hidden">
                   <img
-                    src={`https://picsum.photos/seed/lg${p.title}/800/600.jpg`}
+                    src={p.img}
                     className="lg-program-img lg-img-noir h-full w-full object-cover"
                     alt={p.title}
                   />
@@ -873,7 +900,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
       {/* ===================== FEATURES (flip cards) ===================== */}
       <section
-        className="relative border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)] py-28 lg:py-36"
+        className="relative scroll-mt-24 border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)] py-28 lg:py-36"
         id="lg-features"
       >
         <div className="mx-auto max-w-[1600px] px-6 lg:px-10">
@@ -902,7 +929,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <div className="lg-flip-face lg-flip-front lg-info-card flex flex-col">
                     <div className="lg-coach-img-wrap">
                       <img
-                        src={`https://picsum.photos/seed/lg${f.name}/600/800.jpg`}
+                        src={f.img}
                         alt={f.name}
                       />
                       <div className="lg-font-mono absolute top-4 left-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
@@ -965,12 +992,17 @@ export function LandingPage({ fonts }: LandingPageProps) {
       </section>
 
       {/* ===================== CUSTOMER STORIES ===================== */}
-      <section className="relative overflow-hidden py-28 lg:py-36" id="lg-stories">
+      <section className="relative scroll-mt-24 overflow-hidden py-28 lg:py-36" id="lg-stories">
         <div className="mx-auto mb-16 max-w-[1600px] px-6 lg:px-10">
           <div className="lg-reveal grid gap-8 lg:grid-cols-12">
             <div className="lg:col-span-7">
               <div className="lg-section-marker mb-6">
-                <span>03 — Forged With Mailgeko</span>
+                <span className="inline-flex items-center gap-3">
+                  <span className="lg-gecko-hop inline-flex">
+                    <GeckoMark className="size-5 text-[var(--lg-accent)]" eyeColor="var(--lg-bg)" />
+                  </span>
+                  03 — Forged With Mailgeko
+                </span>
               </div>
               <h2 className="lg-font-display text-6xl leading-[0.9] md:text-7xl lg:text-8xl">
                 Real teams.<br />
@@ -995,7 +1027,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
       {/* ===================== GET STARTED ===================== */}
       <section
-        className="relative border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)] py-28 lg:py-36"
+        className="relative scroll-mt-24 border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)] py-28 lg:py-36"
         id="lg-start"
       >
         <div className="mx-auto max-w-[1600px] px-6 lg:px-10">
@@ -1199,10 +1231,14 @@ export function LandingPage({ fonts }: LandingPageProps) {
             <div className="md:col-span-5">
               <div className="mb-5 flex items-center gap-3">
                 <div className="bg-[var(--lg-accent)] flex h-10 w-10 items-center justify-center">
-                  <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+                  <span className="lg-gecko-hop inline-flex">
+                    <GeckoMark className="size-6 text-black" eyeColor="var(--lg-accent)" />
+                  </span>
                 </div>
                 <div>
-                  <div className="lg-font-display text-2xl leading-none tracking-wider">MAILGEKO</div>
+                  <div className="lg-font-display text-2xl leading-none tracking-wider">
+                    MAIL<span className="text-[var(--lg-accent)]">GEKO</span>
+                  </div>
                   <div className="lg-font-mono mt-0.5 text-[10px] tracking-[0.3em] text-[var(--lg-muted)]">
                     EST. 2025 · EU HOSTED
                   </div>
@@ -1212,6 +1248,16 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 The privacy-first, AI-powered email marketing platform. Campaigns, automation, and
                 analytics — without selling your data.
               </p>
+              <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2">
+                {["Agile", "Smart", "Reliable", "Sticky"].map((v) => (
+                  <span
+                    key={v}
+                    className="lg-font-mono text-[10px] tracking-[0.25em] text-[var(--lg-accent)] uppercase"
+                  >
+                    {v}
+                  </span>
+                ))}
+              </div>
               <div className="flex gap-3">
                 {[Mail, Zap, Radio, Users].map((Icon, i) => (
                   <a

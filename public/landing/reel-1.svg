@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0a0a0a"/>
+  <g stroke="#ffffff" stroke-opacity="0.035" fill="none"><line x1="0" y1="0" x2="0" y2="1080"/><line x1="64" y1="0" x2="64" y2="1080"/><line x1="128" y1="0" x2="128" y2="1080"/><line x1="192" y1="0" x2="192" y2="1080"/><line x1="256" y1="0" x2="256" y2="1080"/><line x1="320" y1="0" x2="320" y2="1080"/><line x1="384" y1="0" x2="384" y2="1080"/><line x1="448" y1="0" x2="448" y2="1080"/><line x1="512" y1="0" x2="512" y2="1080"/><line x1="576" y1="0" x2="576" y2="1080"/><line x1="640" y1="0" x2="640" y2="1080"/><line x1="704" y1="0" x2="704" y2="1080"/><line x1="768" y1="0" x2="768" y2="1080"/><line x1="832" y1="0" x2="832" y2="1080"/><line x1="896" y1="0" x2="896" y2="1080"/><line x1="960" y1="0" x2="960" y2="1080"/><line x1="1024" y1="0" x2="1024" y2="1080"/><line x1="1088" y1="0" x2="1088" y2="1080"/><line x1="1152" y1="0" x2="1152" y2="1080"/><line x1="1216" y1="0" x2="1216" y2="1080"/><line x1="1280" y1="0" x2="1280" y2="1080"/><line x1="1344" y1="0" x2="1344" y2="1080"/><line x1="1408" y1="0" x2="1408" y2="1080"/><line x1="1472" y1="0" x2="1472" y2="1080"/><line x1="1536" y1="0" x2="1536" y2="1080"/><line x1="1600" y1="0" x2="1600" y2="1080"/><line x1="1664" y1="0" x2="1664" y2="1080"/><line x1="1728" y1="0" x2="1728" y2="1080"/><line x1="1792" y1="0" x2="1792" y2="1080"/><line x1="1856" y1="0" x2="1856" y2="1080"/><line x1="1920" y1="0" x2="1920" y2="1080"/><line x1="0" y1="0" x2="1920" y2="0"/><line x1="0" y1="64" x2="1920" y2="64"/><line x1="0" y1="128" x2="1920" y2="128"/><line x1="0" y1="192" x2="1920" y2="192"/><line x1="0" y1="256" x2="1920" y2="256"/><line x1="0" y1="320" x2="1920" y2="320"/><line x1="0" y1="384" x2="1920" y2="384"/><line x1="0" y1="448" x2="1920" y2="448"/><line x1="0" y1="512" x2="1920" y2="512"/><line x1="0" y1="576" x2="1920" y2="576"/><line x1="0" y1="640" x2="1920" y2="640"/><line x1="0" y1="704" x2="1920" y2="704"/><line x1="0" y1="768" x2="1920" y2="768"/><line x1="0" y1="832" x2="1920" y2="832"/><line x1="0" y1="896" x2="1920" y2="896"/><line x1="0" y1="960" x2="1920" y2="960"/><line x1="0" y1="1024" x2="1920" y2="1024"/></g>
+  <g transform="translate(0 0)"><g><polyline points="760.0,364.4 790.0,388.6 820.0,353.0 850.0,314.3 880.0,324.6 910.0,360.9 940.0,364.8 970.0,345.2 1000.0,397.6 1030.0,453.3 1060.0,392.3 1090.0,325.2 1120.0,343.5 1150.0,343.8 1180.0,360.9 1210.0,344.0 1240.0,425.9 1270.0,380.1 1300.0,462.2 1330.0,403.1 1360.0,367.9 1390.0,332.1 1420.0,410.9 1450.0,398.6 1480.0,325.7" fill="none" stroke="#3bb974" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="760.0,364.4 790.0,388.6 820.0,353.0 850.0,314.3 880.0,324.6 910.0,360.9 940.0,364.8 970.0,345.2 1000.0,397.6 1030.0,453.3 1060.0,392.3 1090.0,325.2 1120.0,343.5 1150.0,343.8 1180.0,360.9 1210.0,344.0 1240.0,425.9 1270.0,380.1 1300.0,462.2 1330.0,403.1 1360.0,367.9 1390.0,332.1 1420.0,410.9 1450.0,398.6 1480.0,325.7" fill="none" stroke="#3bb974" stroke-opacity="0.18" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><g><polyline points="760.0,674.9 790.0,729.2 820.0,666.7 850.0,728.5 880.0,678.1 910.0,728.3 940.0,753.5 970.0,705.1 1000.0,745.5 1030.0,648.4 1060.0,747.4 1090.0,708.4 1120.0,657.7 1150.0,747.6 1180.0,705.4 1210.0,710.7 1240.0,713.3 1270.0,752.4 1300.0,677.7 1330.0,710.0 1360.0,677.9 1390.0,739.3 1420.0,733.6 1450.0,664.9 1480.0,712.0" fill="none" stroke="#3bb974" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="760.0,674.9 790.0,729.2 820.0,666.7 850.0,728.5 880.0,678.1 910.0,728.3 940.0,753.5 970.0,705.1 1000.0,745.5 1030.0,648.4 1060.0,747.4 1090.0,708.4 1120.0,657.7 1150.0,747.6 1180.0,705.4 1210.0,710.7 1240.0,713.3 1270.0,752.4 1300.0,677.7 1330.0,710.0 1360.0,677.9 1390.0,739.3 1420.0,733.6 1450.0,664.9 1480.0,712.0" fill="none" stroke="#3bb974" stroke-opacity="0.18" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g><circle cx="1500" cy="500" r="130" fill="none" stroke="#1e1e1e" stroke-width="12"/>
+  <circle cx="1500" cy="500" r="130" fill="none" stroke="#3bb974" stroke-width="12" stroke-linecap="round" stroke-dasharray="720.1 816.8" transform="rotate(-90 1500 500)"/><g>
+    <rect x="760" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
+    <rect x="760" y="880" width="3" height="120" fill="#3bb974" fill-opacity="1"/>
+    <text x="780" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">OPEN RATE</text>
+    <text x="780" y="966" fill="#3bb974" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">61.4%</text>
+  </g><g>
+    <rect x="1030" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
+    <rect x="1030" y="880" width="3" height="120" fill="#6b6b6b" fill-opacity="0.5"/>
+    <text x="1050" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">CLICKS</text>
+    <text x="1050" y="966" fill="#e8e8e8" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">12.9k</text>
+  </g><rect x="350" y="300" width="140" height="10" fill="#161616"/><rect x="350" y="300" width="350" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="344" width="140" height="10" fill="#161616"/><rect x="350" y="344" width="204" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="388" width="140" height="10" fill="#161616"/><rect x="350" y="388" width="340" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="432" width="140" height="10" fill="#161616"/><rect x="350" y="432" width="354" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="476" width="140" height="10" fill="#161616"/><rect x="350" y="476" width="186" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="520" width="140" height="10" fill="#161616"/><rect x="350" y="520" width="291" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="564" width="140" height="10" fill="#161616"/><rect x="350" y="564" width="197" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="350" y="608" width="140" height="10" fill="#161616"/><rect x="350" y="608" width="223" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      </g></g>
+  <rect x="220" y="0" width="1" height="1080" fill="#1e1e1e"/>
+  <g transform="translate(300,120)"><rect x="0" y="0" width="140" height="10" fill="#161616"/><rect x="0" y="0" width="156" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="44" width="140" height="10" fill="#161616"/><rect x="0" y="44" width="316" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="88" width="140" height="10" fill="#161616"/><rect x="0" y="88" width="245" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="132" width="140" height="10" fill="#161616"/><rect x="0" y="132" width="190" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="176" width="140" height="10" fill="#161616"/><rect x="0" y="176" width="267" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="220" width="140" height="10" fill="#161616"/><rect x="0" y="220" width="131" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="264" width="140" height="10" fill="#161616"/><rect x="0" y="264" width="193" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="308" width="140" height="10" fill="#161616"/><rect x="0" y="308" width="335" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="352" width="140" height="10" fill="#161616"/><rect x="0" y="352" width="296" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="396" width="140" height="10" fill="#161616"/><rect x="0" y="396" width="248" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="440" width="140" height="10" fill="#161616"/><rect x="0" y="440" width="287" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="484" width="140" height="10" fill="#161616"/><rect x="0" y="484" width="268" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      </g>
+  <rect x="0" y="0" width="220" height="1080" fill="#111111" fill-opacity="0.6"/>
+  <g transform="translate(36,60)"><text x="0" y="90" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="40" letter-spacing="6" text-anchor="start">MAILGEKO</text></g>
+  <g transform="translate(36,150) scale(1.4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.9">
+  <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.9" stroke="none"/>
+  <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M32 30.5C28.5 32.5 25 31.5 25.5 28.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M22 21.5C22 24.5 21 26 18 27.5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29.5 23.5C30.5 26 31.5 27.5 30.5 30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
+</g></g>
+  <rect x="0" y="0" width="1920" height="4" fill="#3bb974"/>
+  <rect x="0" y="1020" width="1920" height="60" fill="#000" fill-opacity="0.6"/>
+  <text x="1860" y="1056" fill="#3bb974" font-family="'JetBrains Mono',monospace" font-size="12" letter-spacing="3" text-anchor="end">REEL · CAMPAIGNS</text>
+  <g transform="translate(460,80) scale(2.6) translate(-10,-4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.16">
+  <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.16" stroke="none"/>
+  <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M32 30.5C28.5 32.5 25 31.5 25.5 28.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M22 21.5C22 24.5 21 26 18 27.5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29.5 23.5C30.5 26 31.5 27.5 30.5 30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
+</g></g>
+  <rect width="1920" height="1080" fill="url(#vig)" opacity="0.55"/><defs><radialGradient id="vig" cx="50%" cy="42%" r="85%"><stop offset="0%" stop-color="transparent"/><stop offset="100%" stop-color="#000"/></radialGradient></defs>
+  <text x="70" y="1020" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="96" letter-spacing="10">CAMPAIGN STUDIO</text>
+</svg>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0a0a0a"/>
+  <g stroke="#ffffff" stroke-opacity="0.035" fill="none"><line x1="0" y1="0" x2="0" y2="1080"/><line x1="64" y1="0" x2="64" y2="1080"/><line x1="128" y1="0" x2="128" y2="1080"/><line x1="192" y1="0" x2="192" y2="1080"/><line x1="256" y1="0" x2="256" y2="1080"/><line x1="320" y1="0" x2="320" y2="1080"/><line x1="384" y1="0" x2="384" y2="1080"/><line x1="448" y1="0" x2="448" y2="1080"/><line x1="512" y1="0" x2="512" y2="1080"/><line x1="576" y1="0" x2="576" y2="1080"/><line x1="640" y1="0" x2="640" y2="1080"/><line x1="704" y1="0" x2="704" y2="1080"/><line x1="768" y1="0" x2="768" y2="1080"/><line x1="832" y1="0" x2="832" y2="1080"/><line x1="896" y1="0" x2="896" y2="1080"/><line x1="960" y1="0" x2="960" y2="1080"/><line x1="1024" y1="0" x2="1024" y2="1080"/><line x1="1088" y1="0" x2="1088" y2="1080"/><line x1="1152" y1="0" x2="1152" y2="1080"/><line x1="1216" y1="0" x2="1216" y2="1080"/><line x1="1280" y1="0" x2="1280" y2="1080"/><line x1="1344" y1="0" x2="1344" y2="1080"/><line x1="1408" y1="0" x2="1408" y2="1080"/><line x1="1472" y1="0" x2="1472" y2="1080"/><line x1="1536" y1="0" x2="1536" y2="1080"/><line x1="1600" y1="0" x2="1600" y2="1080"/><line x1="1664" y1="0" x2="1664" y2="1080"/><line x1="1728" y1="0" x2="1728" y2="1080"/><line x1="1792" y1="0" x2="1792" y2="1080"/><line x1="1856" y1="0" x2="1856" y2="1080"/><line x1="1920" y1="0" x2="1920" y2="1080"/><line x1="0" y1="0" x2="1920" y2="0"/><line x1="0" y1="64" x2="1920" y2="64"/><line x1="0" y1="128" x2="1920" y2="128"/><line x1="0" y1="192" x2="1920" y2="192"/><line x1="0" y1="256" x2="1920" y2="256"/><line x1="0" y1="320" x2="1920" y2="320"/><line x1="0" y1="384" x2="1920" y2="384"/><line x1="0" y1="448" x2="1920" y2="448"/><line x1="0" y1="512" x2="1920" y2="512"/><line x1="0" y1="576" x2="1920" y2="576"/><line x1="0" y1="640" x2="1920" y2="640"/><line x1="0" y1="704" x2="1920" y2="704"/><line x1="0" y1="768" x2="1920" y2="768"/><line x1="0" y1="832" x2="1920" y2="832"/><line x1="0" y1="896" x2="1920" y2="896"/><line x1="0" y1="960" x2="1920" y2="960"/><line x1="0" y1="1024" x2="1920" y2="1024"/></g>
+  <g transform="translate(0 0)"><g><polyline points="700.0,316.4 732.5,323.3 765.0,371.3 797.5,476.8 830.0,433.2 862.5,516.5 895.0,344.5 927.5,417.8 960.0,484.4 992.5,513.5 1025.0,323.3 1057.5,392.5 1090.0,362.1 1122.5,415.6 1155.0,408.9 1187.5,331.3 1220.0,438.5 1252.5,326.6 1285.0,445.7 1317.5,402.8 1350.0,384.2 1382.5,523.5 1415.0,386.4 1447.5,485.2 1480.0,395.7" fill="none" stroke="#6b6b6b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="700.0,316.4 732.5,323.3 765.0,371.3 797.5,476.8 830.0,433.2 862.5,516.5 895.0,344.5 927.5,417.8 960.0,484.4 992.5,513.5 1025.0,323.3 1057.5,392.5 1090.0,362.1 1122.5,415.6 1155.0,408.9 1187.5,331.3 1220.0,438.5 1252.5,326.6 1285.0,445.7 1317.5,402.8 1350.0,384.2 1382.5,523.5 1415.0,386.4 1447.5,485.2 1480.0,395.7" fill="none" stroke="#6b6b6b" stroke-opacity="0.18" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g><rect x="400" y="674.8172479951754" width="26" height="145.18275200482458" fill="#3bb974" fill-opacity="0.7490517415106297"/><rect x="436" y="772.8769638845697" width="26" height="47.123036115430295" fill="#3bb974" fill-opacity="0.6043975527398289"/><rect x="472" y="633.9236768465489" width="26" height="186.07632315345109" fill="#3bb974" fill-opacity="0.5302851284854114"/><rect x="508" y="765.169596801512" width="26" height="54.83040319848806" fill="#3bb974" fill-opacity="0.6783896566368639"/><rect x="544" y="699.2216891506687" width="26" height="120.77831084933132" fill="#3bb974" fill-opacity="0.6676701669581234"/><rect x="580" y="646.7421349035576" width="26" height="173.2578650964424" fill="#3bb974" fill-opacity="0.6539899004623294"/><rect x="616" y="785.8188486509025" width="26" height="34.18115134909749" fill="#3bb974" fill-opacity="0.38956718565896153"/><rect x="652" y="728.9719558078796" width="26" height="91.02804419212043" fill="#3bb974" fill-opacity="0.4272629464045167"/><rect x="688" y="780.2400029720739" width="26" height="39.75999702792615" fill="#3bb974" fill-opacity="0.5911707296967507"/><rect x="724" y="666.1529800053686" width="26" height="153.8470199946314" fill="#3bb974" fill-opacity="0.5716939663514495"/><rect x="760" y="763.659136611037" width="26" height="56.340863388963044" fill="#3bb974" fill-opacity="0.39323760112747547"/><rect x="796" y="635.3735057022423" width="26" height="184.62649429775774" fill="#3bb974" fill-opacity="0.5837163815274835"/><rect x="832" y="632.1787733575329" width="26" height="187.82122664246708" fill="#3bb974" fill-opacity="0.6446324004791677"/><rect x="868" y="785.8446258949116" width="26" height="34.15537410508841" fill="#3bb974" fill-opacity="0.4119664861820638"/><rect x="904" y="794.1859399937093" width="26" height="25.814060006290674" fill="#3bb974" fill-opacity="0.6802465224638581"/><rect x="940" y="800.55021425616" width="26" height="19.44978574384004" fill="#3bb974" fill-opacity="0.45690656322985884"/><rect x="976" y="787.3724538916722" width="26" height="32.627546108327806" fill="#3bb974" fill-opacity="0.3792757033370435"/><rect x="1012" y="731.6800070684403" width="26" height="88.31999293155968" fill="#3bb974" fill-opacity="0.35508908024057745"/><rect x="1100" y="320" width="140" height="10" fill="#161616"/><rect x="1100" y="320" width="328" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="364" width="140" height="10" fill="#161616"/><rect x="1100" y="364" width="301" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="408" width="140" height="10" fill="#161616"/><rect x="1100" y="408" width="357" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="452" width="140" height="10" fill="#161616"/><rect x="1100" y="452" width="293" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="496" width="140" height="10" fill="#161616"/><rect x="1100" y="496" width="203" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="540" width="140" height="10" fill="#161616"/><rect x="1100" y="540" width="243" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="584" width="140" height="10" fill="#161616"/><rect x="1100" y="584" width="243" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="1100" y="628" width="140" height="10" fill="#161616"/><rect x="1100" y="628" width="349" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <g>
+    <rect x="1100" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
+    <rect x="1100" y="880" width="3" height="120" fill="#3bb974" fill-opacity="1"/>
+    <text x="1120" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">ROAS</text>
+    <text x="1120" y="966" fill="#3bb974" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">4.6×</text>
+  </g><g>
+    <rect x="1370" y="880" width="240" height="120" fill="#111111" stroke="#1e1e1e"/>
+    <rect x="1370" y="880" width="3" height="120" fill="#6b6b6b" fill-opacity="0.5"/>
+    <text x="1390" y="914" fill="#6b6b6b" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="2">SUBSCRIBERS</text>
+    <text x="1390" y="966" fill="#e8e8e8" font-family="'Oswald','Bebas Neue',sans-serif" font-size="44">1M</text>
+  </g></g></g>
+  <rect x="220" y="0" width="1" height="1080" fill="#1e1e1e"/>
+  <g transform="translate(300,120)"><rect x="0" y="0" width="140" height="10" fill="#161616"/><rect x="0" y="0" width="140" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="44" width="140" height="10" fill="#161616"/><rect x="0" y="44" width="228" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="88" width="140" height="10" fill="#161616"/><rect x="0" y="88" width="193" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="132" width="140" height="10" fill="#161616"/><rect x="0" y="132" width="243" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="176" width="140" height="10" fill="#161616"/><rect x="0" y="176" width="287" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="220" width="140" height="10" fill="#161616"/><rect x="0" y="220" width="214" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="264" width="140" height="10" fill="#161616"/><rect x="0" y="264" width="288" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="308" width="140" height="10" fill="#161616"/><rect x="0" y="308" width="302" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="352" width="140" height="10" fill="#161616"/><rect x="0" y="352" width="191" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="396" width="140" height="10" fill="#161616"/><rect x="0" y="396" width="197" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="440" width="140" height="10" fill="#161616"/><rect x="0" y="440" width="260" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      <rect x="0" y="484" width="140" height="10" fill="#161616"/><rect x="0" y="484" width="332" height="10" fill="#3bb974" fill-opacity="0.55"/>
+      </g>
+  <rect x="0" y="0" width="220" height="1080" fill="#111111" fill-opacity="0.6"/>
+  <g transform="translate(36,60)"><text x="0" y="90" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="40" letter-spacing="6" text-anchor="start">MAILGEKO</text></g>
+  <g transform="translate(36,150) scale(1.4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.9">
+  <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.9" stroke="none"/>
+  <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M32 30.5C28.5 32.5 25 31.5 25.5 28.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M22 21.5C22 24.5 21 26 18 27.5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29.5 23.5C30.5 26 31.5 27.5 30.5 30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
+</g></g>
+  <rect x="0" y="0" width="1920" height="4" fill="#3bb974"/>
+  <rect x="0" y="1020" width="1920" height="60" fill="#000" fill-opacity="0.6"/>
+  <text x="1860" y="1056" fill="#3bb974" font-family="'JetBrains Mono',monospace" font-size="12" letter-spacing="3" text-anchor="end">REEL · ANALYTICS</text>
+  <g transform="translate(460,80) scale(2.6) translate(-10,-4)"><g fill="none" stroke="#3bb974" stroke-opacity="0.16">
+  <circle cx="12" cy="13" r="7" fill="#3bb974" fill-opacity="0.16" stroke="none"/>
+  <path d="M17.5 16.5C24 11.5 33 13.5 35.5 19.5C37.5 24.5 36.5 28.5 32 30.5" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M32 30.5C28.5 32.5 25 31.5 25.5 28.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M22 21.5C22 24.5 21 26 18 27.5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29.5 23.5C30.5 26 31.5 27.5 30.5 30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="14.2" cy="10.5" r="1.5" fill="#0a0a0a" fill-opacity="1" stroke="none"/>
+</g></g>
+  <rect width="1920" height="1080" fill="url(#vig)" opacity="0.55"/><defs><radialGradient id="vig" cx="50%" cy="42%" r="85%"><stop offset="0%" stop-color="transparent"/><stop offset="100%" stop-color="#000"/></radialGradient></defs>
+  <text x="70" y="1020" fill="#e8e8e8" font-family="'Bebas Neue','Oswald',sans-serif" font-size="96" letter-spacing="10">REAL-TIME REPORTS</text>
+</svg>
