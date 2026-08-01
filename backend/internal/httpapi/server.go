@@ -1,0 +1,259 @@
+package httpapi
+
+import (
+	"context"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/divineshedrack33220/mailgeko/backend/internal/ai"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/engine"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
+)
+
+const claimsKey contextKey = "claims"
+
+type contextKey string
+
+type Server struct {
+	cfg       Config
+	db        *store.Store
+	analytics AnalyticsStore
+	tokens    TokenIssuer
+	session   *SessionStore
+	queue     CampaignEnqueuer
+	engine    *engine.Engine
+	searcher  ContactSearcher
+	biller    Biller
+	rateLimit *RateLimiter
+	ai        *ai.Client
+}
+
+type Config struct {
+	Env       string
+	JWTSecret string
+	TokenTTL  time.Duration
+	HTTPAddr  string
+	BaseURL   string
+
+	// AI subject-line generation (optional; falls back to built-in templates).
+	OpenAIKey     string
+	OpenAIModel   string
+	OpenAIBaseURL string
+}
+
+type TokenIssuer interface {
+	Issue(userID, email, workspaceID, role string) (string, error)
+	Parse(tokenString string) (*auth.Claims, error)
+}
+
+type ClaimsReader interface {
+	GetUserID() string
+	GetEmail() string
+	GetWorkspaceID() string
+	GetRole() string
+	GetTokenID() string
+}
+
+type CampaignEnqueuer interface {
+	EnqueueCampaignSend(ctx context.Context, campaignID string) error
+	EnqueueRecipientSend(ctx context.Context, campaignID, contactID string) error
+	EnqueueRecordEvent(ctx context.Context, p queueRecordEventPayload) error
+	EnqueueImportCSV(ctx context.Context, p queueImportCSVPayload) error
+	EnqueueEmbedContact(ctx context.Context, p queueEmbedContactPayload) error
+	EnqueueEmbedWorkspace(ctx context.Context, p queueEmbedWorkspacePayload) error
+}
+
+func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssuer, session *SessionStore, queue CampaignEnqueuer, eng *engine.Engine, searcher ContactSearcher, biller Biller, rateLimit *RateLimiter) *Server {
+	return &Server{
+		cfg:       cfg,
+		db:        db,
+		analytics: analytics,
+		tokens:    tokens,
+		session:   session,
+		queue:     queue,
+		engine:    eng,
+		searcher:  searcher,
+		biller:    biller,
+		rateLimit: rateLimit,
+		ai:        ai.NewClient(cfg.OpenAIBaseURL, cfg.OpenAIKey, cfg.OpenAIModel),
+	}
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /healthz", s.handleHealth)
+
+	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
+	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+
+	mux.Handle("POST /api/v1/auth/logout", s.withAuth(http.HandlerFunc(s.handleLogout)))
+	mux.Handle("GET /api/v1/me", s.withAuth(http.HandlerFunc(s.handleMe)))
+
+	// Domain API (all scoped to the caller's workspace).
+	mux.Handle("GET /api/v1/contacts", s.withAuth(http.HandlerFunc(s.handleListContacts)))
+	mux.Handle("POST /api/v1/contacts", s.withAuth(http.HandlerFunc(s.handleCreateContact)))
+	mux.Handle("POST /api/v1/contacts/import", s.withAuth(http.HandlerFunc(s.handleImportContacts)))
+	mux.Handle("POST /api/v1/contacts/embed-all", s.withAuth(http.HandlerFunc(s.handleEmbedAllContacts)))
+	mux.Handle("GET /api/v1/contacts/search", s.withAuth(http.HandlerFunc(s.handleSearchContacts)))
+	mux.Handle("GET /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleGetContact)))
+	mux.Handle("GET /api/v1/contacts/{id}/similar", s.withAuth(http.HandlerFunc(s.handleSimilarContacts)))
+	mux.Handle("PATCH /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateContact)))
+	mux.Handle("DELETE /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteContact)))
+	mux.Handle("POST /api/v1/contacts/{id}/embed", s.withAuth(http.HandlerFunc(s.handleEmbedContact)))
+
+	mux.Handle("GET /api/v1/lists", s.withAuth(http.HandlerFunc(s.handleListLists)))
+	mux.Handle("POST /api/v1/lists", s.withAuth(http.HandlerFunc(s.handleCreateList)))
+	mux.Handle("GET /api/v1/lists/{id}", s.withAuth(http.HandlerFunc(s.handleGetList)))
+	mux.Handle("PATCH /api/v1/lists/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateList)))
+	mux.Handle("DELETE /api/v1/lists/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteList)))
+	mux.Handle("POST /api/v1/lists/{id}/contacts", s.withAuth(http.HandlerFunc(s.handleAddContactsToList)))
+	mux.Handle("DELETE /api/v1/lists/{id}/contacts/{contactId}", s.withAuth(http.HandlerFunc(s.handleRemoveContactFromList)))
+
+	mux.Handle("GET /api/v1/segments", s.withAuth(http.HandlerFunc(s.handleListSegments)))
+	mux.Handle("POST /api/v1/segments", s.withAuth(http.HandlerFunc(s.handleCreateSegment)))
+	mux.Handle("GET /api/v1/segments/{id}", s.withAuth(http.HandlerFunc(s.handleGetSegment)))
+	mux.Handle("PATCH /api/v1/segments/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateSegment)))
+	mux.Handle("DELETE /api/v1/segments/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteSegment)))
+
+	mux.Handle("GET /api/v1/templates", s.withAuth(http.HandlerFunc(s.handleListTemplates)))
+	mux.Handle("POST /api/v1/templates", s.withAuth(http.HandlerFunc(s.handleCreateTemplate)))
+	mux.Handle("GET /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleGetTemplate)))
+	mux.Handle("PATCH /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateTemplate)))
+	mux.Handle("DELETE /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteTemplate)))
+	mux.Handle("POST /api/v1/templates/{id}/send-test", s.withAuth(http.HandlerFunc(s.handleSendTestTemplate)))
+
+	mux.Handle("GET /api/v1/campaigns", s.withAuth(http.HandlerFunc(s.handleListCampaigns)))
+	mux.Handle("POST /api/v1/campaigns", s.withAuth(http.HandlerFunc(s.handleCreateCampaign)))
+	mux.Handle("GET /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleGetCampaign)))
+	mux.Handle("PATCH /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateCampaign)))
+	mux.Handle("DELETE /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteCampaign)))
+	mux.Handle("POST /api/v1/campaigns/{id}/send", s.withAuth(http.HandlerFunc(s.handleSendCampaign)))
+	mux.Handle("POST /api/v1/campaigns/{id}/send-test", s.withAuth(http.HandlerFunc(s.handleSendTestCampaign)))
+	mux.Handle("POST /api/v1/campaigns/{id}/cancel", s.withAuth(http.HandlerFunc(s.handleCancelCampaign)))
+
+	mux.Handle("GET /api/v1/automations", s.withAuth(http.HandlerFunc(s.handleListAutomations)))
+	mux.Handle("POST /api/v1/automations", s.withAuth(http.HandlerFunc(s.handleCreateAutomation)))
+	mux.Handle("GET /api/v1/automations/{id}", s.withAuth(http.HandlerFunc(s.handleGetAutomation)))
+	mux.Handle("PATCH /api/v1/automations/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateAutomation)))
+	mux.Handle("DELETE /api/v1/automations/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteAutomation)))
+	mux.Handle("POST /api/v1/automations/{id}/duplicate", s.withAuth(http.HandlerFunc(s.handleDuplicateAutomation)))
+
+	// Analytics.
+	mux.Handle("GET /api/v1/analytics/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleCampaignAnalytics)))
+	mux.Handle("GET /api/v1/analytics/overview", s.withAuth(http.HandlerFunc(s.handleAnalyticsOverview)))
+	mux.Handle("GET /api/v1/analytics/series", s.withAuth(http.HandlerFunc(s.handleAnalyticsSeries)))
+	mux.Handle("GET /api/v1/analytics/links", s.withAuth(http.HandlerFunc(s.handleAnalyticsLinks)))
+	mux.Handle("GET /api/v1/analytics/devices", s.withAuth(http.HandlerFunc(s.handleAnalyticsDevices)))
+	mux.Handle("GET /api/v1/analytics/countries", s.withAuth(http.HandlerFunc(s.handleAnalyticsCountries)))
+	mux.Handle("GET /api/v1/analytics/heatmap", s.withAuth(http.HandlerFunc(s.handleAnalyticsHeatmap)))
+
+	// Tracking + webhooks (no auth; signed/validated by query or signature).
+	mux.HandleFunc("GET /track/open", s.handleTrackOpen)
+	mux.HandleFunc("GET /track/click", s.handleTrackClick)
+	mux.HandleFunc("GET /track/unsubscribe", s.handleTrackUnsubscribe)
+
+	mux.HandleFunc("POST /webhooks/stripe", s.handleStripeWebhook)
+	mux.Handle("GET /api/v1/billing/plans", s.withAuth(http.HandlerFunc(s.handleBillingPlans)))
+	mux.Handle("GET /api/v1/billing", s.withAuth(http.HandlerFunc(s.handleBillingCurrent)))
+	mux.Handle("POST /api/v1/billing/checkout", s.withAuth(http.HandlerFunc(s.handleBillingCheckout)))
+	mux.Handle("POST /api/v1/billing/portal", s.withAuth(http.HandlerFunc(s.handleBillingPortal)))
+	mux.HandleFunc("POST /webhooks/resend", s.handleResendWebhook)
+
+	mux.Handle("PATCH /api/v1/me", s.withAuth(http.HandlerFunc(s.handleUpdateProfile)))
+	mux.Handle("POST /api/v1/auth/password", s.withAuth(http.HandlerFunc(s.handleChangePassword)))
+
+	mux.Handle("GET /api/v1/workspace/members", s.withAuth(http.HandlerFunc(s.handleListWorkspaceMembers)))
+	mux.Handle("POST /api/v1/workspace/members/invite", s.withAuth(http.HandlerFunc(s.handleInviteWorkspaceMember)))
+	mux.Handle("PATCH /api/v1/workspace/members/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspaceMember)))
+	mux.Handle("POST /api/v1/workspace/members/{id}/resend", s.withAuth(http.HandlerFunc(s.handleResendInvitation)))
+	mux.Handle("DELETE /api/v1/workspace/members/{id}", s.withAuth(http.HandlerFunc(s.handleRemoveWorkspaceMember)))
+
+	mux.Handle("GET /api/v1/api-keys", s.withAuth(http.HandlerFunc(s.handleListAPIKeys)))
+	mux.Handle("POST /api/v1/api-keys", s.withAuth(http.HandlerFunc(s.handleCreateAPIKey)))
+	mux.Handle("DELETE /api/v1/api-keys/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteAPIKey)))
+
+	mux.Handle("GET /api/v1/notifications/prefs", s.withAuth(http.HandlerFunc(s.handleGetNotificationPrefs)))
+	mux.Handle("PUT /api/v1/notifications/prefs", s.withAuth(http.HandlerFunc(s.handleUpdateNotificationPrefs)))
+
+	mux.Handle("GET /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleGetWorkspace)))
+	mux.Handle("PATCH /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspace)))
+
+	mux.Handle("POST /api/v1/ai/subject", s.withAuth(http.HandlerFunc(s.handleGenerateSubjects)))
+
+	return s.withMiddleware(mux)
+}
+
+func (s *Server) withMiddleware(next http.Handler) http.Handler {
+	next = s.withCORS(next)
+	next = s.withLogging(next)
+	if s.rateLimit != nil {
+		next = s.rateLimit.Middleware(next)
+	}
+	return next
+}
+
+func (s *Server) withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+func (s *Server) withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) withAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		if token == "" || token == authHeader {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
+			return
+		}
+		claims, err := s.tokens.Parse(token)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
+			return
+		}
+		if s.session != nil {
+			blacklisted, err := s.session.IsBlacklisted(r.Context(), claims.GetTokenID())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal", "could not verify session")
+				return
+			}
+			if blacklisted {
+				writeError(w, http.StatusUnauthorized, "unauthorized", "session has been revoked")
+				return
+			}
+		}
+		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func claimsFrom(r *http.Request) ClaimsReader {
+	if c, ok := r.Context().Value(claimsKey).(ClaimsReader); ok {
+		return c
+	}
+	return nil
+}

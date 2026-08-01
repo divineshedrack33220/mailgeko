@@ -1,0 +1,325 @@
+package httpapi
+
+import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
+)
+
+type campaignRequest struct {
+	Name        string     `json:"name"`
+	Subject     string     `json:"subject"`
+	TemplateID  string     `json:"templateId"`
+	PreviewText string     `json:"previewText"`
+	PlainText   string     `json:"plainText"`
+	HTMLContent string     `json:"htmlContent"`
+	Status      string     `json:"status"`
+	Type        string     `json:"type"`
+	ListIDs     []string   `json:"listIds"`
+	SegmentIDs  []string   `json:"segmentIds"`
+	ScheduleAt  *time.Time `json:"scheduleAt"`
+	Sender      struct {
+		FromName  string `json:"fromName"`
+		FromEmail string `json:"fromEmail"`
+		ReplyTo   string `json:"replyTo"`
+	} `json:"sender"`
+	Settings struct {
+		TrackOpens       *bool `json:"trackOpens"`
+		TrackClicks      *bool `json:"trackClicks"`
+		AllowUnsubscribe *bool `json:"allowUnsubscribe"`
+	} `json:"settings"`
+}
+
+func (r *campaignRequest) apply(c *store.Campaign) {
+	if r.Name != "" {
+		c.Name = r.Name
+	}
+	if r.Subject != "" {
+		c.Subject = r.Subject
+	}
+	if r.TemplateID != "" {
+		c.TemplateID = r.TemplateID
+	}
+	if r.PreviewText != "" {
+		c.PreviewText = r.PreviewText
+	}
+	if r.PlainText != "" {
+		c.PlainText = r.PlainText
+	}
+	if r.HTMLContent != "" {
+		c.HTMLContent = r.HTMLContent
+	}
+	if r.Status != "" {
+		c.Status = r.Status
+	}
+	if r.Type != "" {
+		c.Type = r.Type
+	}
+	if r.ListIDs != nil {
+		c.ListIDs = r.ListIDs
+	}
+	if r.SegmentIDs != nil {
+		c.SegmentIDs = r.SegmentIDs
+	}
+	if r.ScheduleAt != nil {
+		c.ScheduleAt = r.ScheduleAt
+	}
+	if r.Sender.FromName != "" {
+		c.FromName = r.Sender.FromName
+	}
+	if r.Sender.FromEmail != "" {
+		c.FromEmail = r.Sender.FromEmail
+	}
+	if r.Sender.ReplyTo != "" {
+		c.ReplyTo = r.Sender.ReplyTo
+	}
+	if r.Settings.TrackOpens != nil {
+		c.TrackOpens = *r.Settings.TrackOpens
+	}
+	if r.Settings.TrackClicks != nil {
+		c.TrackClicks = *r.Settings.TrackClicks
+	}
+	if r.Settings.AllowUnsubscribe != nil {
+		c.AllowUnsubscribe = *r.Settings.AllowUnsubscribe
+	}
+}
+
+func campaignResponse(c *store.Campaign, stats *store.CampaignStats) map[string]any {
+	if stats == nil {
+		stats = &store.CampaignStats{CampaignID: c.ID}
+	}
+	var scheduleAt any
+	if c.ScheduleAt != nil {
+		scheduleAt = c.ScheduleAt.UTC().Format(time.RFC3339)
+	}
+	return map[string]any{
+		"id":          c.ID,
+		"name":        c.Name,
+		"subject":     c.Subject,
+		"templateId":  c.TemplateID,
+		"previewText": c.PreviewText,
+		"plainText":   c.PlainText,
+		"htmlContent": c.HTMLContent,
+		"status":      c.Status,
+		"type":        c.Type,
+		"listIds":     c.ListIDs,
+		"segmentIds":  c.SegmentIDs,
+		"scheduleAt":  scheduleAt,
+		"sender": map[string]any{
+			"fromName":  c.FromName,
+			"fromEmail": c.FromEmail,
+			"replyTo":   c.ReplyTo,
+		},
+		"settings": map[string]any{
+			"trackOpens":       c.TrackOpens,
+			"trackClicks":      c.TrackClicks,
+			"allowUnsubscribe": c.AllowUnsubscribe,
+		},
+		"stats": map[string]any{
+			"recipients":   stats.Recipients,
+			"sent":         stats.Sent,
+			"delivered":    stats.Delivered,
+			"opened":       stats.Opened,
+			"clicked":      stats.Clicked,
+			"bounced":      stats.Bounced,
+			"complained":   stats.Complained,
+			"unsubscribed": stats.Unsubscribed,
+			"uniqueOpens":  stats.UniqueOpens,
+			"uniqueClicks": stats.UniqueClicks,
+		},
+		"createdAt": c.CreatedAt.UTC().Format(time.RFC3339),
+		"updatedAt": c.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func (s *Server) handleListCampaigns(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	campaigns, err := s.db.ListCampaigns(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not list campaigns")
+		return
+	}
+	out := make([]map[string]any, 0, len(campaigns))
+	for _, c := range campaigns {
+		stats, _ := s.db.GetCampaignStats(r.Context(), c.ID)
+		out = append(out, campaignResponse(c, stats))
+	}
+	writeOK(w, map[string]any{"campaigns": out})
+}
+
+func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	var req campaignRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	c := &store.Campaign{
+		ID:               newID(),
+		WorkspaceID:      claims.GetWorkspaceID(),
+		Status:           store.CampaignDraft,
+		Type:             "regular",
+		TrackOpens:       true,
+		TrackClicks:      true,
+		AllowUnsubscribe: true,
+	}
+	req.apply(c)
+	if strings.TrimSpace(c.Name) == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
+		return
+	}
+	if err := s.db.CreateCampaign(r.Context(), c); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not create campaign")
+		return
+	}
+	if err := s.db.EnsureCampaignStats(r.Context(), c.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not create campaign")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"campaign": campaignResponse(c, nil)})
+}
+
+func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	stats, _ := s.db.GetCampaignStats(r.Context(), c.ID)
+	writeOK(w, map[string]any{"campaign": campaignResponse(c, stats)})
+}
+
+func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	id := r.PathValue("id")
+	existing, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	var req campaignRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	req.apply(existing)
+	if err := s.db.UpdateCampaign(r.Context(), existing); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not update campaign")
+		return
+	}
+	writeOK(w, map[string]any{"campaign": campaignResponse(existing, nil)})
+}
+
+func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if err := s.db.DeleteCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not delete campaign")
+		return
+	}
+	writeOK(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	if c.Status != store.CampaignDraft && c.Status != store.CampaignScheduled && c.Status != store.CampaignPaused {
+		writeError(w, http.StatusConflict, "invalid_state", "campaign cannot be sent from its current state")
+		return
+	}
+	if s.biller != nil {
+		recipients, err := s.db.CountRecipients(r.Context(), c.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not count recipients")
+			return
+		}
+		if err := s.biller.CheckEmailQuota(r.Context(), claims.GetWorkspaceID(), recipients); err != nil {
+			s.writePlanError(w, err)
+			return
+		}
+	}
+	if err := s.queue.EnqueueCampaignSend(r.Context(), c.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not queue campaign")
+		return
+	}
+	writeOK(w, map[string]any{"queued": true, "campaignId": c.ID})
+}
+
+type sendTestRequest struct {
+	Emails []string `json:"emails"`
+}
+
+func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	var req sendTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if len(req.Emails) == 0 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "at least one email is required")
+		return
+	}
+	if s.engine == nil {
+		writeError(w, http.StatusInternalServerError, "internal", "sending is not configured")
+		return
+	}
+	for _, email := range req.Emails {
+		if err := s.engine.SendTestEmail(r.Context(), c, email); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not send test: "+err.Error())
+			return
+		}
+	}
+	writeOK(w, map[string]any{"sent": true})
+}
+
+func (s *Server) handleCancelCampaign(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	if c.Status == store.CampaignSending {
+		writeError(w, http.StatusConflict, "invalid_state", "campaign is already sending")
+		return
+	}
+	if err := s.db.SetCampaignStatus(r.Context(), claims.GetWorkspaceID(), c.ID, store.CampaignDraft); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not cancel campaign")
+		return
+	}
+	writeOK(w, map[string]any{"ok": true})
+}
