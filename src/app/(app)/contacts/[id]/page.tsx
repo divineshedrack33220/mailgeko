@@ -204,7 +204,7 @@ export default function ContactDetailPage() {
                   <span className="text-sm font-semibold">Tags</span>
                 </div>
                 <div className="flex flex-wrap gap-2 px-6">
-                  {contact.tags.map((tag) => (
+                  {(contact.tags ?? []).map((tag) => (
                     <Badge key={tag} variant="secondary">
                       {tag}
                     </Badge>
@@ -220,13 +220,13 @@ export default function ContactDetailPage() {
                   <span className="text-sm font-semibold">Custom fields</span>
                 </div>
                 <div className="divide-y px-6">
-                  {Object.entries(contact.customFields).map(([key, value]) => (
+                  {Object.entries(contact.customFields ?? {}).map(([key, value]) => (
                     <div key={key} className="flex items-center justify-between py-2.5">
                       <span className="text-muted-foreground text-sm">{key}</span>
                       <span className="text-sm font-medium capitalize">{value}</span>
                     </div>
                   ))}
-                  {Object.keys(contact.customFields).length === 0 && (
+                  {Object.keys(contact.customFields ?? {}).length === 0 && (
                     <p className="text-muted-foreground py-2 text-sm">No custom fields set</p>
                   )}
                 </div>

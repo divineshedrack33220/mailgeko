@@ -91,7 +91,7 @@ export default function AutomationsPage() {
     trigger: {
       type: a.trigger.type,
       label: a.trigger.label,
-      conditions: a.trigger.conditions,
+      conditions: a.trigger.conditions ?? [],
       delay: a.trigger.delay,
     },
     steps: a.steps,

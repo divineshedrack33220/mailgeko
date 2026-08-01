@@ -93,7 +93,7 @@ export default function TemplatesPage() {
     const matchesSearch =
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.category.toLowerCase().includes(search.toLowerCase()) ||
-      t.tags.some((tag) => tag.toLowerCase().includes(search.toLowerCase()));
+      (t.tags ?? []).some((tag) => tag.toLowerCase().includes(search.toLowerCase()));
     const matchesCategory = category === "all" || t.category === category;
     const matchesFav = !onlyFavorites || t.isFavorite;
     return matchesSearch && matchesCategory && matchesFav;

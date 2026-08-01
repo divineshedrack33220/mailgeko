@@ -18,3 +18,17 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 func writeOK(w http.ResponseWriter, v any) {
 	writeJSON(w, http.StatusOK, v)
 }
+
+func orEmptySlice(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
+}
+
+func orEmptyMap(v map[string]string) map[string]string {
+	if v == nil {
+		return map[string]string{}
+	}
+	return v
+}

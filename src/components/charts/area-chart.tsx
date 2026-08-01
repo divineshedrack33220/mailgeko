@@ -40,7 +40,7 @@ export function AreaChart({
   xTickFormatter,
 }: AreaChartProps) {
   return (
-    <div className={cn("chart-draw", className)} style={{ height }}>
+    <div className={cn("chart-draw min-w-0", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <RechartsAreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>

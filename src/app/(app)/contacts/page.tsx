@@ -100,7 +100,7 @@ export default function ContactsPage() {
 
   const pageSize = 8;
   const allTags = React.useMemo(
-    () => Array.from(new Set(contacts.flatMap((c) => c.tags))).sort(),
+    () => Array.from(new Set(contacts.flatMap((c) => c.tags ?? []))).sort(),
     [contacts]
   );
 
@@ -111,7 +111,7 @@ export default function ContactsPage() {
       (c.lastName ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (c.company ?? "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = status === "all" || c.status === status;
-    const matchesTag = tag === "all" || c.tags.includes(tag);
+    const matchesTag = tag === "all" || (c.tags ?? []).includes(tag);
     return matchesSearch && matchesStatus && matchesTag;
   });
 
@@ -149,7 +149,7 @@ export default function ContactsPage() {
     const header = "email,first_name,last_name,company,position,country,city,status,tags";
     const body = rows
       .map((c) =>
-        [c.email, c.firstName ?? "", c.lastName ?? "", c.company ?? "", c.position ?? "", c.country ?? "", c.city ?? "", c.status, c.tags.join(";")].join(",")
+        [c.email, c.firstName ?? "", c.lastName ?? "", c.company ?? "", c.position ?? "", c.country ?? "", c.city ?? "", c.status, (c.tags ?? []).join(";")].join(",")
       )
       .join("\n");
     const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });
@@ -389,14 +389,14 @@ export default function ContactsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex max-w-[200px] flex-wrap gap-1">
-                        {contact.tags.slice(0, 2).map((t) => (
+                        {(contact.tags ?? []).slice(0, 2).map((t) => (
                           <Badge key={t} variant="secondary" className="text-xs">
                             {t}
                           </Badge>
                         ))}
-                        {contact.tags.length > 2 && (
+                        {(contact.tags ?? []).length > 2 && (
                           <Badge variant="outline" className="text-xs">
-                            +{contact.tags.length - 2}
+                            +{(contact.tags ?? []).length - 2}
                           </Badge>
                         )}
                       </div>

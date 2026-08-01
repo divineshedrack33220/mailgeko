@@ -201,7 +201,7 @@ export default function ListsPage() {
         name: `${segment.name} (copy)`,
         description: segment.description,
         matchType: segment.matchType,
-        conditions: segment.conditions,
+        conditions: segment.conditions ?? [],
       });
       toast.success("Segment duplicated");
       await load();
@@ -374,7 +374,7 @@ export default function ListsPage() {
                       Matches {segment.matchType === "all" ? "all" : "any"} rules:
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {segment.conditions.map((c) => (
+                      {(segment.conditions ?? []).map((c) => (
                         <Badge key={c.id} variant="secondary" className="text-xs">
                           {c.field} {c.operator} {c.value}
                         </Badge>
