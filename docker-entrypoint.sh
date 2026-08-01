@@ -7,7 +7,7 @@ export PORT
 /usr/local/bin/api &
 API_PID=$!
 
-PORT=3000 node /app/server.js &
+PORT=3000 HOSTNAME=0.0.0.0 node /app/server.js &
 WEB_PID=$!
 
 trap 'kill $API_PID $WEB_PID 2>/dev/null || true' TERM INT
