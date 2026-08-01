@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
 
 func (s *Server) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -18,18 +20,31 @@ func (s *Server) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load workspace")
 		return
 	}
-	writeOK(w, map[string]any{"workspace": workspaceResponse(ws.ID, ws.Name)})
+	writeOK(w, map[string]any{"workspace": workspaceResponse(ws)})
 }
 
 func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	var req struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		FromName  string `json:"fromName"`
+		FromEmail string `json:"fromEmail"`
+		ReplyTo   string `json:"replyTo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
+	ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "workspace not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load workspace")
+		return
+	}
+
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
@@ -39,9 +54,24 @@ func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update workspace")
 		return
 	}
-	writeOK(w, map[string]any{"workspace": workspaceResponse(claims.GetWorkspaceID(), req.Name)})
+	ws.Name = req.Name
+
+	ws.FromName = strings.TrimSpace(req.FromName)
+	ws.FromEmail = strings.TrimSpace(req.FromEmail)
+	ws.ReplyTo = strings.TrimSpace(req.ReplyTo)
+	if err := s.db.UpdateWorkspaceSending(r.Context(), claims.GetWorkspaceID(), ws.FromName, ws.FromEmail, ws.ReplyTo); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not update sending defaults")
+		return
+	}
+	writeOK(w, map[string]any{"workspace": workspaceResponse(ws)})
 }
 
-func workspaceResponse(id, name string) map[string]any {
-	return map[string]any{"id": id, "name": name}
+func workspaceResponse(ws *store.Workspace) map[string]any {
+	return map[string]any{
+		"id":        ws.ID,
+		"name":      ws.Name,
+		"fromName":  ws.FromName,
+		"fromEmail": ws.FromEmail,
+		"replyTo":   ws.ReplyTo,
+	}
 }

@@ -22,6 +22,9 @@ type Workspace struct {
 	StripeSubscriptionID     string     `db:"stripe_subscription_id"`
 	StripeSubscriptionStatus string     `db:"stripe_subscription_status"`
 	SubscriptionPeriodEnd    *time.Time `db:"subscription_period_end"`
+	FromName                 string     `db:"from_name"`
+	FromEmail                string     `db:"from_email"`
+	ReplyTo                  string     `db:"reply_to"`
 	CreatedAt                time.Time  `db:"created_at"`
 }
 
@@ -79,7 +82,11 @@ func (s *Store) GetWorkspace(ctx context.Context, workspaceID string) (*Workspac
 		        COALESCE(stripe_customer_id, '') AS stripe_customer_id,
 		        COALESCE(stripe_subscription_id, '') AS stripe_subscription_id,
 		        COALESCE(stripe_subscription_status, '') AS stripe_subscription_status,
-		        subscription_period_end, created_at
+		        subscription_period_end,
+		        COALESCE(from_name, '') AS from_name,
+		        COALESCE(from_email, '') AS from_email,
+		        COALESCE(reply_to, '') AS reply_to,
+		        created_at
 		 FROM workspaces WHERE id = ?`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -93,6 +100,13 @@ func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name strin
 	return err
 }
 
+func (s *Store) UpdateWorkspaceSending(ctx context.Context, workspaceID, fromName, fromEmail, replyTo string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE workspaces SET from_name = ?, from_email = ?, reply_to = ? WHERE id = ?`,
+		fromName, fromEmail, replyTo, workspaceID)
+	return err
+}
+
 func (s *Store) WorkspaceByStripeCustomer(ctx context.Context, customerID string) (*Workspace, error) {
 	var w Workspace
 	err := s.db.GetContext(ctx, &w,
@@ -100,7 +114,11 @@ func (s *Store) WorkspaceByStripeCustomer(ctx context.Context, customerID string
 		        COALESCE(stripe_customer_id, '') AS stripe_customer_id,
 		        COALESCE(stripe_subscription_id, '') AS stripe_subscription_id,
 		        COALESCE(stripe_subscription_status, '') AS stripe_subscription_status,
-		        subscription_period_end, created_at
+		        subscription_period_end,
+		        COALESCE(from_name, '') AS from_name,
+		        COALESCE(from_email, '') AS from_email,
+		        COALESCE(reply_to, '') AS reply_to,
+		        created_at
 		 FROM workspaces WHERE stripe_customer_id = ?`, customerID)
 	if err != nil {
 		return nil, err

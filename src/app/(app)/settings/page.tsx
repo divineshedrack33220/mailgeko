@@ -33,15 +33,26 @@ export default function ProfileSettingsPage() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [workspaceName, setWorkspaceName] = React.useState("");
+  const [fromName, setFromName] = React.useState("");
+  const [fromEmail, setFromEmail] = React.useState("");
+  const [replyTo, setReplyTo] = React.useState("");
+  const [trackOpens, setTrackOpens] = React.useState(true);
+  const [trackClicks, setTrackClicks] = React.useState(true);
   const [workspaceSaving, setWorkspaceSaving] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [sendingSaving, setSendingSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
   React.useEffect(() => {
     const run = async () => {
       try {
-        const res = await api.get<{ workspace: { id: string; name: string } }>("/api/v1/workspace");
+        const res = await api.get<{
+          workspace: { id: string; name: string; fromName?: string; fromEmail?: string; replyTo?: string };
+        }>("/api/v1/workspace");
         setWorkspaceName(res.workspace?.name ?? "");
+        setFromName(res.workspace?.fromName ?? "");
+        setFromEmail(res.workspace?.fromEmail ?? "");
+        setReplyTo(res.workspace?.replyTo ?? "");
       } catch {
         // Keep the input editable; the save action will surface errors.
       }
@@ -94,6 +105,23 @@ export default function ProfileSettingsPage() {
       toast.error(err instanceof Error ? err.message : "Could not update workspace");
     } finally {
       setWorkspaceSaving(false);
+    }
+  };
+
+  const saveSending = async () => {
+    setSendingSaving(true);
+    try {
+      await api.patch("/api/v1/workspace", {
+        name: workspaceName.trim() || "Mailgeko Workspace",
+        fromName: fromName.trim(),
+        fromEmail: fromEmail.trim(),
+        replyTo: replyTo.trim(),
+      });
+      toast.success("Sending defaults saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save sending defaults");
+    } finally {
+      setSendingSaving(false);
     }
   };
 
@@ -239,15 +267,15 @@ export default function ProfileSettingsPage() {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="from-name">Default &quot;From&quot; name</Label>
-            <Input id="from-name" defaultValue="Grace Lee" className="sm:w-72" />
+            <Input id="from-name" value={fromName} onChange={(e) => setFromName(e.target.value)} className="sm:w-72" placeholder="e.g. Grace Lee" />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="from-email">Default &quot;From&quot; email</Label>
-            <Input id="from-email" defaultValue="hello@mailgeko.dev" className="sm:w-72" />
+            <Input id="from-email" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} className="sm:w-72" placeholder="hello@yourdomain.com" />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="reply-email">Default reply-to</Label>
-            <Input id="reply-email" defaultValue="support@mailgeko.dev" className="sm:w-72" />
+            <Input id="reply-email" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} className="sm:w-72" placeholder="support@yourdomain.com" />
           </div>
           <div className="flex items-center justify-between rounded-lg border px-4 py-3">
             <div>
@@ -256,7 +284,7 @@ export default function ProfileSettingsPage() {
                 Adds an invisible pixel to measure engagement.
               </p>
             </div>
-            <Switch defaultChecked />
+            <Switch checked={trackOpens} onCheckedChange={setTrackOpens} />
           </div>
           <div className="flex items-center justify-between rounded-lg border px-4 py-3">
             <div>
@@ -265,11 +293,12 @@ export default function ProfileSettingsPage() {
                 Wraps links to record click-throughs.
               </p>
             </div>
-            <Switch defaultChecked />
+            <Switch checked={trackClicks} onCheckedChange={setTrackClicks} />
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => toast.info("Sending defaults are coming soon")}>
+            <Button variant="outline" onClick={saveSending} disabled={sendingSaving}>
+              {sendingSaving && <Loader2 className="animate-spin" />}
               Save changes
             </Button>
           </div>

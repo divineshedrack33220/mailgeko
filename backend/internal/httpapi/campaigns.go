@@ -172,6 +172,19 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
 		return
 	}
+	if c.FromName == "" || c.FromEmail == "" || c.ReplyTo == "" {
+		if ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil {
+			if c.FromName == "" {
+				c.FromName = ws.FromName
+			}
+			if c.FromEmail == "" {
+				c.FromEmail = ws.FromEmail
+			}
+			if c.ReplyTo == "" {
+				c.ReplyTo = ws.ReplyTo
+			}
+		}
+	}
 	if err := s.db.CreateCampaign(r.Context(), c); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create campaign")
 		return

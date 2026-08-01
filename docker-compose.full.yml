@@ -54,7 +54,7 @@ services:
     command:
       - |
         set -e
-        for f in 0001_init.sql 0002_domain.sql 0006_billing.sql 0007_settings.sql; do
+        for f in 0001_init.sql 0002_domain.sql 0006_billing.sql 0007_settings.sql 0008_sending_defaults.sql; do
           echo ">> mysql: $f"
           mariadb -h db -uroot -pmailgeko mailgeko < "/migrations/$f"
         done
