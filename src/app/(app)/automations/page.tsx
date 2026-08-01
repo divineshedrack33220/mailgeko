@@ -89,12 +89,12 @@ export default function AutomationsPage() {
     name: a.name,
     description: a.description,
     trigger: {
-      type: a.trigger.type,
-      label: a.trigger.label,
-      conditions: a.trigger.conditions ?? [],
-      delay: a.trigger.delay,
+      type: a.trigger?.type ?? "custom",
+      label: a.trigger?.label ?? "",
+      conditions: a.trigger?.conditions ?? [],
+      delay: a.trigger?.delay,
     },
-    steps: a.steps,
+    steps: a.steps ?? [],
     status,
   });
 
@@ -260,14 +260,14 @@ export default function AutomationsPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Zap className="text-primary size-4 shrink-0" />
                   <span className="truncate text-xs font-medium">
-                    Trigger: {automation.trigger.label}
+                    Trigger: {automation.trigger?.label ?? ""}
                   </span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden">
                   <span className="bg-secondary text-secondary-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
                     <Zap className="size-3.5" />
                   </span>
-                  {automation.steps.slice(0, 5).map((step) => {
+                  {(automation.steps ?? []).slice(0, 5).map((step) => {
                     const Icon = stepIcons[step.type];
                     return (
                       <React.Fragment key={step.id}>
@@ -278,11 +278,11 @@ export default function AutomationsPage() {
                       </React.Fragment>
                     );
                   })}
-                  {automation.steps.length > 5 && (
+                  {(automation.steps ?? []).length > 5 && (
                     <>
                       <ArrowRight className="text-muted-foreground/50 size-3 shrink-0" />
                       <span className="text-muted-foreground text-[0.65rem] font-medium">
-                        +{automation.steps.length - 5}
+                        +{(automation.steps ?? []).length - 5}
                       </span>
                     </>
                   )}

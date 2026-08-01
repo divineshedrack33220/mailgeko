@@ -236,7 +236,7 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 			"id":      k.ID,
 			"name":    k.Name,
 			"prefix":  k.Prefix,
-			"scopes":  k.Scopes,
+			"scopes":  orEmptySlice(k.Scopes),
 			"createdAt": k.CreatedAt.UTC().Format(time.RFC3339),
 		}
 		if k.LastUsedAt != nil {

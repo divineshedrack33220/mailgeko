@@ -28,7 +28,20 @@ import { formatDateTime, formatNumber, formatPercent } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
-import type { Automation, Campaign } from "@/lib/types";
+import type { Automation, Campaign, CampaignStats } from "@/lib/types";
+
+const EMPTY_STATS: CampaignStats = {
+  recipients: 0,
+  sent: 0,
+  delivered: 0,
+  opened: 0,
+  clicked: 0,
+  bounced: 0,
+  complained: 0,
+  unsubscribed: 0,
+  uniqueOpens: 0,
+  uniqueClicks: 0,
+};
 
 interface AnalyticsTotals {
   recipients: number;
@@ -295,11 +308,12 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y">
                 {recentCampaigns.map((campaign) => {
-                  const openRate = campaign.stats.delivered
-                    ? (campaign.stats.uniqueOpens / campaign.stats.delivered) * 100
+                  const stats = campaign.stats ?? EMPTY_STATS;
+                  const openRate = stats.delivered
+                    ? (stats.uniqueOpens / stats.delivered) * 100
                     : 0;
-                  const clickRate = campaign.stats.delivered
-                    ? (campaign.stats.uniqueClicks / campaign.stats.delivered) * 100
+                  const clickRate = stats.delivered
+                    ? (stats.uniqueClicks / stats.delivered) * 100
                     : 0;
                   return (
                     <Link
@@ -460,7 +474,7 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">Automation: {automation.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      Trigger: {automation.trigger.label}
+                      Trigger: {automation.trigger?.label ?? ""}
                     </p>
                   </div>
                   <AutomationStatusBadge status={automation.status} />

@@ -28,7 +28,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { api } from "@/lib/api";
-import type { Campaign } from "@/lib/types";
+import type { Campaign, CampaignStats } from "@/lib/types";
+
+const EMPTY_STATS: CampaignStats = {
+  recipients: 0,
+  sent: 0,
+  delivered: 0,
+  opened: 0,
+  clicked: 0,
+  bounced: 0,
+  complained: 0,
+  unsubscribed: 0,
+  uniqueOpens: 0,
+  uniqueClicks: 0,
+};
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -108,12 +121,15 @@ export default function ReportsPage() {
   ];
 
   const bestCampaigns = campaigns
-    .filter((c) => c.stats.delivered > 0 && c.type !== "test")
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      openRate: (c.stats.uniqueOpens / c.stats.delivered) * 100,
-    }))
+    .filter((c) => (c.stats ?? EMPTY_STATS).delivered > 0 && c.type !== "test")
+    .map((c) => {
+      const stats = c.stats ?? EMPTY_STATS;
+      return {
+        id: c.id,
+        name: c.name,
+        openRate: (stats.uniqueOpens / stats.delivered) * 100,
+      };
+    })
     .sort((a, b) => b.openRate - a.openRate)
     .slice(0, 6);
 

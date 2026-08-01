@@ -59,7 +59,20 @@ import { CampaignStatusBadge } from "@/components/shared/status-badges";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatPercent, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
-import type { Campaign, ContactList } from "@/lib/types";
+import type { Campaign, CampaignStats, ContactList } from "@/lib/types";
+
+const EMPTY_STATS: CampaignStats = {
+  recipients: 0,
+  sent: 0,
+  delivered: 0,
+  opened: 0,
+  clicked: 0,
+  bounced: 0,
+  complained: 0,
+  unsubscribed: 0,
+  uniqueOpens: 0,
+  uniqueClicks: 0,
+};
 
 export default function CampaignsPage() {
   const [tab, setTab] = React.useState("all");
@@ -265,13 +278,14 @@ export default function CampaignsPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((campaign) => {
-                const openRate = campaign.stats.delivered
-                  ? (campaign.stats.uniqueOpens / campaign.stats.delivered) * 100
+                const stats = campaign.stats ?? EMPTY_STATS;
+                const openRate = stats.delivered
+                  ? (stats.uniqueOpens / stats.delivered) * 100
                   : 0;
-                const clickRate = campaign.stats.delivered
-                  ? (campaign.stats.uniqueClicks / campaign.stats.delivered) * 100
+                const clickRate = stats.delivered
+                  ? (stats.uniqueClicks / stats.delivered) * 100
                   : 0;
-                const recipients = campaign.type === "automated" ? campaign.stats.sent : campaign.stats.recipients;
+                const recipients = campaign.type === "automated" ? stats.sent : stats.recipients;
                 const canCancel = campaign.status === "scheduled" || campaign.status === "paused" || campaign.status === "sending";
                 return (
                   <TableRow key={campaign.id} className="group">
@@ -307,10 +321,10 @@ export default function CampaignsPage() {
                       {formatNumber(recipients)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {campaign.stats.delivered ? formatPercent(openRate) : "—"}
+                      {stats.delivered ? formatPercent(openRate) : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {campaign.stats.delivered ? formatPercent(clickRate) : "—"}
+                      {stats.delivered ? formatPercent(clickRate) : "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {timeAgo(campaign.updatedAt)}

@@ -155,12 +155,12 @@ export default function AutomationBuilderPage() {
           {
             id: "trigger",
             type: "trigger",
-            label: res.automation.trigger.label,
-            detail: res.automation.trigger.type,
+            label: res.automation.trigger?.label ?? "New subscriber",
+            detail: res.automation.trigger?.type ?? "welcome",
             x: 0,
             y: 0,
           },
-          ...res.automation.steps.map((step, index) => ({
+          ...(res.automation.steps ?? []).map((step, index) => ({
             id: step.id,
             type: step.type as CanvasNode["type"],
             label: step.label,
@@ -270,10 +270,10 @@ export default function AutomationBuilderPage() {
     name: name.trim(),
     description: automation?.description ?? "",
     trigger: {
-      type: automation?.trigger.type ?? "welcome",
-      label: automation?.trigger.label ?? "New subscriber",
-      conditions: automation?.trigger.conditions ?? [],
-      delay: automation?.trigger.delay ?? 0,
+      type: automation?.trigger?.type ?? "welcome",
+      label: automation?.trigger?.label ?? "New subscriber",
+      conditions: automation?.trigger?.conditions ?? [],
+      delay: automation?.trigger?.delay ?? 0,
     },
     steps: nodes
       .filter((n) => n.type !== "trigger")
@@ -743,7 +743,7 @@ function TriggerConfig({ automation }: { automation: Automation }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Event</Label>
-        <Select defaultValue={automation.trigger.type}>
+        <Select defaultValue={automation.trigger?.type ?? "welcome"}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -759,7 +759,7 @@ function TriggerConfig({ automation }: { automation: Automation }) {
       <div className="flex flex-col gap-2">
         <Label>Wait before starting</Label>
         <div className="grid grid-cols-2 gap-2">
-          <Input type="number" defaultValue={automation.trigger.delay ?? 0} min={0} />
+          <Input type="number" defaultValue={automation.trigger?.delay ?? 0} min={0} />
           <Select defaultValue="hours">
             <SelectTrigger className="w-full">
               <SelectValue />

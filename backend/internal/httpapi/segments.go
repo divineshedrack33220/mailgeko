@@ -26,7 +26,7 @@ func segmentResponse(seg *store.Segment) map[string]any {
 		"name":        seg.Name,
 		"description": seg.Description,
 		"matchType":   seg.MatchType,
-		"conditions":  seg.Conditions,
+		"conditions":  orEmptySlice(seg.Conditions),
 		"createdAt":   seg.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt":   seg.UpdatedAt.UTC().Format(time.RFC3339),
 	}

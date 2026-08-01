@@ -23,24 +23,28 @@ type automationRow struct {
 
 func (r automationRow) toAutomation() *Automation {
 	return &Automation{
-		ID:           r.ID,
-		WorkspaceID:  r.WorkspaceID,
-		Name:         r.Name,
-		Description:  r.Description,
-		TriggerType:  r.TriggerType,
-		TriggerLabel: r.TriggerLabel,
-		TriggerDelay: r.TriggerDelay,
-		Steps:        r.Steps,
-		Status:       r.Status,
-		CreatedAt:    r.CreatedAt,
-		UpdatedAt:    r.UpdatedAt,
+		ID:                r.ID,
+		WorkspaceID:       r.WorkspaceID,
+		Name:              r.Name,
+		Description:       r.Description,
+		TriggerType:       r.TriggerType,
+		TriggerLabel:      r.TriggerLabel,
+		TriggerConditions: r.triggerConditions(),
+		TriggerDelay:      r.TriggerDelay,
+		Steps:             r.Steps,
+		Status:            r.Status,
+		CreatedAt:         r.CreatedAt,
+		UpdatedAt:         r.UpdatedAt,
 	}
 }
 
 func (r automationRow) triggerConditions() []Condition {
 	var out []Condition
-	if len(r.TriggerConditions) > 0 {
+	if len(r.TriggerConditions) > 0 && string(r.TriggerConditions) != "null" {
 		_ = json.Unmarshal(r.TriggerConditions, &out)
+	}
+	if out == nil {
+		out = []Condition{}
 	}
 	return out
 }

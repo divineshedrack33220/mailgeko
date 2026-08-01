@@ -125,7 +125,7 @@ func (s *Server) handleAnalyticsLinks(w http.ResponseWriter, r *http.Request) {
 	}
 	writeOK(w, map[string]any{
 		"range": r.URL.Query().Get("range"),
-		"links": links,
+		"links": orEmptySlice(links),
 	})
 }
 
@@ -142,7 +142,7 @@ func (s *Server) handleAnalyticsDevices(w http.ResponseWriter, r *http.Request) 
 	}
 	writeOK(w, map[string]any{
 		"range":   r.URL.Query().Get("range"),
-		"devices": devices,
+		"devices": orEmptySlice(devices),
 	})
 }
 
@@ -159,7 +159,7 @@ func (s *Server) handleAnalyticsCountries(w http.ResponseWriter, r *http.Request
 	}
 	writeOK(w, map[string]any{
 		"range":     r.URL.Query().Get("range"),
-		"countries": countries,
+		"countries": orEmptySlice(countries),
 	})
 }
 

@@ -106,8 +106,8 @@ func campaignResponse(c *store.Campaign, stats *store.CampaignStats) map[string]
 		"htmlContent": c.HTMLContent,
 		"status":      c.Status,
 		"type":        c.Type,
-		"listIds":     c.ListIDs,
-		"segmentIds":  c.SegmentIDs,
+		"listIds":     orEmptySlice(c.ListIDs),
+		"segmentIds":  orEmptySlice(c.SegmentIDs),
 		"scheduleAt":  scheduleAt,
 		"sender": map[string]any{
 			"fromName":  c.FromName,

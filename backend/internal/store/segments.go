@@ -29,6 +29,9 @@ func (r segmentRow) toSegment() *Segment {
 	if len(r.Conditions) > 0 {
 		_ = jsonUnmarshal(r.Conditions, &seg.Conditions)
 	}
+	if seg.Conditions == nil {
+		seg.Conditions = []Condition{}
+	}
 	return seg
 }
 

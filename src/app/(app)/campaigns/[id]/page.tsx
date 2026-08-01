@@ -53,7 +53,20 @@ import {
 } from "@/components/ui/dialog";
 import { formatDateTime, formatNumber, formatPercent, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
-import type { Campaign } from "@/lib/types";
+import type { Campaign, CampaignStats } from "@/lib/types";
+
+const EMPTY_STATS: CampaignStats = {
+  recipients: 0,
+  sent: 0,
+  delivered: 0,
+  opened: 0,
+  clicked: 0,
+  bounced: 0,
+  complained: 0,
+  unsubscribed: 0,
+  uniqueOpens: 0,
+  uniqueClicks: 0,
+};
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
@@ -167,7 +180,10 @@ export default function CampaignDetailPage() {
 
   const updateSetting = async (key: "trackOpens" | "trackClicks" | "allowUnsubscribe", value: boolean) => {
     if (!campaign) return;
-    const next = { ...campaign, settings: { ...campaign.settings, [key]: value } };
+    const next = {
+      ...campaign,
+      settings: { ...(campaign.settings ?? { trackOpens: true, trackClicks: true, allowUnsubscribe: true }), [key]: value },
+    };
     setCampaign(next);
     try {
       await api.patch(`/api/v1/campaigns/${campaign.id}`, {
@@ -202,18 +218,19 @@ export default function CampaignDetailPage() {
 
   if (!campaign) return null;
 
-  const delivered = campaign.stats.delivered;
-  const openRate = delivered ? (campaign.stats.uniqueOpens / delivered) * 100 : 0;
-  const clickRate = delivered ? (campaign.stats.uniqueClicks / delivered) * 100 : 0;
-  const bounceRate = campaign.stats.sent ? (campaign.stats.bounced / campaign.stats.sent) * 100 : 0;
-  const sendProgress = campaign.stats.sent
-    ? (campaign.stats.sent / Math.max(campaign.stats.recipients, 1)) * 100
+  const stats = campaign.stats ?? EMPTY_STATS;
+  const delivered = stats.delivered;
+  const openRate = delivered ? (stats.uniqueOpens / delivered) * 100 : 0;
+  const clickRate = delivered ? (stats.uniqueClicks / delivered) * 100 : 0;
+  const bounceRate = stats.sent ? (stats.bounced / stats.sent) * 100 : 0;
+  const sendProgress = stats.sent
+    ? (stats.sent / Math.max(stats.recipients, 1)) * 100
     : 0;
 
   const isSending = campaign.status === "sending";
   const isSent = campaign.status === "sent" || campaign.status === "completed";
   const canSend = campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused";
-  const hasAnalytics = campaign.stats.delivered > 0;
+  const hasAnalytics = stats.delivered > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -291,7 +308,7 @@ export default function CampaignDetailPage() {
               <span className="text-sm font-medium">Sending in progress</span>
             </div>
             <span className="text-muted-foreground text-xs tabular-nums">
-              {formatNumber(campaign.stats.sent)} / {formatNumber(campaign.stats.recipients)}
+              {formatNumber(stats.sent)} / {formatNumber(stats.recipients)}
             </span>
           </div>
           <div className="px-6">
@@ -312,27 +329,27 @@ export default function CampaignDetailPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Delivered"
-              value={formatNumber(campaign.stats.delivered)}
+              value={formatNumber(stats.delivered)}
               icon={CheckCircle2}
-              hint={`of ${formatNumber(campaign.stats.sent)} sent`}
+              hint={`of ${formatNumber(stats.sent)} sent`}
             />
             <StatCard
               label="Open rate"
               value={formatPercent(openRate)}
               icon={MailOpen}
-              hint={`${formatNumber(campaign.stats.uniqueOpens)} unique opens`}
+              hint={`${formatNumber(stats.uniqueOpens)} unique opens`}
             />
             <StatCard
               label="Click rate"
               value={formatPercent(clickRate)}
               icon={MousePointerClick}
-              hint={`${formatNumber(campaign.stats.uniqueClicks)} unique clicks`}
+              hint={`${formatNumber(stats.uniqueClicks)} unique clicks`}
             />
             <StatCard
               label="Bounces"
               value={formatPercent(bounceRate)}
               icon={XCircle}
-              hint={`${formatNumber(campaign.stats.bounced)} bounced`}
+              hint={`${formatNumber(stats.bounced)} bounced`}
             />
           </div>
 
@@ -364,7 +381,7 @@ export default function CampaignDetailPage() {
                         <MailOpen className="size-4" />
                       </span>
                       <div>
-                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.opened)}</p>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(stats.opened)}</p>
                         <p className="text-muted-foreground text-xs">total opens</p>
                       </div>
                     </div>
@@ -373,7 +390,7 @@ export default function CampaignDetailPage() {
                         <MousePointerClick className="size-4" />
                       </span>
                       <div>
-                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.clicked)}</p>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(stats.clicked)}</p>
                         <p className="text-muted-foreground text-xs">total clicks</p>
                       </div>
                     </div>
@@ -382,7 +399,7 @@ export default function CampaignDetailPage() {
                         <MonitorSmartphone className="size-4" />
                       </span>
                       <div>
-                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.uniqueOpens)}</p>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(stats.uniqueOpens)}</p>
                         <p className="text-muted-foreground text-xs">unique opens</p>
                       </div>
                     </div>
@@ -391,7 +408,7 @@ export default function CampaignDetailPage() {
                         <Link2 className="size-4" />
                       </span>
                       <div>
-                        <p className="text-lg font-semibold tabular-nums">{formatNumber(campaign.stats.uniqueClicks)}</p>
+                        <p className="text-lg font-semibold tabular-nums">{formatNumber(stats.uniqueClicks)}</p>
                         <p className="text-muted-foreground text-xs">unique clicks</p>
                       </div>
                     </div>
@@ -403,7 +420,7 @@ export default function CampaignDetailPage() {
                       <div className="flex-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Delivered</span>
-                          <span className="tabular-nums">{formatNumber(campaign.stats.delivered)}</span>
+                          <span className="tabular-nums">{formatNumber(stats.delivered)}</span>
                         </div>
                       </div>
                     </div>
@@ -412,7 +429,7 @@ export default function CampaignDetailPage() {
                       <div className="flex-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Bounced</span>
-                          <span className="tabular-nums">{formatNumber(campaign.stats.bounced)}</span>
+                          <span className="tabular-nums">{formatNumber(stats.bounced)}</span>
                         </div>
                       </div>
                     </div>
@@ -421,7 +438,7 @@ export default function CampaignDetailPage() {
                       <div className="flex-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Complained</span>
-                          <span className="tabular-nums">{formatNumber(campaign.stats.complained)}</span>
+                          <span className="tabular-nums">{formatNumber(stats.complained)}</span>
                         </div>
                       </div>
                     </div>
@@ -430,7 +447,7 @@ export default function CampaignDetailPage() {
                       <div className="flex-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Unsubscribed</span>
-                          <span className="tabular-nums">{formatNumber(campaign.stats.unsubscribed)}</span>
+                          <span className="tabular-nums">{formatNumber(stats.unsubscribed)}</span>
                         </div>
                       </div>
                     </div>
@@ -448,7 +465,7 @@ export default function CampaignDetailPage() {
                 <div>
                   <p className="text-sm font-semibold">{campaign.subject}</p>
                   <p className="text-muted-foreground text-xs">
-                    From {campaign.sender.fromName} &lt;{campaign.sender.fromEmail}&gt;
+                    From {campaign.sender?.fromName ?? "Mailgeko"} &lt;{campaign.sender?.fromEmail ?? "team@mailgeko.dev"}&gt;
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -473,11 +490,11 @@ export default function CampaignDetailPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label className="text-xs">From name</Label>
-                  <Input readOnly value={campaign.sender.fromName} />
+                  <Input readOnly value={campaign.sender?.fromName ?? "Mailgeko"} />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label className="text-xs">From email</Label>
-                  <Input readOnly value={campaign.sender.fromEmail} />
+                  <Input readOnly value={campaign.sender?.fromEmail ?? "team@mailgeko.dev"} />
                 </div>
               </div>
               <Separator />
@@ -503,9 +520,9 @@ export default function CampaignDetailPage() {
             </div>
             <div className="divide-y px-6">
               {[
-                { key: "trackOpens" as const, label: "Track opens", desc: "Count recipients who open this email", defaultOn: campaign.settings.trackOpens },
-                { key: "trackClicks" as const, label: "Track clicks", desc: "Record clicks on all links", defaultOn: campaign.settings.trackClicks },
-                { key: "allowUnsubscribe" as const, label: "Allow unsubscribe", desc: "Include one-click unsubscribe footer", defaultOn: campaign.settings.allowUnsubscribe },
+                { key: "trackOpens" as const, label: "Track opens", desc: "Count recipients who open this email", defaultOn: campaign.settings?.trackOpens ?? true },
+                { key: "trackClicks" as const, label: "Track clicks", desc: "Record clicks on all links", defaultOn: campaign.settings?.trackClicks ?? true },
+                { key: "allowUnsubscribe" as const, label: "Allow unsubscribe", desc: "Include one-click unsubscribe footer", defaultOn: campaign.settings?.allowUnsubscribe ?? true },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <div>

@@ -23,6 +23,13 @@ type automationRequest struct {
 	Status string          `json:"status"`
 }
 
+func normalizeSteps(s json.RawMessage) json.RawMessage {
+	if len(s) == 0 || string(s) == "null" {
+		return []byte("[]")
+	}
+	return s
+}
+
 func automationResponse(a *store.Automation) map[string]any {
 	return map[string]any{
 		"id":          a.ID,
@@ -31,10 +38,10 @@ func automationResponse(a *store.Automation) map[string]any {
 		"trigger": map[string]any{
 			"type":       a.TriggerType,
 			"label":      a.TriggerLabel,
-			"conditions": a.TriggerConditions,
+			"conditions": orEmptySlice(a.TriggerConditions),
 			"delay":      a.TriggerDelay,
 		},
-		"steps":     a.Steps,
+		"steps":     orEmptyRaw(a.Steps),
 		"status":    a.Status,
 		"createdAt": a.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt": a.UpdatedAt.UTC().Format(time.RFC3339),
@@ -82,9 +89,7 @@ func (s *Server) handleCreateAutomation(w http.ResponseWriter, r *http.Request) 
 		Steps:             req.Steps,
 		Status:            status,
 	}
-	if len(a.Steps) == 0 {
-		a.Steps = []byte("[]")
-	}
+	a.Steps = normalizeSteps(req.Steps)
 	if err := s.db.CreateAutomation(r.Context(), a); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create automation")
 		return
@@ -129,11 +134,8 @@ func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) 
 	existing.TriggerLabel = req.Trigger.Label
 	existing.TriggerConditions = req.Trigger.Conditions
 	existing.TriggerDelay = req.Trigger.Delay
-	if len(req.Steps) > 0 {
-		existing.Steps = req.Steps
-	}
-	if len(existing.Steps) == 0 {
-		existing.Steps = []byte("[]")
+	if req.Steps != nil {
+		existing.Steps = normalizeSteps(req.Steps)
 	}
 	if req.Status != "" {
 		existing.Status = req.Status
@@ -175,7 +177,7 @@ func (s *Server) handleDuplicateAutomation(w http.ResponseWriter, r *http.Reques
 		TriggerLabel:      src.TriggerLabel,
 		TriggerConditions: src.TriggerConditions,
 		TriggerDelay:      src.TriggerDelay,
-		Steps:             src.Steps,
+		Steps:             normalizeSteps(src.Steps),
 		Status:            "draft",
 	}
 	if len(copy.Steps) == 0 {

@@ -19,16 +19,23 @@ func writeOK(w http.ResponseWriter, v any) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-func orEmptySlice(v []string) []string {
+func orEmptySlice[T any](v []T) []T {
 	if v == nil {
-		return []string{}
+		return []T{}
 	}
 	return v
 }
 
-func orEmptyMap(v map[string]string) map[string]string {
+func orEmptyMap[K comparable, V any](v map[K]V) map[K]V {
 	if v == nil {
-		return map[string]string{}
+		return map[K]V{}
+	}
+	return v
+}
+
+func orEmptyRaw(v json.RawMessage) json.RawMessage {
+	if len(v) == 0 || string(v) == "null" {
+		return json.RawMessage("[]")
 	}
 	return v
 }

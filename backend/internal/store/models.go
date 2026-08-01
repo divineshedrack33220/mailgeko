@@ -144,17 +144,20 @@ func marshalJSON(v any) []byte {
 }
 
 func unmarshalStringSlice(b []byte) []string {
-	if len(b) == 0 {
-		return nil
+	if len(b) == 0 || string(b) == "null" {
+		return []string{}
 	}
 	var out []string
 	_ = json.Unmarshal(b, &out)
+	if out == nil {
+		out = []string{}
+	}
 	return out
 }
 
 func unmarshalStringMap(b []byte) map[string]string {
-	if len(b) == 0 {
-		return nil
+	if len(b) == 0 || string(b) == "null" {
+		return map[string]string{}
 	}
 	out := make(map[string]string)
 	_ = json.Unmarshal(b, &out)
