@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mailgeko
 
-## Getting Started
+Email marketing platform: campaigns, contacts, lists & segments, templates,
+automations, analytics and billing in one package. Frontend and backend ship
+together as a single deployable unit.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Frontend** — Next.js (App Router, standalone output) in `src/`
+- **Backend API** — Go (`backend/cmd/api`), single binary
+- **Worker** — Go (`backend/cmd/worker`), async sends/events via asynq on Redis
+- **MariaDB/MySQL** — primary store (users, contacts, campaigns, templates…)
+- **Redis** — queue + rate limiting + sessions
+- **PostgreSQL + pgvector** — analytics and contact vector search (optional)
+- **Email** — Resend-compatible API (mockable via `RESEND_API_ENDPOINT`)
+- **Billing** — Stripe or a built-in local gateway
+
+Requests to `/api/*`, `/webhooks/*` and `/track/*` are proxied by Next to the
+in-process API on `127.0.0.1:8080`.
+
+## Repository layout
+
+```
+backend/            Go API + worker (module: github.com/divineshedrack33220/mailgeko/backend)
+  cmd/api           HTTP server
+  cmd/worker        async worker
+  internal/         store, engine, httpapi, analytics, queue, auth, …
+  migrations/       SQL schema (0001-0002, 0006-0007 MySQL; 0003-0005 Postgres)
+src/                Next.js app (app router, client components)
+next.config.ts      standalone output + /api /webhooks /track rewrites
+Dockerfile          multi-stage build producing one runtime image
+docker-compose.yml  single app service (external datastores)
+docker-compose.full.yml  self-contained stack (MariaDB + Redis + Postgres)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Start the datastores and the mock Resend server, then the Go processes and Next.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 1. datastores (adjust to your setup)
+mariadbd --socket=/tmp/run/mariadb.sock &          # or a system service
+redis-server &                                     # :6379
+postgres &                                         # :5432
+# (optional) a Resend-compatible mock on :8787 to capture outbound mail
 
-## Learn More
+# 2. apply schema once
+for f in backend/migrations/0001_init.sql backend/migrations/0002_domain.sql \
+         backend/migrations/0006_billing.sql backend/migrations/0007_settings.sql; do
+  mariadb -uroot mailgeko < "$f"
+done
+psql "postgres://postgres@127.0.0.1:5432/mailgeko" \
+  -f backend/migrations/0003_analytics.sql \
+  -f backend/migrations/0004_analytics_enrichment.sql \
+  -f backend/migrations/0005_embeddings.sql
 
-To learn more about Next.js, take a look at the following resources:
+# 3. run the backend
+cd backend
+TIDB_DSN="mailgeko:mailgeko@tcp(127.0.0.1:3306)/mailgeko?parseTime=true&charset=utf8mb4" \
+POSTGRES_DSN="postgres://postgres@127.0.0.1:5432/mailgeko?sslmode=disable" \
+REDIS_ADDR="127.0.0.1:6379" JWT_SECRET="dev-secret" RESEND_API_KEYS="re_test" \
+RESEND_API_ENDPOINT="http://127.0.0.1:8787/emails" EMBED_PROVIDER=static \
+go run ./cmd/api &     # :8080
+go run ./cmd/worker &
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 4. run the frontend
+cd .. && pnpm install && NEXT_PUBLIC_API_URL="" pnpm dev   # :3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open http://localhost:3000 and register an account.
 
-## Deploy on Vercel
+## Tests
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+cd backend && go test -timeout 120s ./...
+bash /tmp/opencode/run/smoke.sh        # 57 API checks against a running API
+pnpm lint && npx tsc --noEmit          # frontend static checks
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Docker deployment
+
+One-command stack with bundled databases (requires recent Docker Compose v2):
+
+```bash
+cp .env.example .env    # set JWT_SECRET (openssl rand -hex 32)
+docker compose -f docker-compose.full.yml up --build
+```
+
+The `init-db` / `init-pg` services apply `backend/migrations/` on first boot
+(they are idempotent). The app listens on http://localhost:3000.
+
+External datastores (bring your own MariaDB/Redis/Postgres):
+
+```bash
+docker compose up --build   # set TIDB_DSN, REDIS_ADDR (and POSTGRES_DSN) in .env
+```
+
+Notes for production:
+
+- Set `BASE_URL` to your public origin so tracking/unsubscribe links and
+  webhooks in sent emails resolve to the app (Next proxies `/track/*` and
+  `/webhooks/*` to the API).
+- Set `EMBED_PROVIDER=openai` with `OPENAI_API_KEY` for real vector search, or
+  keep `static` for deterministic, key-free embeddings.
+- `RESEND_API_KEYS` is required for the API to start. Set a real key, or point
+  `RESEND_API_ENDPOINT` at a mock (e.g. `http://host.docker.internal:8787/emails`).
+  The compose default (`re_dev_placeholder`) only boots the stack.
+- Email volume is gated by billing; the local gateway is used unless Stripe
+  credentials are provided.
