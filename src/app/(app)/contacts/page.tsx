@@ -178,6 +178,70 @@ export default function ContactsPage() {
   const [draftTags, setDraftTags] = React.useState<string[]>([]);
   const [tagInput, setTagInput] = React.useState("");
   const [tagSaving, setTagSaving] = React.useState(false);
+  const [bulkTagOpen, setBulkTagOpen] = React.useState(false);
+  const [bulkTagInput, setBulkTagInput] = React.useState("");
+  const [bulkTagSaving, setBulkTagSaving] = React.useState(false);
+  const [bulkListOpen, setBulkListOpen] = React.useState(false);
+  const [lists, setLists] = React.useState<{ id: string; name: string }[]>([]);
+  const [bulkListId, setBulkListId] = React.useState("");
+  const [bulkListSaving, setBulkListSaving] = React.useState(false);
+
+  const openBulkTag = () => {
+    setBulkTagInput("");
+    setBulkTagOpen(true);
+  };
+
+  const bulkAddTag = async () => {
+    const tags = bulkTagInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (tags.length === 0) return;
+    setBulkTagSaving(true);
+    try {
+      const res = await api.post<{ updated: number }>("/api/v1/contacts/bulk/tags", {
+        contactIds: selected,
+        tags,
+      });
+      setBulkTagOpen(false);
+      setSelected([]);
+      toast.success(`Tagged ${res.updated} contacts`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not tag contacts");
+    } finally {
+      setBulkTagSaving(false);
+    }
+  };
+
+  const openBulkList = async () => {
+    setBulkListId("");
+    setBulkListOpen(true);
+    try {
+      const res = await api.get<{ lists: { id: string; name: string }[] }>("/api/v1/lists");
+      setLists(res.lists ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load lists");
+    }
+  };
+
+  const bulkAddToList = async () => {
+    if (!bulkListId) return;
+    setBulkListSaving(true);
+    try {
+      const res = await api.post<{ added: number }>(`/api/v1/lists/${bulkListId}/contacts`, {
+        contactIds: selected,
+      });
+      setBulkListOpen(false);
+      setSelected([]);
+      toast.success(`Added ${res.added} contacts to the list`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not add contacts to list");
+    } finally {
+      setBulkListSaving(false);
+    }
+  };
 
   const openManageTags = (contact: Contact) => {
     setTagContact(contact);
@@ -308,10 +372,10 @@ export default function ContactsPage() {
               {selected.length} selected
             </span>
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.info(`Tag ${selected.length} contacts — coming soon`)}>
+              <Button variant="outline" size="sm" onClick={openBulkTag}>
                 <Tag /> Tag
               </Button>
-              <Button variant="outline" size="sm" onClick={() => toast.info(`Add ${selected.length} contacts to a list — coming soon`)}>
+              <Button variant="outline" size="sm" onClick={openBulkList}>
                 <Mail /> Add to list
               </Button>
               <Button variant="outline" size="sm" onClick={exportCsv}>
@@ -582,6 +646,82 @@ export default function ContactsPage() {
             <Button type="button" onClick={saveTags} disabled={tagSaving}>
               {tagSaving && <Loader2 className="animate-spin" />}
               Save tags
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkTagOpen} onOpenChange={setBulkTagOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tag {selected.length} contacts</DialogTitle>
+            <DialogDescription>
+              Add tags to every selected contact. Existing tags are kept.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Input
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  bulkAddTag();
+                }
+              }}
+              placeholder="VIP, newsletter, trial…"
+            />
+            <p className="text-muted-foreground text-xs">Separate multiple tags with commas.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkTagOpen(false)} disabled={bulkTagSaving}>
+              Cancel
+            </Button>
+            <Button onClick={bulkAddTag} disabled={bulkTagSaving || !bulkTagInput.trim()}>
+              {bulkTagSaving && <Loader2 className="animate-spin" />}
+              Apply tags
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkListOpen} onOpenChange={setBulkListOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add {selected.length} contacts to a list</DialogTitle>
+            <DialogDescription>Pick the list you want these contacts added to.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {lists.length === 0 ? (
+              <p className="text-muted-foreground py-2 text-sm">
+                No lists yet — create one from the Lists page first.
+              </p>
+            ) : (
+              lists.map((list) => (
+                <button
+                  key={list.id}
+                  type="button"
+                  onClick={() => setBulkListId(list.id)}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-lg border-2 px-4 py-2.5 text-left transition-all",
+                    bulkListId === list.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40"
+                  )}
+                >
+                  <span className="text-sm font-medium">{list.name}</span>
+                  {bulkListId === list.id && <CheckCircle2 className="text-primary size-4" />}
+                </button>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkListOpen(false)} disabled={bulkListSaving}>
+              Cancel
+            </Button>
+            <Button onClick={bulkAddToList} disabled={bulkListSaving || !bulkListId}>
+              {bulkListSaving && <Loader2 className="animate-spin" />}
+              Add contacts
             </Button>
           </DialogFooter>
         </DialogContent>

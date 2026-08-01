@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/contacts/import", s.withAuth(http.HandlerFunc(s.handleImportContacts)))
 	mux.Handle("POST /api/v1/contacts/embed-all", s.withAuth(http.HandlerFunc(s.handleEmbedAllContacts)))
 	mux.Handle("GET /api/v1/contacts/search", s.withAuth(http.HandlerFunc(s.handleSearchContacts)))
+	mux.Handle("POST /api/v1/contacts/bulk/tags", s.withAuth(http.HandlerFunc(s.handleBulkTagContacts)))
 	mux.Handle("GET /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleGetContact)))
 	mux.Handle("GET /api/v1/contacts/{id}/similar", s.withAuth(http.HandlerFunc(s.handleSimilarContacts)))
 	mux.Handle("PATCH /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateContact)))

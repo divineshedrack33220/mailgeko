@@ -206,3 +206,57 @@ func (s *Server) handleDeleteContact(w http.ResponseWriter, r *http.Request) {
 	}
 	writeOK(w, map[string]bool{"ok": true})
 }
+
+func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	var req struct {
+		ContactIDs []string `json:"contactIds"`
+		Tags       []string `json:"tags"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if len(req.ContactIDs) == 0 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "contactIds is required")
+		return
+	}
+	clean := make([]string, 0, len(req.Tags))
+	seen := make(map[string]struct{})
+	for _, t := range req.Tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		clean = append(clean, t)
+	}
+
+	contacts, err := s.db.ContactsByIDs(r.Context(), claims.GetWorkspaceID(), req.ContactIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load contacts")
+		return
+	}
+	for _, c := range contacts {
+		have := make(map[string]struct{}, len(c.Tags)+len(clean))
+		for _, t := range c.Tags {
+			have[t] = struct{}{}
+		}
+		merged := append([]string{}, c.Tags...)
+		for _, t := range clean {
+			if _, ok := have[t]; !ok {
+				have[t] = struct{}{}
+				merged = append(merged, t)
+			}
+		}
+		c.Tags = merged
+		if err := s.db.UpdateContact(r.Context(), c); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not update contacts")
+			return
+		}
+	}
+	writeOK(w, map[string]any{"updated": len(contacts)})
+}
