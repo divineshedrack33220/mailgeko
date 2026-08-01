@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
       source: "/api/:path*",
       destination: "http://127.0.0.1:8080/api/:path*",
     },
+    {
+      source: "/webhooks/:path*",
+      destination: "http://127.0.0.1:8080/webhooks/:path*",
+    },
+    {
+      source: "/track/:path*",
+      destination: "http://127.0.0.1:8080/track/:path*",
+    },
   ],
 };
 
