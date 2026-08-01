@@ -99,11 +99,13 @@ func (s *Server) handleListContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	count, _ := s.db.CountContacts(r.Context(), claims.GetWorkspaceID())
+
 	out := make([]map[string]any, 0, len(contacts))
 	for _, c := range contacts {
 		out = append(out, contactResponse(c))
 	}
-	writeOK(w, map[string]any{"contacts": out})
+	writeOK(w, map[string]any{"contacts": out, "total": count})
 }
 
 func (s *Server) handleCreateContact(w http.ResponseWriter, r *http.Request) {

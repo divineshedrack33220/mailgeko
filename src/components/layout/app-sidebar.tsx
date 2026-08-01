@@ -20,6 +20,8 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatNumber } from "@/lib/format";
+import { api } from "@/lib/api";
 import { useUiStore } from "@/stores/ui-store";
 import { GeckoMark } from "@/components/brand/gecko-mark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -53,7 +55,7 @@ const sections: NavSection[] = [
   {
     label: "Audience",
     items: [
-      { title: "Contacts", href: "/contacts", icon: Users, badge: "1,248" },
+      { title: "Contacts", href: "/contacts", icon: Users },
       { title: "Lists & Segments", href: "/lists", icon: ListFilter },
     ],
   },
@@ -82,6 +84,22 @@ const sections: NavSection[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const [contactCount, setContactCount] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ total?: number }>("/api/v1/contacts?limit=1")
+      .then((res) => {
+        if (!cancelled && typeof res.total === "number") {
+          setContactCount(formatNumber(res.total));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
@@ -121,6 +139,7 @@ export function AppSidebar() {
             <ul className="space-y-0.5">
               {section.items.map((item) => {
                 const active = isActive(item.href);
+                const badge = item.href === "/contacts" ? contactCount : item.badge;
                 const link = (
                   <Link
                     href={item.href}
@@ -139,12 +158,12 @@ export function AppSidebar() {
                       )}
                     />
                     {!collapsed && <span className="flex-1 truncate">{item.title}</span>}
-                    {!collapsed && item.badge && (
+                    {!collapsed && badge && (
                       <Badge
-                        variant={item.badge === "New" ? "success" : "secondary"}
+                        variant={badge === "New" ? "success" : "secondary"}
                         className="px-1.5 py-0 text-xs"
                       >
-                        {item.badge}
+                        {badge}
                       </Badge>
                     )}
                     {active && !collapsed && (
