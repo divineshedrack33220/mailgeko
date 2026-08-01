@@ -9,7 +9,6 @@ import {
   Check,
   Hand,
   Mail,
-  MapPin,
   Phone,
   Radio,
   Send,
@@ -641,10 +640,6 @@ export function LandingPage({ fonts }: LandingPageProps) {
           </nav>
 
           <div className="flex items-center gap-5">
-            <div className="hidden items-center gap-2 font-mono text-[11px] tracking-[0.2em] text-[var(--lg-muted)] md:flex">
-              <MapPin className="size-3.5 text-[var(--lg-accent)]" />
-              <span>EU HOSTED · PRIVACY FIRST</span>
-            </div>
             <Link
               href="/login"
               className="lg-nav-link hidden sm:inline-block"
