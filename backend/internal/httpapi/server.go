@@ -208,8 +208,13 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleGetWorkspace)))
 	mux.Handle("PATCH /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspace)))
+	mux.Handle("GET /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleGetBrandVoice)))
+	mux.Handle("PUT /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleUpdateBrandVoice)))
 
 	mux.Handle("POST /api/v1/ai/subject", s.withAuth(http.HandlerFunc(s.handleGenerateSubjects)))
+	mux.Handle("POST /api/v1/ai/campaign", s.withAuth(http.HandlerFunc(s.handleGenerateCampaign)))
+	mux.Handle("GET /api/v1/ai/history", s.withAuth(http.HandlerFunc(s.handleListAIHistory)))
+	mux.Handle("DELETE /api/v1/ai/history/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteAIHistory)))
 
 	return s.withMiddleware(mux)
 }

@@ -91,48 +91,15 @@ func (c *Client) chatSubjectLines(ctx context.Context, topic, audience, tone str
 	}
 	b.WriteString(" Keep each line under 60 characters. Return only the subject lines, one per line, no numbering, no quotes, no extra text.")
 
-	body, err := json.Marshal(chatRequest{
-		Model: c.model,
-		Messages: []chatMessage{
-			{Role: "system", Content: "You reply with concise, high-converting email subject lines only."},
-			{Role: "user", Content: b.String()},
-		},
-	})
+	content, err := c.chat(ctx,
+		"You reply with concise, high-converting email subject lines only.",
+		b.String())
 	if err != nil {
 		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("AI API returned %d: %s", resp.StatusCode, truncate(raw, 300))
-	}
-
-	var parsed chatResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("AI API response: %w", err)
-	}
-	if len(parsed.Choices) == 0 || parsed.Choices[0].Message.Content == "" {
-		return nil, fmt.Errorf("AI API returned no suggestions")
 	}
 
 	lines := make([]string, 0, count)
-	for _, line := range strings.Split(parsed.Choices[0].Message.Content, "\n") {
+	for _, line := range strings.Split(content, "\n") {
 		line = strings.Trim(line, " \t-•\"“”")
 		if line != "" {
 			lines = append(lines, line)
@@ -142,6 +109,117 @@ func (c *Client) chatSubjectLines(ctx context.Context, topic, audience, tone str
 		lines = lines[:count]
 	}
 	return lines, nil
+}
+
+// CampaignOutput is a generated email campaign: a subject line and a body.
+type CampaignOutput struct {
+	Subject string
+	Body    string
+}
+
+// GenerateCampaign writes a full campaign (subject + body) for the given
+// prompt. draft, when provided, is rewritten instead of written from scratch.
+// brandVoice tunes the output voice when set. It falls back to a template when
+// no API key is configured.
+func (c *Client) GenerateCampaign(ctx context.Context, prompt, draft, brandVoice string) (*CampaignOutput, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		prompt = "write a short promotional email"
+	}
+	if c.apiKey == "" {
+		return fallbackCampaign(prompt, draft), nil
+	}
+
+	var b strings.Builder
+	b.WriteString("You are an expert email marketing copywriter.")
+	if brandVoice != "" {
+		b.WriteString(" Write in this brand voice: ")
+		b.WriteString(brandVoice)
+		b.WriteString(".")
+	}
+	b.WriteString(" Write a complete email campaign. Instructions: ")
+	b.WriteString(prompt)
+	b.WriteString(".")
+	if strings.TrimSpace(draft) != "" {
+		b.WriteString(" Here is a draft to rewrite and improve (keep it concise):\n")
+		b.WriteString(draft)
+	}
+	b.WriteString("\nUse {{first_name}} for the contact's first name. Keep the subject under 60 characters.")
+	b.WriteString(" Return only the result in this exact format:\nSUBJECT: <subject line>\nBODY:\n<email body>")
+
+	content, err := c.chat(ctx,
+		"You write concise, high-converting marketing emails. Output only SUBJECT and BODY lines.",
+		b.String())
+	if err != nil {
+		return nil, err
+	}
+
+	out := &CampaignOutput{}
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "SUBJECT:") {
+			out.Subject = strings.TrimSpace(line[len("SUBJECT:"):])
+		}
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "BODY:") {
+			out.Body = strings.Join(lines[i+1:], "\n")
+			break
+		}
+	}
+	if out.Subject == "" && out.Body == "" {
+		first := strings.TrimSpace(content)
+		if len(first) > 200 {
+			first = first[:200]
+		}
+		out.Body = first
+	}
+	out.Subject = strings.TrimSpace(out.Subject)
+	out.Body = strings.TrimSpace(out.Body)
+	return out, nil
+}
+
+// chat calls the OpenAI-compatible chat completions endpoint and returns the
+// assistant's text. It is only called when an API key is configured.
+func (c *Client) chat(ctx context.Context, system, user string) (string, error) {
+	body, err := json.Marshal(chatRequest{
+		Model: c.model,
+		Messages: []chatMessage{
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("AI API returned %d: %s", resp.StatusCode, truncate(raw, 300))
+	}
+
+	var parsed chatResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return "", fmt.Errorf("AI API response: %w", err)
+	}
+	if len(parsed.Choices) == 0 || parsed.Choices[0].Message.Content == "" {
+		return "", fmt.Errorf("AI API returned no suggestions")
+	}
+	return parsed.Choices[0].Message.Content, nil
 }
 
 func fallbackSubjectLines(topic, audience, tone string, count int) []string {
@@ -161,6 +239,22 @@ func fallbackSubjectLines(topic, audience, tone string, count int) []string {
 		templates = templates[:count]
 	}
 	return templates
+}
+
+func fallbackCampaign(prompt, draft string) *CampaignOutput {
+	topic := strings.TrimSpace(prompt)
+	if topic == "" {
+		topic = "your product"
+	}
+	subject := "A quick update on " + topic
+	body := "Hey {{first_name}},\n\nI wanted to share a quick update about " + topic + ".\n\n" +
+		"Here's what's new and why it matters for you:\n\n" +
+		"- It saves you time\n- It's easy to use\n- It just works\n\n" +
+		"Reply to this email and I'll get back to you right away.\n\nBest,\nThe Mailgeko Team"
+	if strings.TrimSpace(draft) != "" {
+		body = strings.TrimSpace(draft)
+	}
+	return &CampaignOutput{Subject: subject, Body: body}
 }
 
 func truncate(b []byte, n int) string {

@@ -47,6 +47,15 @@ services:
         value: static
       - key: EMBED_DIMENSIONS
         value: "1536"
+      # AI Studio. OpenAI-compatible chat completions — set OPENAI_API_KEY to
+      # enable real generation (falls back to templates when empty). For Groq
+      # use https://api.groq.com/openai/v1 with a gsk_ key and a llama model.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: gpt-4o-mini
+      - key: AI_BASE_URL
+        value: https://api.openai.com/v1
       # Cloudinary (avatars + workspace logos). Optional: omit to disable uploads.
       - key: CLOUDINARY_CLOUD_NAME
         sync: false

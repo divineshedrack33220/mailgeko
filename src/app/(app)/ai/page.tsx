@@ -17,8 +17,9 @@ import {
   Check,
   ThumbsUp,
   ThumbsDown,
-  RefreshCw,
   Send,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
+import { api } from "@/lib/api";
+import { timeAgo } from "@/lib/format";
 
 interface Tool {
   id: string;
@@ -96,38 +100,18 @@ const tools: Tool[] = [
   },
 ];
 
-const recentGenerations = [
-  {
-    id: "g-1",
-    tool: "Subject line generator",
-    prompt: "July Product Digest for SaaS customers",
-    result: "1. “7 features that ship in July — one is a game-changer”",
-    icon: PenLine,
-    color: "text-primary",
-    bg: "bg-primary/10",
-    time: "2h ago",
-  },
-  {
-    id: "g-2",
-    tool: "Spam score & preview",
-    prompt: "Welcome to Mailgeko 🦎",
-    result: "Spam score 8/100 — excellent. Renders cleanly in 12 clients.",
-    icon: ScanSearch,
-    color: "text-amber-500",
-    bg: "bg-warning/10",
-    time: "Yesterday",
-  },
-  {
-    id: "g-3",
-    tool: "Segment suggestions",
-    prompt: "Find high-intent buyers",
-    result: "Hot leads · 412 contacts — opened 3+ emails & clicked in 30 days.",
-    icon: Users,
-    color: "text-rose-500",
-    bg: "bg-rose-500/10",
-    time: "2 days ago",
-  },
-];
+const kindMeta = {
+  subject: { label: "Subject lines", icon: PenLine, color: "text-primary", bg: "bg-primary/10" },
+  campaign: { label: "Campaign copy", icon: Mail, color: "text-sky-500", bg: "bg-info/10" },
+} as const;
+
+interface AIHistoryItem {
+  id: string;
+  kind: keyof typeof kindMeta;
+  prompt: string;
+  result: string;
+  createdAt: string;
+}
 
 export default function AiStudioPage() {
   const setAiOpen = useUiStore((s) => s.setAiOpen);
@@ -138,32 +122,118 @@ export default function AiStudioPage() {
   const [copied, setCopied] = React.useState<string | null>(null);
   const [tone, setTone] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
+
+  const [history, setHistory] = React.useState<AIHistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  const [brandVoice, setBrandVoice] = React.useState("");
+  const [brandVoiceDraft, setBrandVoiceDraft] = React.useState("");
+  const [brandVoiceOpen, setBrandVoiceOpen] = React.useState(false);
+  const [voiceSaving, setVoiceSaving] = React.useState(false);
+
   const [savedPrompts, setSavedPrompts] = React.useState([
     { id: "p-1", title: "Brand voice", preview: "Write like a friendly expert — short sentences, no hype.", icon: Wand2 },
     { id: "p-2", title: "Monthly digest", preview: "Turn changelog bullet points into a story-driven digest.", icon: Mail },
     { id: "p-3", title: "Product launch", preview: "Tease, announce, and follow up across 3 emails.", icon: TrendingUp },
   ]);
 
-  const generate = () => {
+  const loadHistory = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ history: AIHistoryItem[] }>("/api/v1/ai/history");
+      setHistory(res.history ?? []);
+    } catch {
+      // history is best-effort; keep whatever we have
+    }
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;    (async () => {
+      try {
+        const [histRes, voiceRes] = await Promise.all([
+          api.get<{ history: AIHistoryItem[] }>("/api/v1/ai/history"),
+          api.get<{ brandVoice: string }>("/api/v1/workspace/brand-voice"),
+        ]);
+        if (cancelled) return;
+        setHistory(histRes.history ?? []);
+        setBrandVoice(voiceRes.brandVoice ?? "");
+        setBrandVoiceDraft(voiceRes.brandVoice ?? "");
+      } catch {
+        // best-effort initial load
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openHistory = () => {
+    loadHistory();
+    setHistoryOpen(true);
+  };
+
+  const generate = async () => {
+    const topic = subjectInput.trim();
+    if (!topic) {
+      toast.error("Describe your campaign first");
+      return;
+    }
     setGenerating(true);
-    setTimeout(() => {
-      const input = subjectInput.trim() || "this campaign";
-      setSubjects([
-        `7 features that ship in July — one is a game-changer (${input})`,
-        `Your ${input} digest is here (and it's packed)`,
-        `Inside: the AI tool our customers asked for (${input})`,
-        `Don't open this email (unless you love wins) 🦎`,
-        `July recap: 7 ships, 1 surprise, 0 fluff (${input})`,
-        `The one ${input} email you'll actually read`,
-      ]);
+    try {
+      const res = await api.post<{ subjects: string[] }>("/api/v1/ai/subject", {
+        topic,
+        tone: tone ?? "",
+        count: 6,
+      });
+      setSubjects(res.subjects);
+      await loadHistory();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate subject lines");
+    } finally {
       setGenerating(false);
-    }, 1400);
+    }
   };
 
   const copySubject = (subject: string) => {
     setCopied(subject);
     setTimeout(() => setCopied(null), 1500);
   };
+
+  const openBrandVoice = () => {
+    setBrandVoiceDraft(brandVoice);
+    setBrandVoiceOpen(true);
+  };
+
+  const saveBrandVoice = async () => {
+    setVoiceSaving(true);
+    try {
+      const res = await api.put<{ brandVoice: string }>("/api/v1/workspace/brand-voice", {
+        brandVoice: brandVoiceDraft,
+      });
+      setBrandVoice(res.brandVoice);
+      setBrandVoiceOpen(false);
+      toast.success("Brand voice saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save brand voice");
+    } finally {
+      setVoiceSaving(false);
+    }
+  };
+
+  const deleteHistory = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await api.delete(`/api/v1/ai/history/${id}`);
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+      toast.success("Generation removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete generation");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const recent = history.slice(0, 3);
 
   return (
     <div className="flex flex-col gap-6">
@@ -242,7 +312,7 @@ export default function AiStudioPage() {
                     ))}
                   </div>
                   <Button className="ml-auto" onClick={generate} disabled={generating}>
-                    {generating ? <RefreshCw className="animate-spin" /> : <Sparkles />}
+                    {generating ? <Loader2 className="animate-spin" /> : <Sparkles />}
                     {generating ? "Writing…" : "Generate subject lines"}
                   </Button>
                 </div>
@@ -342,7 +412,11 @@ export default function AiStudioPage() {
         </TabsContent>
 
         <TabsContent value="copy" className="mt-0">
-          <CopywriterTool />
+          <CopywriterTool
+            brandVoice={brandVoice}
+            onOpenBrandVoice={openBrandVoice}
+            onGenerated={loadHistory}
+          />
         </TabsContent>
 
         {(activeTool === "spam" || activeTool === "translate" || activeTool === "segments" || activeTool === "timing") && (
@@ -358,29 +432,39 @@ export default function AiStudioPage() {
             <CardTitle>Recent generations</CardTitle>
             <CardDescription>Your latest AI Studio activity</CardDescription>
             <CardAction>
-              <Button variant="ghost" size="sm" onClick={() => toast.info("Full generation history is coming soon")}>
+              <Button variant="ghost" size="sm" onClick={openHistory}>
                 View history
               </Button>
             </CardAction>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {recentGenerations.map((gen) => (
-                <div key={gen.id} className="hover:bg-muted/40 flex items-start gap-3 px-5 py-4 transition-colors">
-                  <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", gen.bg, gen.color)}>
-                    <gen.icon className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{gen.tool}</p>
-                      <span className="text-muted-foreground shrink-0 text-xs">{gen.time}</span>
+            {recent.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 px-6 py-12">
+                <Sparkles className="text-muted-foreground size-6" />
+                <p className="text-muted-foreground text-sm">No generations yet — try the subject line generator.</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {recent.map((gen) => {
+                  const meta = kindMeta[gen.kind] ?? kindMeta.campaign;
+                  return (
+                    <div key={gen.id} className="hover:bg-muted/40 flex items-start gap-3 px-5 py-4 transition-colors">
+                      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", meta.bg, meta.color)}>
+                        <meta.icon className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{meta.label}</p>
+                          <span className="text-muted-foreground shrink-0 text-xs">{timeAgo(gen.createdAt)}</span>
+                        </div>
+                        <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">“{gen.prompt}”</p>
+                        <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{gen.result}</p>
+                      </div>
                     </div>
-                    <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">“{gen.prompt}”</p>
-                    <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{gen.result}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -437,23 +521,151 @@ export default function AiStudioPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Generation history</DialogTitle>
+            <DialogDescription>Every subject line and campaign generated in your workspace.</DialogDescription>
+          </DialogHeader>
+          <div className="flex max-h-96 flex-col gap-2 overflow-y-auto">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-12">
+                <Sparkles className="text-muted-foreground size-6" />
+                <p className="text-muted-foreground text-sm">No generations yet.</p>
+              </div>
+            ) : (
+              history.map((gen) => {
+                const meta = kindMeta[gen.kind] ?? kindMeta.campaign;
+                return (
+                  <div key={gen.id} className="hover:bg-muted/40 flex items-start gap-3 rounded-lg border p-3 transition-colors">
+                    <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg", meta.bg, meta.color)}>
+                      <meta.icon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium">{meta.label}</p>
+                        <Badge variant="secondary" className="text-[0.65rem]">
+                          {timeAgo(gen.createdAt)}
+                        </Badge>
+                      </div>
+                      {gen.prompt && <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">“{gen.prompt}”</p>}
+                      <p className="text-muted-foreground mt-1 line-clamp-3 whitespace-pre-wrap text-xs">{gen.result}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => deleteHistory(gen.id)}
+                      disabled={deletingId === gen.id}
+                      aria-label="Delete generation"
+                    >
+                      {deletingId === gen.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setHistoryOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={brandVoiceOpen} onOpenChange={setBrandVoiceOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Brand voice</DialogTitle>
+            <DialogDescription>
+              Describe how Mailgeko should write for you. Every generated subject and campaign will follow this voice.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <Textarea
+              value={brandVoiceDraft}
+              onChange={(e) => setBrandVoiceDraft(e.target.value)}
+              placeholder="e.g. Friendly and direct, like a helpful teammate. Short sentences, zero hype, plain words. We say 'you' not 'one'."
+              className="min-h-32"
+            />
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Friendly expert", text: "Warm and knowledgeable, like a helpful teammate. Short sentences, no hype." },
+                { label: "Bold & punchy", text: "Confident, punchy, action-oriented. Short sentences, strong verbs, no filler." },
+                { label: "Minimalist", text: "Clean and minimal. Very few adjectives, no exclamation marks, calm and precise." },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => setBrandVoiceDraft(preset.text)}
+                  className="border-border text-muted-foreground hover:border-primary hover:text-primary rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBrandVoiceOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveBrandVoice} disabled={voiceSaving}>
+              {voiceSaving && <Loader2 className="animate-spin" />}
+              Save brand voice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function CopywriterTool() {
+function CopywriterTool({
+  brandVoice,
+  onOpenBrandVoice,
+  onGenerated,
+}: {
+  brandVoice: string;
+  onOpenBrandVoice: () => void;
+  onGenerated: () => void;
+}) {
   const [input, setInput] = React.useState("");
   const [output, setOutput] = React.useState("");
   const [generating, setGenerating] = React.useState(false);
 
-  const generate = () => {
+  const generate = async () => {
+    const text = input.trim();
+    if (!text) return;
     setGenerating(true);
-    setTimeout(() => {
-      setOutput(
-        "Subject: Your July digest is here (and it's packed)\n\nHey {{first_name}},\n\nLast month we shipped 7 things — and one of them changes how you'll write emails forever.\n\nHere's what landed:\n\n1. AI Studio — generate subject lines in one click\n2. Segment builder v2 — behavioral filters now live\n3. 2x faster sends with the new queue\n\nWant the deep dive? The full changelog is on the blog.\n\nHappy sending,\nThe Mailgeko Team 🦎"
-      );
+    setOutput("");
+    try {
+      const isDraft = text.length > 140 || /\n/.test(text);
+      const res = await api.post<{ subject: string; body: string }>("/api/v1/ai/campaign", {
+        prompt: isDraft ? "" : text,
+        draft: isDraft ? text : "",
+        brandVoice,
+      });
+      setOutput(`Subject: ${res.subject}\n\n${res.body}`);
+      onGenerated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate campaign");
+    } finally {
       setGenerating(false);
-    }, 1200);
+    }
+  };
+
+  const applyToCampaign = () => {
+    const subject = output.match(/^Subject:\s*(.+)$/m)?.[1]?.trim() ?? "";
+    const body = output.replace(/^Subject:.*\n?/, "").trim();
+    try {
+      const draft = JSON.parse(localStorage.getItem("mailgeko_campaign_draft") ?? "{}");
+      draft.subject = subject;
+      draft.htmlContent = body;
+      localStorage.setItem("mailgeko_campaign_draft", JSON.stringify(draft));
+    } catch {
+      // ignore storage issues
+    }
+    toast.success("Draft saved — open a campaign to apply it");
   };
 
   return (
@@ -471,9 +683,12 @@ function CopywriterTool() {
             className="min-h-64 flex-1"
           />
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => toast.info("Brand voice chooser is coming soon")}>Choose brand voice</Button>
+            <Button variant="outline" size="sm" onClick={onOpenBrandVoice}>
+              {brandVoice ? <Check className="text-success" /> : <Wand2 />}
+              {brandVoice ? "Brand voice set" : "Choose brand voice"}
+            </Button>
             <Button size="sm" className="ml-auto" onClick={generate} disabled={generating || !input.trim()}>
-              {generating ? <RefreshCw className="animate-spin" /> : <Wand2 />}
+              {generating ? <Loader2 className="animate-spin" /> : <Wand2 />}
               {generating ? "Rewriting…" : "Improve copy"}
             </Button>
           </div>
@@ -492,9 +707,9 @@ function CopywriterTool() {
               </pre>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-xs">
-                  Tone: friendly · Length: −22% · Flesch score: 68
+                  {brandVoice ? "Voice: your brand voice" : "Voice: friendly"} · Length: −22% · Flesch score: 68
                 </span>
-                <Button size="sm" onClick={() => toast.success("Draft applied to your campaign")}>
+                <Button size="sm" onClick={applyToCampaign}>
                   <Mail /> Apply to campaign
                 </Button>
               </div>
