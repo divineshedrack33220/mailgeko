@@ -153,6 +153,15 @@ export default function TeamSettingsPage() {
     }
   };
 
+  const sendReminder = async (member: TeamMember) => {
+    try {
+      await api.post(`/api/v1/workspace/members/${member.id}/remind`, {});
+      toast.success(`Reminder sent to ${member.email}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send reminder");
+    }
+  };
+
   const isMe = (member: TeamMember) => me?.id === member.id;
 
   return (
@@ -304,7 +313,7 @@ export default function TeamSettingsPage() {
                             <Copy /> Resend invite
                           </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => toast.info("Reminders are coming soon")}>
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => sendReminder(member)}>
                             <MailCheck /> Send reminder
                           </DropdownMenuItem>
                         )}

@@ -202,6 +202,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/workspace/members/invite", s.withAuth(http.HandlerFunc(s.handleInviteWorkspaceMember)))
 	mux.Handle("PATCH /api/v1/workspace/members/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspaceMember)))
 	mux.Handle("POST /api/v1/workspace/members/{id}/resend", s.withAuth(http.HandlerFunc(s.handleResendInvitation)))
+	mux.Handle("POST /api/v1/workspace/members/{id}/remind", s.withAuth(http.HandlerFunc(s.handleSendMemberReminder)))
 	mux.Handle("DELETE /api/v1/workspace/members/{id}", s.withAuth(http.HandlerFunc(s.handleRemoveWorkspaceMember)))
 
 	mux.Handle("GET /api/v1/api-keys", s.withAuth(http.HandlerFunc(s.handleListAPIKeys)))

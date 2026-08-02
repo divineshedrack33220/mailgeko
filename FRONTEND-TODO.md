@@ -18,7 +18,6 @@ existing API can support it today:
       (no template-generation endpoint)
 - [ ] **Workspace slug** — hardcoded `acme.mailgeko.dev` (`settings/page.tsx`) — Backend? No
       (no subdomain infra)
-- [ ] **Member reminders** — `settings/team/page.tsx:307` — Backend? No
 
 ## Done
 
@@ -40,6 +39,8 @@ existing API can support it today:
       (`POST /api/v1/auth/2fa/*`); `settings/security/page.tsx` + login page.
 - [x] **Session management** (list/revoke/revoke-all) — `GET/DELETE /api/v1/auth/sessions`;
       sessions recorded in Redis at every sign-in.
+- [x] **Member reminders** — `POST /api/v1/workspace/members/{id}/remind` + resend invite
+      actually emails the member via the workspace sender; team page dropdown wired.
 
 ## Notes
 

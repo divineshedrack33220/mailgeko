@@ -3,9 +3,11 @@ package httpapi
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -196,19 +198,67 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleResendInvitation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
-	id := r.PathValue("id")
-	invites, err := s.db.ListInvitations(r.Context(), claims.GetWorkspaceID())
+	inv, err := s.db.InvitationByID(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "invitation not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal", "could not resend invitation")
 		return
 	}
-	for _, inv := range invites {
-		if inv.ID == id {
-			writeOK(w, map[string]any{"ok": true, "email": inv.Email})
-			return
+	s.sendMemberEmail(w, r, inv.Email, "invite")
+}
+
+func (s *Server) handleSendMemberReminder(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	id := r.PathValue("id")
+	if id == claims.GetUserID() {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "you cannot send a reminder to yourself")
+		return
+	}
+	members, err := s.db.ListWorkspaceMembers(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not send reminder")
+		return
+	}
+	var member *store.Member
+	for i := range members {
+		if members[i].ID == id {
+			member = &members[i]
+			break
 		}
 	}
-	writeError(w, http.StatusNotFound, "not_found", "invitation not found")
+	if member == nil {
+		writeError(w, http.StatusNotFound, "not_found", "member not found")
+		return
+	}
+	s.sendMemberEmail(w, r, member.Email, "reminder")
+}
+
+func (s *Server) sendMemberEmail(w http.ResponseWriter, r *http.Request, to, kind string) {
+	claims := claimsFrom(r)
+	ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not send email")
+		return
+	}
+	if s.engine == nil {
+		writeError(w, http.StatusBadGateway, "not_configured", "email sending is not configured")
+		return
+	}
+	subject := fmt.Sprintf("You're invited to %s on Mailgeko", ws.Name)
+	body := fmt.Sprintf("You've been invited to join %s on Mailgeko.\n\nClick the button below to sign in and get started.", ws.Name)
+	if kind == "reminder" {
+		subject = fmt.Sprintf("Quick check-in from %s on Mailgeko", ws.Name)
+		body = fmt.Sprintf("Just a reminder that %s uses Mailgeko for email marketing. Sign in to stay on top of your campaigns.", ws.Name)
+	}
+	result, err := s.engine.SendMemberEmail(r.Context(), ws, to, subject, body)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "send_failed", "could not send email: "+err.Error())
+		return
+	}
+	writeOK(w, map[string]any{"messageId": result.MessageID, "email": to})
 }
 
 func invitationResponse(inv *store.Invitation) map[string]any {

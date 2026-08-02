@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"html"
 	"log"
 	"strings"
@@ -405,6 +406,48 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 			{Name: "single", Value: "1"},
 		},
 	})
+}
+
+// SendMemberEmail sends a short transactional email (invite reminder or
+// check-in) to a member of the workspace, from the workspace sender defaults.
+func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, body string) (*sender.SendResult, error) {
+	from := ws.FromEmail
+	if from == "" {
+		from = "team@mailgeko.dev"
+	}
+	if ws.FromName != "" {
+		from = ws.FromName + " <" + from + ">"
+	}
+	return e.sender.Send(ctx, sender.Message{
+		From:    from,
+		To:      to,
+		Subject: subject,
+		HTML:    renderTransactionalHTML(body, e.baseURL),
+		Text:    body,
+		ReplyTo: ws.ReplyTo,
+		Headers: map[string]string{"X-Mailgeko-Workspace": ws.ID},
+		Tags:    []sender.Tag{{Name: "type", Value: "member"}},
+	})
+}
+
+// renderTransactionalHTML wraps a plain-text message in a minimal branded
+// email with a sign-in button.
+func renderTransactionalHTML(body, baseURL string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f6f7f9">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px">
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px">
+    <div style="font-size:18px;font-weight:600;color:#111827;margin-bottom:16px">Mailgeko</div>
+    <div style="color:#374151;font-size:15px;line-height:1.6">%s</div>
+    <p style="margin:24px 0 0">
+      <a href="%s/login" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px">Sign in to Mailgeko</a>
+    </p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:24px">You received this email as a member of a Mailgeko workspace.</p>
+  </div>
+</div>
+</body>
+</html>`, body, baseURL)
 }
 
 // textToHTML escapes plain text and wraps blank-line-separated blocks in <p>.
