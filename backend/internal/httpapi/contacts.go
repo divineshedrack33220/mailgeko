@@ -159,6 +159,55 @@ func (s *Server) handleGetContact(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"contact": contactResponse(c)})
 }
 
+type oneToOneEmailRequest struct {
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+}
+
+func (s *Server) handleSendOneToOne(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	contact, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "contact not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load contact")
+		return
+	}
+	if contact.Status == store.ContactUnsubscribed {
+		writeError(w, http.StatusUnprocessableEntity, "unsubscribed", "this contact has unsubscribed")
+		return
+	}
+
+	var req oneToOneEmailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if strings.TrimSpace(req.Subject) == "" || strings.TrimSpace(req.Body) == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "subject and body are required")
+		return
+	}
+
+	ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load workspace")
+		return
+	}
+	if s.engine == nil {
+		writeError(w, http.StatusBadGateway, "not_configured", "email sending is not configured")
+		return
+	}
+
+	result, err := s.engine.SendOneToOne(r.Context(), ws, contact, req.Subject, req.Body)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "send_failed", "could not send email: "+err.Error())
+		return
+	}
+	writeOK(w, map[string]any{"messageId": result.MessageID})
+}
+
 func (s *Server) handleUpdateContact(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	id := r.PathValue("id")

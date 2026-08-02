@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"html"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -371,6 +373,57 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 
 func NewID() string {
 	return uuid.NewString()
+}
+
+// SendOneToOne sends a single email to a contact, using the workspace sender
+// defaults. Contact variables are substituted in subject and body.
+func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact *store.Contact, subject, body string) (*sender.SendResult, error) {
+	vars := contactVariables(contact)
+	htmlBody := textToHTML(Substitute(body, vars))
+
+	from := ws.FromEmail
+	if from == "" {
+		from = "team@mailgeko.dev"
+	}
+	if ws.FromName != "" {
+		from = ws.FromName + " <" + from + ">"
+	}
+
+	return e.sender.Send(ctx, sender.Message{
+		From:    from,
+		To:      contact.Email,
+		Subject: Substitute(subject, vars),
+		HTML:    htmlBody,
+		Text:    Substitute(body, vars),
+		ReplyTo: ws.ReplyTo,
+		Headers: map[string]string{
+			"X-Mailgeko-Workspace": ws.ID,
+			"X-Mailgeko-Contact":   contact.ID,
+			"X-Mailgeko-Single":    "1",
+		},
+		Tags: []sender.Tag{
+			{Name: "single", Value: "1"},
+		},
+	})
+}
+
+// textToHTML escapes plain text and wraps blank-line-separated blocks in <p>.
+func textToHTML(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	escaped := html.EscapeString(s)
+	blocks := strings.Split(escaped, "\n\n")
+	var out strings.Builder
+	for i, block := range blocks {
+		if i > 0 {
+			out.WriteString("\n")
+		}
+		out.WriteString("<p>")
+		out.WriteString(strings.ReplaceAll(block, "\n", "<br>"))
+		out.WriteString("</p>")
+	}
+	return out.String()
 }
 
 func now() time.Time {

@@ -122,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/contacts/{id}/similar", s.withAuth(http.HandlerFunc(s.handleSimilarContacts)))
 	mux.Handle("PATCH /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateContact)))
 	mux.Handle("DELETE /api/v1/contacts/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteContact)))
+	mux.Handle("POST /api/v1/contacts/{id}/send", s.withAuth(http.HandlerFunc(s.handleSendOneToOne)))
 	mux.Handle("POST /api/v1/contacts/{id}/embed", s.withAuth(http.HandlerFunc(s.handleEmbedContact)))
 
 	mux.Handle("GET /api/v1/lists", s.withAuth(http.HandlerFunc(s.handleListLists)))

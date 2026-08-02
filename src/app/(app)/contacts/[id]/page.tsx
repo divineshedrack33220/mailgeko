@@ -64,6 +64,10 @@ export default function ContactDetailPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [tagOpen, setTagOpen] = React.useState(false);
   const [listOpen, setListOpen] = React.useState(false);
+  const [mailOpen, setMailOpen] = React.useState(false);
+  const [mailSubject, setMailSubject] = React.useState("");
+  const [mailBody, setMailBody] = React.useState("");
+  const [sending, setSending] = React.useState(false);
   const [lists, setLists] = React.useState<ContactList[]>([]);
   const [listId, setListId] = React.useState("");
   const [draftTags, setDraftTags] = React.useState<string[]>([]);
@@ -190,6 +194,33 @@ export default function ContactDetailPage() {
     }
   };
 
+  const openMail = () => {
+    setMailSubject("");
+    setMailBody("");
+    setMailOpen(true);
+  };
+
+  const sendMail = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!mailSubject.trim() || !mailBody.trim()) {
+      toast.error("Subject and message are required");
+      return;
+    }
+    setSending(true);
+    try {
+      await api.post<{ messageId: string }>(`/api/v1/contacts/${params.id}/send`, {
+        subject: mailSubject,
+        body: mailBody,
+      });
+      setMailOpen(false);
+      toast.success("Email sent to " + contact?.email);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send email");
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-24">
@@ -231,7 +262,7 @@ export default function ContactDetailPage() {
             <Button variant="outline" size="sm" onClick={openAddToList}>
               <MailPlus /> Add to list
             </Button>
-            <Button size="sm" onClick={() => toast.info("Compose a 1:1 email is coming soon")}>
+            <Button size="sm" onClick={openMail}>
               <Mail /> Send email
             </Button>
             <DropdownMenu>
@@ -521,6 +552,54 @@ export default function ContactDetailPage() {
               Add to list
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mailOpen} onOpenChange={setMailOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send email to {contact.firstName || contact.email}</DialogTitle>
+            <DialogDescription>
+              Sent from {contact.email}. Use {"{{first_name}}"}, {"{{company}}"} etc. and they
+              will be replaced with this contact&apos;s details.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={sendMail} noValidate className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="mail-subject">
+                Subject <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="mail-subject"
+                value={mailSubject}
+                onChange={(e) => setMailSubject(e.target.value)}
+                placeholder="Hi {{first_name}} — quick question"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="mail-body">
+                Message <span className="text-destructive">*</span>
+              </Label>
+              <textarea
+                id="mail-body"
+                value={mailBody}
+                onChange={(e) => setMailBody(e.target.value)}
+                placeholder="Hey {{first_name}}, I wanted to follow up on…"
+                required
+                className="border-input bg-background ring-offset-background focus-visible:ring-ring min-h-40 rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setMailOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={sending}>
+                {sending && <Loader2 className="animate-spin" />}
+                <Send /> Send email
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
