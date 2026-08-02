@@ -9,7 +9,7 @@ import (
 )
 
 func ConnectTiDB(dsn string) (*sqlx.DB, error) {
-	db, err := sqlx.Open("mysql", dsn)
+	db, err := sqlx.Open("mysql", ensureMultiStatements(dsn))
 	if err != nil {
 		return nil, err
 	}

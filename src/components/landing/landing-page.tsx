@@ -6,17 +6,25 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
+  BarChart3,
   Check,
+  Filter,
   Hand,
+  Lock,
   Mail,
   Phone,
   Radio,
   Send,
+  ShieldCheck,
+  Sparkles,
   TrendingUp,
   Users,
+  Workflow,
   Zap,
 } from "lucide-react";
+import { api, getToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getStoredVisitor, getVisitorFromUrl, rememberVisitor } from "@/lib/visitor";
 import { GeckoMark } from "@/components/brand/gecko-mark";
 
 interface LandingPageProps {
@@ -32,20 +40,21 @@ const REEL_IMAGES = [
 ];
 
 const TICKER = [
+  "NO EXCUSES",
   "AGILE",
   "SMART",
   "RELIABLE",
   "STICKY",
-  "SEND SMART",
-  "STICKY DELIVERABILITY",
-  "CLINGS TO THE INBOX",
-  "QUICK ON ITS FEET",
-  "AUTOMATE EVERYTHING",
-  "PRIVACY FIRST",
-  "DELIVERABILITY IS EARNED",
-  "NO BLACKLISTS",
   "GROW ON YOUR TERMS",
+  "STICK TO THE INBOX",
+  "EARN THE INBOX",
+  "PRIVATE BY DEFAULT",
+  "DELIVERED ON PURPOSE",
   "OWN YOUR AUDIENCE",
+  "NO BLACKLISTS",
+  "AUTOMATE EVERYTHING",
+  "QUICK ON ITS FEET",
+  "CLINGS TO THE INBOX",
 ];
 
 const STATS = [
@@ -61,7 +70,7 @@ const PLATFORMS = [
     tag: "CAMPAIGNS",
     intensity: "DRAG · DROP",
     title: "CAMPAIGN STUDIO",
-    img: "/landing/card-campaign.svg",
+    icon: Send,
     body: "A visual drag-and-drop editor, reusable templates, and granular audience targeting. Design once, send everywhere — no code required.",
     meta: [
       ["Setup", "5 MIN"],
@@ -75,7 +84,7 @@ const PLATFORMS = [
     tag: "AUTOMATION",
     intensity: "ZERO CODE",
     title: "JOURNEY BUILDER",
-    img: "/landing/card-journey.svg",
+    icon: Workflow,
     body: "Visual automation flows for welcome series, abandoned carts, and win-back campaigns. Trigger on real behavior, not guesswork.",
     meta: [
       ["Triggers", "12+ EVENTS"],
@@ -89,7 +98,7 @@ const PLATFORMS = [
     tag: "ANALYTICS",
     intensity: "LIVE METRICS",
     title: "REAL-TIME REPORTS",
-    img: "/landing/card-reports.svg",
+    icon: BarChart3,
     body: "Opens, clicks, and revenue attribution streaming live — plus AI suggestions that tell you what to improve next.",
     meta: [
       ["Latency", "< 1s"],
@@ -105,7 +114,7 @@ const FEATURES = [
     num: "/ 01",
     badge: "10× FASTER",
     name: "AI WRITER",
-    img: "/landing/flip-aiwriter.svg",
+    icon: Sparkles,
     role: "Copywriting Engine",
     creds: "12 YRS · GPT",
     hover: "HOVER →",
@@ -123,7 +132,7 @@ const FEATURES = [
     num: "/ 02",
     badge: "0.3s QUERIES",
     name: "SEGMENTATION",
-    img: "/landing/flip-segmentation.svg",
+    icon: Filter,
     role: "Audience Engine",
     creds: "RFM · TAGS",
     hover: "HOVER →",
@@ -141,7 +150,7 @@ const FEATURES = [
     num: "/ 03",
     badge: "99.2% INBOX",
     name: "DELIVERABILITY",
-    img: "/landing/flip-deliverability.svg",
+    icon: ShieldCheck,
     role: "Inbox First",
     creds: "SPF · DKIM · DMARC",
     hover: "HOVER →",
@@ -159,7 +168,7 @@ const FEATURES = [
     num: "/ 04",
     badge: "GDPR NATIVE",
     name: "DATA PRIVACY",
-    img: "/landing/flip-privacy.svg",
+    icon: Lock,
     role: "Own Your Data",
     creds: "EU HOSTED",
     hover: "HOVER →",
@@ -256,13 +265,35 @@ const STORIES = [
   },
 ];
 
-const USE_CASES = ["Newsletter", "E-commerce", "SaaS", "Agency", "Creator"];
-
-const AUDIENCE_TIERS = [
-  { label: "Startup", range: "< 1K" },
-  { label: "Growing", range: "1–10K" },
-  { label: "Scaling", range: "10–100K" },
-  { label: "Enterprise", range: "100K+" },
+const PRICING_TIERS = [
+  {
+    name: "FREE",
+    tag: "FOREVER",
+    price: "$0",
+    period: "",
+    highlight: false,
+    blurb: "Everything you need to launch.",
+    features: [
+      "1,000 contacts free forever",
+      "10,000 emails / month",
+      "Campaign studio + templates",
+      "Community support",
+    ],
+  },
+  {
+    name: "PRO",
+    tag: "MOST POPULAR",
+    price: "$19",
+    period: "/mo",
+    highlight: true,
+    blurb: "For teams ready to scale fast.",
+    features: [
+      "10,000 contacts included",
+      "Unlimited email sends",
+      "Full AI writer + journey builder",
+      "Priority human support 24/7",
+    ],
+  },
 ];
 
 const FOOTER_COLS = [
@@ -362,14 +393,15 @@ function useHeroReel(count: number, duration = 5000) {
 function StoriesCarousel() {
   const trackRef = React.useRef<HTMLDivElement>(null);
   const [cardWidth, setCardWidth] = React.useState(424);
-  const [maxScroll, setMaxScroll] = React.useState(0);
-  const [index, setIndex] = React.useState(0);
+  const [index, setIndex] = React.useState(STORIES.length);
   const [dragX, setDragX] = React.useState(0);
   const [dragging, setDragging] = React.useState(false);
   const [paused, setPaused] = React.useState(false);
   const drag = React.useRef({ startX: 0, startIndex: 0, active: false });
 
   const count = STORIES.length;
+  const sets = 3;
+  const last = count * (sets - 1);
 
   React.useEffect(() => {
     const measure = () => {
@@ -377,11 +409,8 @@ function StoriesCarousel() {
       const first = trackRef.current.firstElementChild as HTMLElement | null;
       if (!first) return;
       const gap = 24;
-      const padding = 32;
       const cw = first.offsetWidth + gap;
       setCardWidth(cw);
-      const total = count * cw - gap + padding * 2;
-      setMaxScroll(Math.max(0, total - (trackRef.current.parentElement?.offsetWidth ?? 0)));
     };
     measure();
     window.addEventListener("resize", measure);
@@ -391,14 +420,26 @@ function StoriesCarousel() {
   const goTo = React.useCallback(
     (next: number, dur = 700) => {
       setDragX(0);
-      const clamped = Math.max(0, Math.min(count - 1, next));
+      const clamped = Math.max(0, Math.min(last, next));
       setIndex(clamped);
       if (trackRef.current) {
         trackRef.current.style.transition = `transform ${dur}ms cubic-bezier(0.16, 1, 0.3, 1)`;
       }
     },
-    [count]
+    [last]
   );
+
+  React.useEffect(() => {
+    if (index > 0 && index < last) return;
+    const timer = setTimeout(() => {
+      if (trackRef.current) trackRef.current.style.transition = "none";
+      setIndex(count);
+      requestAnimationFrame(() => {
+        if (trackRef.current) trackRef.current.style.transition = "";
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [index, count, last]);
 
   React.useEffect(() => {
     if (paused || dragging) return;
@@ -416,11 +457,7 @@ function StoriesCarousel() {
   const onPointerMove = (e: React.PointerEvent) => {
     if (!drag.current.active) return;
     const delta = e.clientX - drag.current.startX;
-    const raw = drag.current.startIndex * cardWidth - delta;
-    let offset = raw;
-    if (raw < 0) offset = raw * 0.35;
-    else if (raw > maxScroll) offset = maxScroll + (raw - maxScroll) * 0.35;
-    setDragX(offset - drag.current.startIndex * cardWidth);
+    setDragX(drag.current.startIndex * cardWidth - delta - drag.current.startIndex * cardWidth);
   };
   const onPointerUp = () => {
     if (!drag.current.active) return;
@@ -453,44 +490,46 @@ function StoriesCarousel() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          {STORIES.map((s, i) => (
-            <article key={s.tag} className="lg-story-card">
-              <div className="relative h-56 overflow-hidden">
-                <img
-                  src={`/landing/story-${i}.svg`}
-                  className="lg-img-noir h-full w-full object-cover"
-                  alt={s.name}
-                />
-                <div className="absolute top-4 left-4 lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
-                  {s.tag}
+          {Array.from({ length: sets }).flatMap((_, set) =>
+            STORIES.map((s) => (
+              <article key={`${set}-${s.tag}`} className="lg-story-card">
+                <div className="lg-card-art h-[clamp(150px,18vh,224px)]">
+                  <div className="lg-font-mono absolute top-4 left-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
+                    {s.tag}
+                  </div>
+                  <div className="lg-badge absolute right-4 bottom-4">
+                    {s.badge}
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="lg-font-display text-5xl leading-none tracking-tight text-[var(--lg-fg)]">
+                      {s.name.charAt(0)}
+                    </span>
+                  </div>
                 </div>
-                <div className="lg-badge absolute right-4 bottom-4">
-                  {s.badge}
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="lg-font-display text-2xl">{s.name}</h3>
-                  <span className="lg-font-mono text-[10px] tracking-[0.15em] text-[var(--lg-muted)]">
-                    {s.time}
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed text-[var(--lg-fg-dim)] italic mb-5">
-                  &ldquo;{s.quote}&rdquo;
-                </p>
-                <div className="grid grid-cols-3 gap-2 border-t border-[var(--lg-border-light)] pt-4">
-                  {s.stats.map(([v, l]) => (
-                    <div key={l}>
-                      <div className="lg-font-display text-xl text-[var(--lg-accent)]">{v}</div>
-                      <div className="lg-font-mono text-[9px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
-                        {l}
+                <div className="p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="lg-font-display text-2xl">{s.name}</h3>
+                    <span className="lg-font-mono text-[10px] tracking-[0.15em] text-[var(--lg-muted)]">
+                      {s.time}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-[var(--lg-fg-dim)] italic mb-5">
+                    &ldquo;{s.quote}&rdquo;
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 border-t border-[var(--lg-border-light)] pt-4">
+                    {s.stats.map(([v, l]) => (
+                      <div key={l}>
+                        <div className="lg-font-display text-xl text-[var(--lg-accent)]">{v}</div>
+                        <div className="lg-font-mono text-[9px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
+                          {l}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))
+          )}
         </div>
       </div>
       <div className="mx-auto mt-10 flex max-w-[1600px] items-center justify-between px-6 lg:px-10">
@@ -498,12 +537,12 @@ function StoriesCarousel() {
           {STORIES.map((_, i) => (
             <button
               key={i}
-              onClick={() => goTo(i, 500)}
+              onClick={() => goTo(i + count, 500)}
               aria-label={`Go to story ${i + 1}`}
               style={{
-                width: i === index ? 32 : 8,
+                width: i === index % count ? 32 : 8,
                 height: 2,
-                background: i === index ? "var(--lg-accent)" : "var(--lg-border-light)",
+                background: i === index % count ? "var(--lg-accent)" : "var(--lg-border-light)",
                 transition: "all 0.4s",
               }}
             />
@@ -532,12 +571,41 @@ function StoriesCarousel() {
 
 export function LandingPage({ fonts }: LandingPageProps) {
   const rootRef = React.useRef<HTMLDivElement>(null);
-  const [useCase, setUseCase] = React.useState(USE_CASES[0]);
-  const [audience, setAudience] = React.useState(AUDIENCE_TIERS[0].label);
-  const [form, setForm] = React.useState({ name: "", email: "" });
-  const [submitting, setSubmitting] = React.useState(false);
+  const [visitorName, setVisitorName] = React.useState<string | null>(null);
+  const [stickyVisible, setStickyVisible] = React.useState(false);
 
-  const { frame, progress } = useHeroReel(REEL_IMAGES.length);
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const fromUrl = getVisitorFromUrl();
+      const stored = getStoredVisitor();
+      const email = fromUrl.email ?? stored.email;
+      let name = fromUrl.name ?? stored.name ?? null;
+
+      if (name || email) rememberVisitor(name, email);
+
+      if (!name && getToken()) {
+        try {
+          const res = await api.get<{ user: { name: string; email: string } }>("/api/v1/me");
+          if (cancelled) return;
+          const word = res.user?.name?.trim().split(/\s+/)[0];
+          if (word) name = word.toUpperCase();
+          rememberVisitor(name, res.user?.email);
+        } catch {
+          // not authenticated or API unavailable — keep the generic headline
+        }
+      }
+
+      if (cancelled) return;
+      setVisitorName(name);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const { frame } = useHeroReel(REEL_IMAGES.length);
 
   useInViewAnimation(rootRef);
 
@@ -561,41 +629,28 @@ export function LandingPage({ fonts }: LandingPageProps) {
     };
   }, []);
 
-  const [stickyVisible, setStickyVisible] = React.useState(false);
   React.useEffect(() => {
-    const hero = rootRef.current?.querySelector("#lg-hero");
-    const booking = rootRef.current?.querySelector("#lg-start");
-    if (!hero || !booking) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.target === hero) {
-            const atBooking =
-              booking.getBoundingClientRect().top < window.innerHeight &&
-              booking.getBoundingClientRect().bottom > 0;
-            setStickyVisible(!entry.isIntersecting && !atBooking);
-          }
-        });
-      },
-      { threshold: 0 }
-    );
-    observer.observe(hero);
-    observer.observe(booking);
-    return () => observer.disconnect();
+    const root = rootRef.current;
+    if (!root) return;
+    const hero = root.querySelector<HTMLElement>("#lg-hero");
+    const start = root.querySelector<HTMLElement>("#lg-start");
+    if (!hero) return;
+    const update = () => {
+      const heroGone = hero.getBoundingClientRect().bottom < 0;
+      const startVisible = start
+        ? start.getBoundingClientRect().top < window.innerHeight &&
+          start.getBoundingClientRect().bottom > 0
+        : false;
+      setStickyVisible(heroGone && !startVisible);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, []);
-
-  const submitForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      toast.success("Request received", {
-        description: "Your account is ready — check your inbox to sign in.",
-      });
-      setForm({ name: "", email: "" });
-      window.location.href = "/register";
-    }, 400);
-  };
 
   return (
     <div ref={rootRef} className={cn("landing lg-bg-textured", fonts)}>
@@ -657,7 +712,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
       </header>
 
       {/* ===================== HERO ===================== */}
-      <section className="relative h-screen min-h-[760px] w-full overflow-hidden" id="lg-hero">
+      <section className="relative flex min-h-dvh w-full flex-col overflow-hidden" id="lg-hero">
         <div className="absolute inset-0" style={{ willChange: "transform" }} id="lg-reelContainer">
           {REEL_IMAGES.map((src, i) => (
             <div key={src} className={cn("lg-reel-frame", i === frame && "lg-active")}>
@@ -674,88 +729,70 @@ export function LandingPage({ fonts }: LandingPageProps) {
           </div>
         </div>
 
-        <div className="relative z-10 mx-auto flex h-full max-w-[1600px] flex-col justify-end px-6 pt-32 pb-20 lg:px-10">
-          <div className="lg-chip absolute top-32 right-6 z-20 lg:right-10">
-            <span className="size-1.5 rounded-full bg-[var(--lg-accent)]" />
-            <span>INBOX-FIRST ENGINE · LIVE</span>
-          </div>
-
-          <div className="lg-reveal lg-in-view max-w-5xl">
-            <div className="lg-section-marker mb-6">
-              <span>EST. 2025 · YOUR EMAIL, YOUR RULES · STICKY BY DESIGN</span>
-            </div>
-            <h1 className="lg-font-display mb-8 text-[var(--lg-hero-fg)] text-[clamp(2.75rem,7vw,5.75rem)] leading-[0.9]">
+        <div className="lg-hero-inner relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-6 pt-28 pb-10 lg:pt-32 lg:pb-14">
+          <div className="lg-reveal lg-in-view mx-auto max-w-5xl">
+            <h1
+              className={cn(
+                "lg-font-display lg-hero-h1 mb-8 text-center text-[var(--lg-hero-fg)] leading-[0.9]",
+                visitorName ? "text-[clamp(2.75rem,6.05vw,5.25rem)]" : "text-[clamp(3rem,7.7vw,6.3rem)]"
+              )}
+            >
               <span className="lg-headline-line">
-                <span>SENT WITH</span>
+                <span>
+                  {visitorName ? (
+                    <>
+                      <span className="text-[var(--lg-hero-accent)]">{visitorName}</span>
+                      {", YOUR EXCUSES"}
+                    </>
+                  ) : (
+                    "YOUR EXCUSES"
+                  )}
+                </span>
               </span>
               <span className="lg-headline-line">
-                <span className="lg-text-stroke">PRECISION.</span>
+                <span className="lg-text-stroke">AREN&apos;T GROWING</span>
               </span>
               <span className="lg-headline-line">
                 <span>
-                  DELIVERED ON <span className="text-[var(--lg-hero-accent)]">PURPOSE.</span>
+                  YOUR <span className="text-[var(--lg-hero-accent)]">BUSINESS.</span>
                 </span>
               </span>
             </h1>
-            <p className="lg-font-body max-w-xl text-base leading-relaxed text-[var(--lg-hero-dim)] md:text-lg">
+            <p className="lg-font-body mx-auto max-w-xl text-center text-lg leading-relaxed text-[var(--lg-hero-dim)] md:text-xl">
               The privacy-first, AI-powered email marketing platform. Agile, quick-footed, and
               built to stick in the inbox —{" "}
               <span className="text-[var(--lg-hero-fg)]">without selling your data</span>.
             </p>
           </div>
 
-          <div className="mt-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-center gap-4">
+          <div className="mx-auto mt-12 w-full max-w-5xl">
+            <div className="flex items-center justify-center gap-4">
               <div className="flex -space-x-3">
-                <img
-                  src="/landing/avatar-1.svg"
-                  className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
-                  alt="Team member"
-                />
-                <img
-                  src="/landing/avatar-2.svg"
-                  className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
-                  alt="Team member"
-                />
-                <img
-                  src="/landing/avatar-3.svg"
-                  className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
-                  alt="Team member"
-                />
-                <img
-                  src="/landing/avatar-4.svg"
-                  className="lg-img-noir h-12 w-12 rounded-full border-2 border-[var(--lg-bg)] object-cover"
-                  alt="Team member"
-                />
-                <div className="bg-[var(--lg-accent)] flex h-12 w-12 items-center justify-center rounded-full border-2 border-[var(--lg-bg)]">
-                  <span className="lg-font-display text-base text-[var(--lg-primary-foreground)]">42K</span>
+                {["JK", "AM", "SR", "DL"].map((initials) => (
+                  <div
+                    key={initials}
+                    className="flex h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-[var(--lg-bg)] bg-[#15202c]"
+                  >
+                    <span className="lg-font-mono text-sm text-[var(--lg-hero-accent)]">{initials}</span>
+                  </div>
+                ))}
+                <div className="bg-[var(--lg-accent)] flex h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-[var(--lg-bg)]">
+                  <span className="lg-font-display text-[1.1rem] text-[var(--lg-primary-foreground)]">42K</span>
                 </div>
               </div>
               <div>
-                <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-muted)] uppercase">
+                <div className="lg-font-mono text-[11px] tracking-[0.2em] text-[var(--lg-hero-muted)] uppercase">
                   Trusted By
                 </div>
-                <div className="lg-font-heading text-sm tracking-wider text-[var(--lg-hero-fg)]">
+                <div className="lg-font-heading text-[0.95rem] tracking-wider text-[var(--lg-hero-fg)]">
                   42,000+ growing teams
                 </div>
-              </div>
-            </div>
-
-            <div className="flex w-full max-w-md items-center gap-6 lg:w-auto">
-              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-muted)]">
-                <span className="text-[var(--lg-hero-accent)]">0{frame + 1}</span> / 05
-              </div>
-              <div className="lg-progress-bar flex-1">
-                <div className="lg-progress-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-hero-accent)]">
-                PRODUCT REEL
               </div>
             </div>
           </div>
         </div>
 
-        <div className="absolute right-0 bottom-0 left-0 z-10 overflow-hidden border-t border-white/10 bg-[#0a111a]/70 py-3 backdrop-blur-sm">
+        <div className="relative z-10 overflow-hidden border-t border-white/10 bg-[#0a111a]/70 py-3 backdrop-blur-sm">
           <div className="lg-marquee-track lg-font-display text-sm tracking-[0.25em] text-[var(--lg-hero-dim)]">
             {[...TICKER, ...TICKER].map((word, i) => (
               <React.Fragment key={i}>
@@ -826,39 +863,39 @@ export function LandingPage({ fonts }: LandingPageProps) {
           <div className="lg-reveal-stagger grid gap-6 md:grid-cols-3 lg:gap-8">
             {PLATFORMS.map((p) => (
               <article key={p.title} className="lg-program-card lg-info-card lg-notch-corner group">
-                <div className="relative h-72 overflow-hidden">
-                  <img
-                    src={p.img}
-                    className="lg-program-img lg-img-noir h-full w-full object-cover"
-                    alt={p.title}
-                  />
-                  <div className="from-[var(--lg-bg-card)] absolute inset-0 bg-gradient-to-t via-transparent to-transparent" />
-                  <div className="lg-font-mono absolute top-4 left-4 text-[11px] tracking-[0.2em] text-[var(--lg-accent)]">
+                <div className="lg-card-art h-[clamp(120px,15vh,200px)]">
+                  <div className="lg-font-mono absolute top-3 left-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
                     {p.num} / {p.tag}
                   </div>
-                  <div className="lg-badge absolute top-4 right-4">
+                  <div className="lg-badge absolute top-3 right-4">
                     {p.intensity}
                   </div>
+                  <div className="absolute inset-x-0 bottom-3 flex items-center justify-between px-4">
+                    <p.icon className="lg-card-art-icon size-9" />
+                    <span className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-silver-dim)] uppercase">
+                      {p.tag}
+                    </span>
+                  </div>
                 </div>
-                <div className="p-7">
-                  <h3 className="lg-font-display mb-3 text-2xl md:text-3xl">{p.title}</h3>
-                  <p className="mb-6 text-sm leading-relaxed text-[var(--lg-fg-dim)]">{p.body}</p>
-                  <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-[var(--lg-border-light)] pb-6">
+                <div className="p-5">
+                  <h3 className="lg-font-display mb-2 text-lg md:text-xl">{p.title}</h3>
+                  <p className="mb-4 text-xs leading-snug text-[var(--lg-fg-dim)]">{p.body}</p>
+                  <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 border-b border-[var(--lg-border-light)] pb-4">
                     {p.meta.map(([k, v]) => (
                       <div key={k}>
-                        <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
+                        <div className="lg-font-mono text-[9px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
                           {k}
                         </div>
-                        <div className="lg-font-heading text-base">{v}</div>
+                        <div className="lg-font-heading text-sm">{v}</div>
                       </div>
                     ))}
                   </div>
                   <a
                     href="#lg-start"
-                    className="lg-link-underline lg-font-heading flex items-center justify-between text-sm tracking-[0.15em] uppercase"
+                    className="lg-link-underline lg-font-heading flex items-center justify-between text-xs tracking-[0.15em] uppercase"
                   >
                     <span>Explore Tool</span>
-                    <ArrowRight className="size-4 text-[var(--lg-accent)]" />
+                    <ArrowRight className="size-3.5 text-[var(--lg-accent)]" />
                   </a>
                 </div>
               </article>
@@ -896,21 +933,18 @@ export function LandingPage({ fonts }: LandingPageProps) {
               <div key={f.name} className="lg-flip-card">
                 <div className="lg-flip-inner">
                   <div className="lg-flip-face lg-flip-front lg-info-card flex flex-col">
-                    <div className="lg-coach-img-wrap">
-                      <img
-                        src={f.img}
-                        alt={f.name}
-                      />
+                    <div className="lg-card-art h-[clamp(150px,22vh,230px)]">
                       <div className="lg-font-mono absolute top-4 left-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)]">
                         {f.num}
                       </div>
                       <div className="lg-badge absolute top-4 right-4">
                         {f.badge}
                       </div>
-                      <div className="absolute right-4 bottom-4 left-4">
-                        <div className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-silver-dim)] uppercase">
+                      <div className="absolute right-4 bottom-4 left-4 flex items-center justify-between">
+                        <f.icon className="lg-card-art-icon size-8" />
+                        <span className="lg-font-mono text-[10px] tracking-[0.15em] text-[var(--lg-silver-dim)] uppercase">
                           {f.role}
-                        </div>
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-1 flex-col justify-between p-6">
@@ -1015,111 +1049,74 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
           <div className="grid gap-8 lg:grid-cols-12 lg:gap-12">
             <div className="lg-reveal lg:col-span-7">
-              <div className="lg-booking-frame p-8 lg:p-12">
-                <div className="lg-font-mono mb-3 text-[11px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
-                  {"// Create your account"}
+              <div className="lg-booking-frame p-6 lg:p-9">
+                <div className="lg-font-mono mb-2 text-[10px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
+                  {"// Simple pricing"}
                 </div>
-                <h3 className="lg-font-display mb-2 text-3xl">CLAIM YOUR FREE TIER</h3>
-                <p className="mb-8 text-sm text-[var(--lg-fg-dim)]">
+                <h3 className="lg-font-display mb-1.5 text-2xl">START FREE. SCALE WHEN READY.</h3>
+                <p className="mb-6 text-sm text-[var(--lg-fg-dim)]">
                   14-day pro trial, 1,000 contacts free forever. No credit card required.
                 </p>
 
-                <form onSubmit={submitForm} className="space-y-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div>
-                      <label className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        className="lg-form-input"
-                        placeholder="Enter your name"
-                        required
-                        value={form.name}
-                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
-                        Team Size
-                      </label>
-                      <input
-                        type="text"
-                        className="lg-form-input"
-                        placeholder="e.g. 5 people"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="lg-font-mono text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
-                      Work Email
-                    </label>
-                    <input
-                      type="email"
-                      className="lg-form-input"
-                      placeholder="you@company.com"
-                      required
-                      value={form.email}
-                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="lg-font-mono mb-3 block text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
-                      Primary Use Case
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {USE_CASES.map((uc) => (
-                        <span
-                          key={uc}
-                          className={cn("lg-goal-pill", uc === useCase && "lg-active")}
-                          onClick={() => setUseCase(uc)}
+                <div className="space-y-3">
+                  {PRICING_TIERS.map((tier) => (
+                    <div
+                      key={tier.name}
+                      className={cn(
+                        "relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between",
+                        tier.highlight
+                          ? "lg-tier-highlight border border-[var(--lg-accent)]"
+                          : "border border-[var(--lg-border-light)]"
+                      )}
+                    >
+                      {tier.highlight && (
+                        <span className="lg-badge absolute -top-2.5 right-4">{tier.tag}</span>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="lg-font-display text-xl">{tier.name}</h4>
+                          {!tier.highlight && <span className="lg-badge">{tier.tag}</span>}
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--lg-fg-dim)]">{tier.blurb}</p>
+                        <ul className="mt-3 grid gap-1.5 text-xs text-[var(--lg-fg-dim)] sm:grid-cols-2">
+                          {tier.features.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <Check className="size-3.5 shrink-0 text-[var(--lg-accent)]" />
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div
+                          className={cn(
+                            "lg-font-display text-3xl",
+                            tier.highlight && "text-[var(--lg-accent)]"
+                          )}
                         >
-                          {uc}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="lg-font-mono mb-3 block text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
-                      Audience Size
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {AUDIENCE_TIERS.map((t) => (
-                        <label key={t.label} className="cursor-pointer">
-                          <input
-                            type="radio"
-                            name="audience"
-                            className="peer sr-only"
-                            checked={audience === t.label}
-                            onChange={() => setAudience(t.label)}
-                          />
-                          <div className="border border-[var(--lg-border-light)] py-3 text-center font-heading text-xs uppercase tracking-wider text-[var(--lg-fg-dim)] transition-all peer-checked:border-[var(--lg-accent)] peer-checked:bg-[var(--lg-accent)] peer-checked:text-[var(--lg-primary-foreground)]">
-                            {t.label}
-                            <br />
-                            <span className="lg-font-mono text-[9px]">{t.range}</span>
+                          {tier.price}
+                          <span className="text-sm text-[var(--lg-muted)]">{tier.period}</span>
+                        </div>
+                        {tier.highlight && (
+                          <div className="lg-font-mono mt-1 text-[9px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
+                            Pay-as-you-grow · Cancel anytime
                           </div>
-                        </label>
-                      ))}
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="lg-pulse-btn bg-[var(--lg-accent)] mt-4 flex w-full items-center justify-center gap-4 rounded-full py-5 font-display text-2xl tracking-wider text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
-                  >
-                    <span>{submitting ? "CREATING…" : "START FOR FREE"}</span>
-                    <Send className="size-5" />
-                  </button>
-
-                  <p className="lg-font-mono text-center text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
-                    No charge · No credit card · Setup in 5 minutes
-                  </p>
-                </form>
+                <Link
+                  href="/register"
+                  className="lg-pulse-btn bg-[var(--lg-accent)] mt-6 flex w-full items-center justify-center gap-4 rounded-full py-4 font-display text-xl tracking-wider text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
+                >
+                  <span>START FREE</span>
+                  <Send className="size-5" />
+                </Link>
+                <p className="lg-font-mono mt-3 text-center text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
+                  No charge · No credit card · Setup in 5 minutes
+                </p>
               </div>
             </div>
 
@@ -1307,29 +1304,27 @@ export function LandingPage({ fonts }: LandingPageProps) {
       </footer>
 
       {/* ===================== STICKY CTA ===================== */}
-      <div className={cn("lg-sticky-cta", stickyVisible && "lg-visible")}>
-        <div className="border-t border-[var(--lg-accent)]/25 bg-[var(--lg-bg-darker)]/95 backdrop-blur-md">
-          <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-4 lg:px-10">
-            <div className="flex items-center gap-5">
-              <div className="lg-font-mono hidden items-center gap-2 text-[11px] tracking-[0.2em] text-[var(--lg-accent)] sm:flex">
-                <span className="size-2 rounded-full bg-[var(--lg-accent)]" />
-                <span>FREE TIER OPEN</span>
-              </div>
-              <div>
-                <div className="lg-font-display text-xl leading-none md:text-2xl">
-                  CLAIM YOUR FREE TIER
-                </div>
-                <div className="lg-font-mono mt-1 text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
-                  14-DAY PRO · NO CREDIT CARD · SETUP IN 5 MIN
-                </div>
-              </div>
-            </div>
+      <div
+        className={cn(
+          "lg-sticky-cta fixed inset-x-0 bottom-0 z-40 border-t border-[var(--lg-border)] bg-[var(--lg-bg-darker)]/95 backdrop-blur-md transition-all duration-500",
+          stickyVisible
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-full opacity-0"
+        )}
+      >
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-2.5 lg:px-10">
+          <div className="lg-font-display text-lg tracking-wide text-[var(--lg-fg)] lg:text-xl">
+            START FREE. <span className="text-[var(--lg-accent)]">SCALE WHEN READY.</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="lg-font-mono hidden text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase md:inline">
+              1,000 contacts free forever
+            </span>
             <Link
               href="/register"
-              className="lg-pulse-btn bg-[var(--lg-accent)] flex items-center gap-3 rounded-full whitespace-nowrap px-6 py-3.5 font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase transition-colors hover:bg-[var(--lg-accent-bright)] md:px-8 md:text-sm"
+              className="bg-[var(--lg-accent)] px-5 py-2.5 font-display text-[10px] tracking-widest text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
             >
-              <span>START FREE</span>
-              <ArrowRight className="size-4" />
+              START FREE
             </Link>
           </div>
         </div>

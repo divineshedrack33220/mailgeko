@@ -10,4 +10,4 @@ backend/bin
 .env*
 Dockerfile
 docker-compose.yml
-docker-entrypoint.sh
+docker-compose.full.yml

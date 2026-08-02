@@ -12,3 +12,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"env":    s.cfg.Env,
 	})
 }
+
+// handlePing answers with an empty 200 and no dependencies, so platform health
+// checks (Render, etc.) can probe the API without touching Redis or the DB.
+func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}

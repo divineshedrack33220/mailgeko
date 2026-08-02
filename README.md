@@ -45,14 +45,18 @@ postgres &                                         # :5432
 # (optional) a Resend-compatible mock on :8787 to capture outbound mail
 
 # 2. apply schema once
-for f in backend/migrations/0001_init.sql backend/migrations/0002_domain.sql \
-         backend/migrations/0006_billing.sql backend/migrations/0007_settings.sql; do
+for f in backend/internal/database/migrations/0001_init.sql \
+         backend/internal/database/migrations/0002_domain.sql \
+         backend/internal/database/migrations/0006_billing.sql \
+         backend/internal/database/migrations/0007_settings.sql \
+         backend/internal/database/migrations/0008_sending_defaults.sql \
+         backend/internal/database/migrations/0009_notifications.sql; do
   mariadb -uroot mailgeko < "$f"
 done
 psql "postgres://postgres@127.0.0.1:5432/mailgeko" \
-  -f backend/migrations/0003_analytics.sql \
-  -f backend/migrations/0004_analytics_enrichment.sql \
-  -f backend/migrations/0005_embeddings.sql
+  -f backend/internal/database/migrations/0003_analytics.sql \
+  -f backend/internal/database/migrations/0004_analytics_enrichment.sql \
+  -f backend/internal/database/migrations/0005_embeddings.sql
 
 # 3. run the backend
 cd backend
@@ -86,14 +90,23 @@ cp .env.example .env    # set JWT_SECRET (openssl rand -hex 32)
 docker compose -f docker-compose.full.yml up --build
 ```
 
-The `init-db` / `init-pg` services apply `backend/migrations/` on first boot
-(they are idempotent). The app listens on http://localhost:3000.
+The `init-db` / `init-pg` services apply the bundled migrations on first boot,
+and the API/worker binaries auto-apply any not-yet-run migrations at startup
+(see `internal/database/migrate.go`). The app listens on http://localhost:3000.
 
 External datastores (bring your own MariaDB/Redis/Postgres):
 
 ```bash
 docker compose up --build   # set TIDB_DSN, REDIS_ADDR (and POSTGRES_DSN) in .env
 ```
+
+## Render deployment
+
+A `render.yaml` blueprint lives at the repo root. From the Render dashboard:
+**New > Blueprint**, pick this repo, then fill the `sync: false` env vars
+(`BASE_URL`, `JWT_SECRET`, `TIDB_DSN`, `POSTGRES_DSN`, `REDIS_ADDR`,
+`RESEND_API_KEYS`) — see `.env.production.example` for where to get each.
+Migrations auto-apply at API startup; the health check is `/ping`.
 
 Notes for production:
 

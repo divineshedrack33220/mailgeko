@@ -1,5 +1,6 @@
 # Self-contained Mailgeko stack: bundles MariaDB, Redis and Postgres+pgvector.
-# Only JWT_SECRET is required. Run:
+# Migrations are applied automatically by the API at startup. Only JWT_SECRET
+# is required. Run:
 #   cp .env.example .env   # set JWT_SECRET
 #   docker compose -f docker-compose.full.yml up --build
 services:
@@ -43,42 +44,6 @@ services:
       retries: 20
     restart: unless-stopped
 
-  init-db:
-    image: mariadb:11
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./backend/migrations:/migrations:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        for f in 0001_init.sql 0002_domain.sql 0006_billing.sql 0007_settings.sql 0008_sending_defaults.sql 0009_notifications.sql; do
-          echo ">> mysql: $f"
-          mariadb -h db -uroot -pmailgeko mailgeko < "/migrations/$f"
-        done
-        echo "mysql migrations applied"
-    restart: "no"
-
-  init-pg:
-    image: pgvector/pgvector:pg16
-    depends_on:
-      pg:
-        condition: service_healthy
-    volumes:
-      - ./backend/migrations:/migrations:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        for f in 0003_analytics.sql 0004_analytics_enrichment.sql 0005_embeddings.sql; do
-          echo ">> postgres: $f"
-          psql "postgres://postgres:postgres@pg:5432/mailgeko?sslmode=disable" -f "/migrations/$f"
-        done
-        echo "postgres migrations applied"
-    restart: "no"
-
   app:
     build: .
     ports:
@@ -110,10 +75,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      init-db:
-        condition: service_completed_successfully
-      init-pg:
-        condition: service_completed_successfully
+      pg:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

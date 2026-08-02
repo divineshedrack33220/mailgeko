@@ -38,6 +38,10 @@ func main() {
 	}
 	defer tiDB.Close()
 
+	if err := database.MigrateMySQL(ctx, tiDB); err != nil {
+		log.Fatalf("migrate mysql: %v", err)
+	}
+
 	rdb, err := database.ConnectRedis(ctx, cfg.RedisAddr)
 	if err != nil {
 		log.Fatalf("redis: %v", err)
@@ -61,6 +65,9 @@ func main() {
 			log.Fatalf("postgres: %v", err)
 		}
 		defer pg.Close()
+		if err := database.MigratePostgres(ctx, pg); err != nil {
+			log.Fatalf("migrate postgres: %v", err)
+		}
 		analyticsStore = analytics.New(pg)
 		log.Println("postgres analytics connected")
 

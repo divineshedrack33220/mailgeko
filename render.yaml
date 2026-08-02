@@ -1,0 +1,49 @@
+# Render Blueprint for Mailgeko.
+# Deploy from the Render dashboard: New > Blueprint, select this repo, and fill
+# the env vars marked `sync: false` (see .env.production.example).
+#
+# The Dockerfile runs the Go API (:8080), the Go worker, and the Next.js web
+# process on $PORT in one container. Migrations are applied automatically by the
+# API at startup, so a fresh deployment needs no manual SQL.
+services:
+  - type: web
+    name: mailgeko
+    runtime: docker
+    plan: free
+    region: oregon
+    autoDeploy: true
+    healthCheckPath: /ping
+    build:
+      dockerfilePath: ./Dockerfile
+      buildContext: .
+    envVars:
+      - key: APP_ENV
+        value: production
+      # Public origin for tracking/unsubscribe links and webhook URLs, e.g.
+      # https://mailgeko.onrender.com. Set in the dashboard (not in the repo).
+      - key: BASE_URL
+        sync: false
+      # 32+ random bytes, hex-encoded: openssl rand -hex 32
+      - key: JWT_SECRET
+        sync: false
+      # TiDB Cloud serverless connection string, e.g.
+      # user:password@tcp(gateway01.xxx.tidbcloud.com:4000)/mailgeko?tls=true&parseTime=true&charset=utf8mb4
+      - key: TIDB_DSN
+        sync: false
+      # Optional Postgres for analytics + vector search. Set to enable; omit to
+      # run with analytics/vector search disabled.
+      - key: POSTGRES_DSN
+        sync: false
+      # Upstash Redis endpoint without the scheme, e.g. host.upstash.io:6379.
+      - key: REDIS_ADDR
+        sync: false
+      # Resend API key(s), comma-separated. Required.
+      - key: RESEND_API_KEYS
+        sync: false
+      - key: RESEND_API_ENDPOINT
+        value: https://api.resend.com/emails
+      # "static" needs no keys and works on free; switch to "openai" later.
+      - key: EMBED_PROVIDER
+        value: static
+      - key: EMBED_DIMENSIONS
+        value: "1536"

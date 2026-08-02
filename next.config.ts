@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
       source: "/track/:path*",
       destination: "http://127.0.0.1:8080/track/:path*",
     },
+    {
+      source: "/ping",
+      destination: "http://127.0.0.1:8080/ping",
+    },
   ],
 };
 
