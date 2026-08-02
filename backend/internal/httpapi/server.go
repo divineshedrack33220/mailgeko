@@ -141,6 +141,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/v1/templates", s.withAuth(http.HandlerFunc(s.handleListTemplates)))
 	mux.Handle("POST /api/v1/templates", s.withAuth(http.HandlerFunc(s.handleCreateTemplate)))
+	mux.Handle("POST /api/v1/templates/generate", s.withAuth(http.HandlerFunc(s.handleGenerateTemplate)))
 	mux.Handle("GET /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleGetTemplate)))
 	mux.Handle("PATCH /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateTemplate)))
 	mux.Handle("DELETE /api/v1/templates/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteTemplate)))

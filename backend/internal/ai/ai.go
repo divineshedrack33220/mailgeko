@@ -177,6 +177,132 @@ func (c *Client) GenerateCampaign(ctx context.Context, prompt, draft, brandVoice
 	return out, nil
 }
 
+// TemplateDraft is a structured email template generated from a prompt. The
+// JSON tags match what the model is asked to return.
+type TemplateDraft struct {
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Subject  string `json:"subject"`
+	Heading  string `json:"heading"`
+	Body     string `json:"body"`
+	CTA      string `json:"cta"`
+}
+
+// GenerateTemplate produces a structured template draft for the given prompt,
+// tuned by the workspace brand voice when set. It falls back to a built-in
+// draft when no API key is configured.
+func (c *Client) GenerateTemplate(ctx context.Context, prompt, brandVoice string) (*TemplateDraft, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		prompt = "a short promotional email"
+	}
+	if c.apiKey == "" {
+		return fallbackTemplate(prompt), nil
+	}
+
+	var b strings.Builder
+	b.WriteString("Create an email template for: ")
+	b.WriteString(prompt)
+	if brandVoice != "" {
+		b.WriteString(". Brand voice: ")
+		b.WriteString(brandVoice)
+	}
+	b.WriteString(". Use {{first_name}} for the recipient's first name and {{company}} where it makes sense.")
+	b.WriteString(" Return ONLY a single JSON object with exactly these keys: name (short template name), category (one of Newsletter, Promotional, Transactional, Welcome, Abandoned Cart, Re-engagement, Announcement), subject (subject line, under 60 characters), heading (bold email heading), body (2-4 short paragraphs separated by blank lines, plain text), cta (call-to-action button label, short).")
+
+	content, err := c.chat(ctx,
+		"You generate email templates as JSON only, no markdown fences, no extra text.",
+		b.String())
+	if err != nil {
+		return nil, err
+	}
+	return parseTemplateJSON(content)
+}
+
+func parseTemplateJSON(content string) (*TemplateDraft, error) {
+	s := strings.TrimSpace(content)
+	if i := strings.Index(s, "{"); i > 0 {
+		s = s[i:]
+	}
+	if i := strings.LastIndex(s, "}"); i >= 0 {
+		s = s[:i+1]
+	}
+	var d TemplateDraft
+	if err := json.Unmarshal([]byte(sanitizeJSONStrings(s)), &d); err != nil {
+		return nil, fmt.Errorf("AI template response: %w", err)
+	}
+	d.Name = strings.TrimSpace(d.Name)
+	d.Heading = strings.TrimSpace(d.Heading)
+	d.Body = strings.TrimSpace(d.Body)
+	if d.Body == "" {
+		return nil, fmt.Errorf("AI returned no template body")
+	}
+	return &d, nil
+}
+
+// sanitizeJSONStrings escapes raw control characters inside string values,
+// which LLMs frequently emit (a literal newline in a JSON string is invalid).
+func sanitizeJSONStrings(s string) string {
+	var b strings.Builder
+	inString := false
+	escaped := false
+	for _, r := range s {
+		if inString {
+			if escaped {
+				escaped = false
+				b.WriteRune(r)
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				b.WriteRune(r)
+				continue
+			}
+			if r == '"' {
+				inString = false
+				b.WriteRune(r)
+				continue
+			}
+			switch r {
+			case '\n':
+				b.WriteString(`\n`)
+				continue
+			case '\r':
+				b.WriteString(`\r`)
+				continue
+			case '\t':
+				b.WriteString(`\t`)
+				continue
+			}
+			b.WriteRune(r)
+			continue
+		}
+		if r == '"' {
+			inString = true
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func fallbackTemplate(prompt string) *TemplateDraft {
+	name := strings.TrimSpace(prompt)
+	if len(name) > 60 {
+		name = name[:60]
+	}
+	if name == "" {
+		name = "Email template"
+	}
+	return &TemplateDraft{
+		Name:     name,
+		Category: "Newsletter",
+		Subject:  "A quick update from us",
+		Heading:  "Hello {{first_name}}!",
+		Body:     "Thanks for being part of this.\n\nHere's what's new and why it matters:\n\nReply to this email and we'll get right back to you.",
+		CTA:      "Learn more",
+	}
+}
+
 // chat calls the OpenAI-compatible chat completions endpoint and returns the
 // assistant's text. It is only called when an API key is configured.
 func (c *Client) chat(ctx context.Context, system, user string) (string, error) {

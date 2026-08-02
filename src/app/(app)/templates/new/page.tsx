@@ -3,12 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, FileText, Loader2 } from "lucide-react";
+import { ChevronLeft, FileText, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
 import { api } from "@/lib/api";
 import type { Template, TemplateCategory } from "@/lib/types";
@@ -44,6 +45,43 @@ const categories: TemplateCategory[] = [
 export default function NewTemplatePage() {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
+  const [aiPrompt, setAiPrompt] = React.useState("");
+  const [aiCategory, setAiCategory] = React.useState<TemplateCategory>("Newsletter");
+  const [aiGenerating, setAiGenerating] = React.useState(false);
+
+  const generateWithAi = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Describe the template you want first");
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const gen = await api.post<{
+        mjml: string;
+        html: string;
+        name: string;
+        category: string;
+        subject: string;
+        variables: string[];
+      }>("/api/v1/templates/generate", { prompt: aiPrompt, brandVoice: "" });
+      const res = await api.post<{ template: Template }>("/api/v1/templates", {
+        name: gen.name,
+        description: gen.subject,
+        category: aiCategory,
+        thumbnail: "newsletter",
+        mjml: gen.mjml,
+        html: gen.html,
+        variables: gen.variables,
+        tags: [],
+        isFavorite: false,
+      });
+      toast.success("Template generated");
+      router.push(`/templates/${res.template.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate template");
+      setAiGenerating(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,9 +124,55 @@ export default function NewTemplatePage() {
       </div>
       <PageHeader
         title="New template"
-        description="Start with a name and a category — you'll be editing MJML next."
+        description="Describe what you want and let AI write it, or start with a name and a category — you'll be editing MJML next."
         icon={FileText}
       />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="text-primary size-4" /> Generate with AI
+          </CardTitle>
+          <CardDescription>
+            Describe the email you want — audience, offer, and tone. We&apos;ll build a ready-to-edit MJML template and
+            open it in the editor. Uses your saved brand voice when set.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ai-prompt">What should this template say?</Label>
+              <Textarea
+                id="ai-prompt"
+                placeholder="e.g. A welcome email for new SaaS signups — introduce the product, link to a getting-started guide, and end with a 'Book a demo' button."
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                className="min-h-28"
+              />
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex w-56 flex-col gap-2">
+                <Label htmlFor="ai-category">Category</Label>
+                <select
+                  id="ai-category"
+                  value={aiCategory}
+                  onChange={(e) => setAiCategory(e.target.value as TemplateCategory)}
+                  className="border-input bg-background ring-offset-background focus-visible:ring-ring h-9 rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                >
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button onClick={generateWithAi} disabled={aiGenerating}>
+                {aiGenerating ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                {aiGenerating ? "Writing…" : "Generate template"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Template details</CardTitle>

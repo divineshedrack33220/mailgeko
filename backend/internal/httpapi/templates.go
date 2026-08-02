@@ -4,11 +4,21 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/divineshedrack33220/mailgeko/backend/internal/ai"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
+
+var templateVarRegex = regexp.MustCompile(`\{\{\s*([^}\s]+)\s*\}\}`)
+
+var templateCategories = map[string]bool{
+	"Newsletter": true, "Promotional": true, "Transactional": true, "Welcome": true,
+	"Abandoned Cart": true, "Re-engagement": true, "Announcement": true,
+}
 
 type templateRequest struct {
 	Name        string   `json:"name"`
@@ -97,6 +107,100 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]any{"template": templateResponse(t)})
+}
+
+func (s *Server) handleGenerateTemplate(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	var req struct {
+		Prompt     string `json:"prompt"`
+		BrandVoice string `json:"brandVoice"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	req.Prompt = strings.TrimSpace(req.Prompt)
+	if req.Prompt == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "prompt is required")
+		return
+	}
+	if strings.TrimSpace(req.BrandVoice) == "" {
+		ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
+		if err == nil {
+			req.BrandVoice = ws.BrandVoice
+		}
+	}
+
+	d, err := s.aiClient().GenerateTemplate(r.Context(), req.Prompt, strings.TrimSpace(req.BrandVoice))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not generate template")
+		return
+	}
+	category := d.Category
+	if !templateCategories[category] {
+		category = "Newsletter"
+	}
+	mjml := buildTemplateMJML(d)
+
+	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "template", req.Prompt, d.Subject+"\n"+d.Heading+"\n"+d.Body)
+	writeOK(w, map[string]any{
+		"mjml":      mjml,
+		"html":      mjml,
+		"name":      d.Name,
+		"category":  category,
+		"subject":   d.Subject,
+		"variables": templateVariables(d),
+	})
+}
+
+func mjmlEscape(s string) string {
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
+}
+
+// buildTemplateMJML wraps a generated template draft in a clean, single-column
+// MJML layout that renders in the code editor and as a campaign body.
+func buildTemplateMJML(d *ai.TemplateDraft) string {
+	heading := mjmlEscape(strings.TrimSpace(d.Heading))
+	body := mjmlEscape(strings.TrimSpace(d.Body))
+	body = strings.ReplaceAll(body, "\n\n", "</mj-text>\n<mj-text font-size=\"16px\" line-height=\"1.6\" color=\"#52525b\">")
+	body = strings.ReplaceAll(body, "\n", "<br/>")
+	cta := mjmlEscape(strings.TrimSpace(d.CTA))
+	if cta == "" {
+		cta = "Learn more"
+	}
+
+	var b strings.Builder
+	b.WriteString("<mjml>\n")
+	b.WriteString("  <mj-body background-color=\"#f4f4f5\">\n")
+	b.WriteString("    <mj-section background-color=\"#ffffff\" padding=\"40px 32px\" border-radius=\"12px\">\n")
+	b.WriteString("      <mj-column>\n")
+	b.WriteString("        <mj-text font-size=\"24px\" font-weight=\"700\" color=\"#18181b\">" + heading + "</mj-text>\n")
+	b.WriteString("        <mj-text font-size=\"16px\" line-height=\"1.6\" color=\"#52525b\">" + body + "</mj-text>\n")
+	b.WriteString("        <mj-button href=\"{{cta_url}}\" background-color=\"#3bb974\" color=\"#ffffff\" border-radius=\"8px\" padding=\"12px 24px\">" + cta + "</mj-button>\n")
+	b.WriteString("        <mj-text font-size=\"12px\" color=\"#a1a1aa\" align=\"center\"><a href=\"{{unsubscribe_url}}\">Unsubscribe</a></mj-text>\n")
+	b.WriteString("      </mj-column>\n")
+	b.WriteString("    </mj-section>\n")
+	b.WriteString("  </mj-body>\n")
+	b.WriteString("</mjml>")
+	return b.String()
+}
+
+// templateVariables returns the merge variables used by a generated template,
+// always including the standard link/first-name ones.
+func templateVariables(d *ai.TemplateDraft) []string {
+	seen := map[string]bool{"first_name": true, "cta_url": true, "unsubscribe_url": true}
+	text := d.Subject + "\n" + d.Heading + "\n" + d.Body
+	for _, m := range templateVarRegex.FindAllStringSubmatch(text, -1) {
+		if v := strings.TrimSpace(m[1]); v != "" {
+			seen[v] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {

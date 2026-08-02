@@ -64,3 +64,41 @@ func TestGenerateCampaignFallback(t *testing.T) {
 	}
 }
 
+func TestGenerateTemplateFallback(t *testing.T) {
+	c := NewClient("", "", "")
+	d, err := c.GenerateTemplate(context.Background(), "welcome email for new SaaS signups", "")
+	if err != nil {
+		t.Fatalf("GenerateTemplate returned error: %v", err)
+	}
+	if strings.TrimSpace(d.Body) == "" || strings.TrimSpace(d.Heading) == "" {
+		t.Fatalf("expected heading and body, got %+v", d)
+	}
+}
+
+func TestParseTemplateJSON(t *testing.T) {
+	d, err := parseTemplateJSON(`{"name":"Welcome","category":"Welcome","subject":"Welcome aboard","heading":"Hi {{first_name}}","body":"Paragraph one.\n\nParagraph two.","cta":"Get started"}`)
+	if err != nil {
+		t.Fatalf("parseTemplateJSON returned error: %v", err)
+	}
+	if d.Name != "Welcome" || !strings.Contains(d.Body, "Paragraph two") {
+		t.Fatalf("unexpected parse result: %+v", d)
+	}
+
+	fenced, err := parseTemplateJSON("```json\n{\"name\":\"X\",\"body\":\"Hello\"}\n```")
+	if err != nil {
+		t.Fatalf("parseTemplateJSON fenced returned error: %v", err)
+	}
+	if fenced.Name != "X" || fenced.Body != "Hello" {
+		t.Fatalf("unexpected fenced parse result: %+v", fenced)
+	}
+
+	rawNewline, err := parseTemplateJSON("{\"name\":\"Y\",\"body\":\"Line one.\nLine two.\",\"heading\":\"Hi\"}")
+	if err != nil {
+		t.Fatalf("parseTemplateJSON raw-newline returned error: %v", err)
+	}
+	if !strings.Contains(rawNewline.Body, "Line two") {
+		t.Fatalf("unexpected raw-newline parse result: %+v", rawNewline)
+	}
+}
+
+

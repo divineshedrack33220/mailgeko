@@ -20,6 +20,7 @@ import {
   Send,
   Loader2,
   Trash2,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,6 +104,7 @@ const tools: Tool[] = [
 const kindMeta = {
   subject: { label: "Subject lines", icon: PenLine, color: "text-primary", bg: "bg-primary/10" },
   campaign: { label: "Campaign copy", icon: Mail, color: "text-sky-500", bg: "bg-info/10" },
+  template: { label: "Template", icon: FileText, color: "text-violet-500", bg: "bg-violet-500/10" },
 } as const;
 
 interface AIHistoryItem {
