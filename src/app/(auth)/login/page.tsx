@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,10 @@ import { oauthUrl } from "@/lib/api";
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  const [pendingToken, setPendingToken] = React.useState<string | null>(null);
   const shake = useShake();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -35,7 +37,11 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      await login(email, password);
+      const pending = await login(email, password);
+      if (pending) {
+        setPendingToken(pending);
+        return;
+      }
       toast.success("Welcome back");
       router.push("/dashboard");
     } catch (err) {
@@ -45,6 +51,74 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  const handleTwoFactor = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!pendingToken) return;
+    const data = new FormData(e.currentTarget);
+    const code = String(data.get("code") ?? "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      toast.error("Enter the 6-digit code from your authenticator");
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifyTwoFactor(pendingToken, code);
+      toast.success("Verified — welcome back");
+      router.push("/dashboard");
+    } catch (err) {
+      shake.trigger();
+      toast.error(err instanceof Error ? err.message : "That code didn't work");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (pendingToken) {
+    return (
+      <>
+        <title>Verify · Mailgeko</title>
+        <FitZoom className="flex flex-col gap-8">
+          <div>
+            <div className="flex size-12 items-center justify-center rounded-xl border bg-background shadow-sm">
+              <ShieldCheck className="text-primary size-6" />
+            </div>
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">Two-step verification</h1>
+            <p className="text-muted-foreground mt-1.5 text-sm">
+              Enter the 6-digit code from your authenticator app.
+            </p>
+          </div>
+
+          <form onSubmit={handleTwoFactor} noValidate className={cn("flex flex-col gap-4", shake.className)} onAnimationEnd={shake.onAnimationEnd}>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="code">Verification code</Label>
+              <Input
+                id="code"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="••••••"
+                className="tracking-[0.4em]"
+                autoFocus
+                required
+              />
+            </div>
+            <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
+              {loading && <Loader2 className="animate-spin" />}
+              Verify and sign in
+            </Button>
+            <button
+              type="button"
+              onClick={() => setPendingToken(null)}
+              className="text-muted-foreground hover:text-foreground text-center text-sm"
+            >
+              Back to sign in
+            </button>
+          </form>
+        </FitZoom>
+      </>
+    );
+  }
 
   return (
     <>

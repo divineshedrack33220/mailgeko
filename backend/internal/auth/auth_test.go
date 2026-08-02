@@ -89,3 +89,36 @@ func TestParseRejectsInvalidToken(t *testing.T) {
 		t.Fatal("expected error for token signed with wrong secret")
 	}
 }
+
+func TestPendingTwoFactorToken(t *testing.T) {
+	m := NewTokenManager("test-secret", time.Hour)
+	token, err := m.IssuePendingTwoFactor("user-1", "a@b.com")
+	if err != nil {
+		t.Fatalf("IssuePendingTwoFactor: %v", err)
+	}
+	claims, err := m.Parse(token)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if !claims.Pending {
+		t.Error("expected pending flag on 2FA token")
+	}
+	if claims.GetWorkspaceID() != "" || claims.GetRole() != "" {
+		t.Error("pending token should carry no workspace or role")
+	}
+	if claims.ExpiresAt.Time.After(time.Now().Add(15 * time.Minute)) {
+		t.Error("pending token should be short-lived")
+	}
+
+	normal, err := m.Issue("user-1", "a@b.com", "ws-1", "owner")
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	normalClaims, err := m.Parse(normal)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if normalClaims.Pending {
+		t.Error("normal token should not be pending")
+	}
+}

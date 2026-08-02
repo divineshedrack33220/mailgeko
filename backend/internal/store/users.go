@@ -14,6 +14,9 @@ type User struct {
 	AvatarURL     string    `db:"avatar_url"`
 	OAuthProvider string    `db:"oauth_provider"`
 	OAuthUID      string    `db:"oauth_uid"`
+	TOTPSecret    string    `db:"totp_secret"`
+	TOTPEnabled   bool      `db:"totp_enabled"`
+	TOTPRecovery  string    `db:"totp_recovery_codes"`
 	CreatedAt     time.Time `db:"created_at"`
 }
 
@@ -48,6 +51,9 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 		        COALESCE(avatar_url, '') AS avatar_url,
 		        COALESCE(oauth_provider, '') AS oauth_provider,
 		        COALESCE(oauth_uid, '') AS oauth_uid,
+		        COALESCE(totp_secret, '') AS totp_secret,
+		        COALESCE(totp_enabled, 0) AS totp_enabled,
+		        COALESCE(totp_recovery_codes, '') AS totp_recovery_codes,
 		        created_at
 		 FROM users WHERE email = ?`, email)
 	if err != nil {
@@ -63,6 +69,9 @@ func (s *Store) UserByID(ctx context.Context, id string) (*User, error) {
 		        COALESCE(avatar_url, '') AS avatar_url,
 		        COALESCE(oauth_provider, '') AS oauth_provider,
 		        COALESCE(oauth_uid, '') AS oauth_uid,
+		        COALESCE(totp_secret, '') AS totp_secret,
+		        COALESCE(totp_enabled, 0) AS totp_enabled,
+		        COALESCE(totp_recovery_codes, '') AS totp_recovery_codes,
 		        created_at
 		 FROM users WHERE id = ?`, id)
 	if err != nil {
@@ -85,6 +94,38 @@ func (s *Store) UpdateUserOAuth(ctx context.Context, userID, provider, providerU
 		     oauth_uid = COALESCE(?, oauth_uid)
 		 WHERE id = ?`,
 		nullIfEmpty(provider), nullIfEmpty(providerUID), userID)
+	return err
+}
+
+// SaveTOTPSecret stores a pending (not yet enabled) TOTP secret.
+func (s *Store) SaveTOTPSecret(ctx context.Context, userID, secret string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = ?, totp_enabled = 0, totp_recovery_codes = NULL WHERE id = ?`,
+		secret, userID)
+	return err
+}
+
+// EnableTOTP marks a user's TOTP as active and stores hashed recovery codes.
+func (s *Store) EnableTOTP(ctx context.Context, userID, secret, recoveryCodesJSON string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_recovery_codes = ? WHERE id = ?`,
+		secret, recoveryCodesJSON, userID)
+	return err
+}
+
+// DisableTOTP turns two-factor auth off and clears the stored secret and codes.
+func (s *Store) DisableTOTP(ctx context.Context, userID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_recovery_codes = NULL WHERE id = ?`,
+		userID)
+	return err
+}
+
+// UpdateRecoveryCodes replaces a user's hashed recovery codes.
+func (s *Store) UpdateRecoveryCodes(ctx context.Context, userID, recoveryCodesJSON string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_recovery_codes = ? WHERE id = ?`,
+		recoveryCodesJSON, userID)
 	return err
 }
 

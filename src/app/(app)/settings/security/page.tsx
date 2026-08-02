@@ -11,6 +11,7 @@ import {
   Monitor,
   Globe,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,19 +32,88 @@ import {
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-const activeSessions = [
-  { id: "s-1", device: "Chrome on macOS", location: "San Francisco, US", current: true, lastActive: new Date().toISOString(), icon: Monitor },
-  { id: "s-2", device: "Firefox on Windows", location: "Berlin, DE", current: false, lastActive: "2026-07-29T18:30:00Z", icon: Globe },
-  { id: "s-3", device: "Mobile App on iOS", location: "Singapore, SG", current: false, lastActive: "2026-07-25T07:12:00Z", icon: Smartphone },
-];
+interface SetupResponse {
+  secret: string;
+  otpauthUrl: string;
+  qrPng: string;
+}
+
+interface SessionRow {
+  tokenId: string;
+  device: string;
+  location: string;
+  ip: string;
+  issuedAt: string;
+  lastSeen: string;
+  current: boolean;
+}
+
+function sessionIcon(device: string) {
+  if (/ios|android/i.test(device)) return Smartphone;
+  if (/macos|windows|linux/i.test(device)) return Monitor;
+  return Globe;
+}
 
 export default function SecuritySettingsPage() {
-  const [twoFactor, setTwoFactor] = React.useState(true);
   const [currentPassword, setCurrentPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [changing, setChanging] = React.useState(false);
+
+  const [twoFactorEnabled, setTwoFactorEnabled] = React.useState(false);
+  const [statusLoading, setStatusLoading] = React.useState(true);
+
+  const [setupOpen, setSetupOpen] = React.useState(false);
+  const [setupStep, setSetupStep] = React.useState<"scan" | "code" | "codes">("scan");
+  const [setup, setSetup] = React.useState<SetupResponse | null>(null);
+  const [setupCode, setSetupCode] = React.useState("");
+  const [recoveryCodes, setRecoveryCodes] = React.useState<string[] | null>(null);
+
+  const [disableOpen, setDisableOpen] = React.useState(false);
+  const [disableCode, setDisableCode] = React.useState("");
+
+  const [regenerateOpen, setRegenerateOpen] = React.useState(false);
+  const [regenerateStep, setRegenerateStep] = React.useState<"confirm" | "codes">("confirm");
+
+  const [sessions, setSessions] = React.useState<SessionRow[]>([]);
+  const [sessionsLoading, setSessionsLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+
+  const refreshSessions = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions");
+      setSessions(res.sessions);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load sessions");
+    }
+  }, []);
+
+  React.useEffect(() => {
+    let active = true;
+    api
+      .get<{ user: { twoFactorEnabled?: boolean } }>("/api/v1/me")
+      .then((res) => {
+        if (active) setTwoFactorEnabled(Boolean(res.user.twoFactorEnabled));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setStatusLoading(false);
+      });
+    api
+      .get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions")
+      .then((res) => {
+        if (active) setSessions(res.sessions);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setSessionsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleChangePassword = async () => {
     if (!currentPassword) {
@@ -75,9 +145,104 @@ export default function SecuritySettingsPage() {
     }
   };
 
-  const handleTwoFactor = (value: boolean) => {
-    setTwoFactor(value);
-    toast.info("Two-factor authentication is coming soon");
+  const openSetup = async () => {
+    setSetupOpen(true);
+    setSetupStep("scan");
+    setSetup(null);
+    setSetupCode("");
+    try {
+      const res = await api.post<SetupResponse>("/api/v1/auth/2fa/setup");
+      setSetup(res);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start setup");
+      setSetupOpen(false);
+    }
+  };
+
+  const confirmEnable = async () => {
+    if (!/^\d{6}$/.test(setupCode)) {
+      toast.error("Enter the 6-digit code from your authenticator");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.post<{ recoveryCodes: string[] }>("/api/v1/auth/2fa/enable", {
+        code: setupCode,
+      });
+      setRecoveryCodes(res.recoveryCodes);
+      setTwoFactorEnabled(true);
+      setSetupStep("codes");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That code didn't work");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDisable = async () => {
+    if (!/^\d{6}$/.test(disableCode)) {
+      toast.error("Enter the 6-digit code from your authenticator");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post("/api/v1/auth/2fa/disable", { code: disableCode });
+      setTwoFactorEnabled(false);
+      setDisableOpen(false);
+      setDisableCode("");
+      toast.success("Two-factor authentication disabled");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That code didn't work");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openRegenerate = () => {
+    setRegenerateOpen(true);
+    setRegenerateStep("confirm");
+    setRecoveryCodes(null);
+  };
+
+  const regenerateCodes = async () => {
+    setBusy(true);
+    try {
+      const res = await api.post<{ recoveryCodes: string[] }>("/api/v1/auth/2fa/recovery-codes");
+      setRecoveryCodes(res.recoveryCodes);
+      setRegenerateStep("codes");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not regenerate codes");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyCodes = () => {
+    if (!recoveryCodes) return;
+    navigator.clipboard
+      .writeText(recoveryCodes.join("\n"))
+      .then(() => toast.success("Recovery codes copied"))
+      .catch(() => toast.error("Could not copy codes"));
+  };
+
+  const revokeSession = async (tokenId: string) => {
+    try {
+      await api.delete(`/api/v1/auth/sessions/${tokenId}`);
+      toast.success("Session signed out");
+      refreshSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke session");
+    }
+  };
+
+  const revokeAllSessions = async () => {
+    try {
+      await api.delete("/api/v1/auth/sessions");
+      toast.success("Other sessions signed out");
+      refreshSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke sessions");
+    }
   };
 
   return (
@@ -154,26 +319,43 @@ export default function SecuritySettingsPage() {
         <CardContent>
           <div className="flex items-center justify-between rounded-lg border px-4 py-3">
             <div className="flex items-center gap-3">
-              <span className={twoFactor ? "bg-success/15 text-success" : "bg-secondary text-secondary-foreground"}>
+              <span
+                className={
+                  twoFactorEnabled
+                    ? "bg-success/15 text-success"
+                    : "bg-secondary text-secondary-foreground"
+                }
+              >
                 <ShieldCheck className="size-5" />
               </span>
               <div>
                 <p className="text-sm font-medium">Authenticator app</p>
                 <p className="text-muted-foreground text-xs">
-                  {twoFactor ? "Enabled — codes generated by your authenticator." : "Disabled — you'll only need your password."}
+                  {twoFactorEnabled
+                    ? "Enabled — codes generated by your authenticator."
+                    : "Disabled — you'll only need your password."}
                 </p>
               </div>
             </div>
-            <Switch checked={twoFactor} onCheckedChange={handleTwoFactor} />
+            <Switch
+              checked={twoFactorEnabled}
+              disabled={statusLoading}
+              onCheckedChange={(next) => (next ? openSetup() : setDisableOpen(true))}
+            />
           </div>
-          <div className="bg-muted/50 mt-3 rounded-lg border px-4 py-3">
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              Recovery codes: 5 remaining.{" "}
-              <button className="text-primary font-medium hover:underline" onClick={() => toast.info("Two-factor authentication is coming soon")}>
-                Generate new codes
-              </button>
-            </p>
-          </div>
+          {twoFactorEnabled && (
+            <div className="bg-muted/50 mt-3 rounded-lg border px-4 py-3">
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Recovery codes can get you back in if you lose your device.{" "}
+                <button
+                  className="text-primary font-medium hover:underline"
+                  onClick={openRegenerate}
+                >
+                  Generate new codes
+                </button>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -188,64 +370,261 @@ export default function SecuritySettingsPage() {
                 Devices currently signed into your account.
               </CardDescription>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                  <LogOut /> Sign out all others
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>Sign out other sessions?</DialogTitle>
-                  <DialogDescription>
-                    This will revoke every session except this one. You&apos;ll stay
-                    signed in on this device.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button
-                    className="text-destructive hover:text-destructive"
-                    variant="outline"
-                    onClick={() => toast.info("Session management is coming soon")}
-                  >
-                    <LogOut /> Sign out others
+            {sessions.filter((s) => !s.current).length > 0 && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                    <LogOut /> Sign out all others
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Sign out other sessions?</DialogTitle>
+                    <DialogDescription>
+                      This will revoke every session except this one. You&apos;ll stay
+                      signed in on this device.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      className="text-destructive hover:text-destructive"
+                      variant="outline"
+                      onClick={revokeAllSessions}
+                    >
+                      <LogOut /> Sign out others
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y">
-            {activeSessions.map((session) => (
-              <div key={session.id} className="hover:bg-muted/40 flex items-center gap-4 px-5 py-4 transition-colors">
-                <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-lg">
-                  <session.icon className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{session.device}</p>
-                    {session.current && <Badge variant="success">This device</Badge>}
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {session.location} · Active {timeAgo(session.lastActive)}
-                  </p>
-                </div>
-                {!session.current && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => toast.info("Session management is coming soon")}
+          {sessionsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="text-muted-foreground animate-spin" />
+            </div>
+          ) : sessions.length === 0 ? (
+            <p className="text-muted-foreground px-5 py-6 text-sm">No active sessions.</p>
+          ) : (
+            <div className="divide-y">
+              {sessions.map((session) => {
+                const Icon = sessionIcon(session.device);
+                return (
+                  <div
+                    key={session.tokenId}
+                    className="hover:bg-muted/40 flex items-center gap-4 px-5 py-4 transition-colors"
                   >
-                    <LogOut /> Sign out
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+                    <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-lg">
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{session.device}</p>
+                        {session.current && <Badge variant="success">This device</Badge>}
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        {session.location} · Active {timeAgo(session.lastSeen)}
+                      </p>
+                    </div>
+                    {!session.current && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => revokeSession(session.tokenId)}
+                      >
+                        <LogOut /> Sign out
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {setupStep === "codes" ? "Recovery codes" : "Set up two-factor authentication"}
+            </DialogTitle>
+            <DialogDescription>
+              {setupStep === "scan" &&
+                "Scan the QR code with your authenticator app, or enter the secret manually."}
+              {setupStep === "code" &&
+                "Enter the 6-digit code from your authenticator app to confirm."}
+              {setupStep === "codes" &&
+                "Save these recovery codes somewhere safe. Each can be used once to sign in."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {setupStep === "scan" && (
+            <div className="flex flex-col items-center gap-3">
+              {setup ? (
+                <>
+                  <div className="rounded-xl border p-3">
+                    {setup.qrPng ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={setup.qrPng}
+                        alt="Scan with your authenticator app"
+                        className="size-44"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground flex size-44 items-center justify-center text-sm">
+                        QR unavailable
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-full rounded-lg bg-muted px-4 py-2">
+                    <p className="text-muted-foreground text-center font-mono text-sm tracking-widest">
+                      {setup.secret}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground text-xs"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(setup.otpauthUrl)
+                        .then(() => toast.success("Setup link copied"))
+                        .catch(() => toast.error("Could not copy"));
+                    }}
+                  >
+                    Copy setup link instead
+                  </button>
+                </>
+              ) : (
+                <Loader2 className="text-muted-foreground animate-spin" />
+              )}
+            </div>
+          )}
+
+          {setupStep === "code" && (
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="setup-code">Verification code</Label>
+              <Input
+                id="setup-code"
+                inputMode="numeric"
+                placeholder="••••••"
+                className="tracking-[0.4em]"
+                value={setupCode}
+                onChange={(e) => setSetupCode(e.target.value)}
+              />
+            </div>
+          )}
+
+          {setupStep === "codes" && recoveryCodes && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-2">
+                {recoveryCodes.map((code) => (
+                  <div
+                    key={code}
+                    className="rounded-lg bg-muted px-4 py-2 font-mono text-sm tracking-widest"
+                  >
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={copyCodes}>
+                <Copy /> Copy all codes
+              </Button>
+            </div>
+          )}
+
+          <DialogFooter>
+            {setupStep === "scan" && (
+              <Button onClick={() => setSetupStep("code")} disabled={!setup}>
+                Continue
+              </Button>
+            )}
+            {setupStep === "code" && (
+              <Button onClick={confirmEnable} disabled={busy}>
+                {busy && <Loader2 className="animate-spin" />}
+                Enable two-factor
+              </Button>
+            )}
+            {setupStep === "codes" && (
+              <Button onClick={() => setSetupOpen(false)}>I&apos;ve saved my codes</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={disableOpen} onOpenChange={setDisableOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Disable two-factor authentication?</DialogTitle>
+            <DialogDescription>
+              Enter a current code from your authenticator app to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            inputMode="numeric"
+            placeholder="••••••"
+            className="tracking-[0.4em]"
+            value={disableCode}
+            onChange={(e) => setDisableCode(e.target.value)}
+          />
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              onClick={confirmDisable}
+              disabled={busy}
+              className={cn(busy && "opacity-70")}
+            >
+              {busy && <Loader2 className="animate-spin" />}
+              Disable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {regenerateStep === "codes" ? "New recovery codes" : "Generate new recovery codes?"}
+            </DialogTitle>
+            <DialogDescription>
+              {regenerateStep === "confirm"
+                ? "Your old recovery codes will stop working immediately."
+                : "Each code below can be used once to sign in. Store them somewhere safe."}
+            </DialogDescription>
+          </DialogHeader>
+          {regenerateStep === "codes" && recoveryCodes && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-2">
+                {recoveryCodes.map((code) => (
+                  <div
+                    key={code}
+                    className="rounded-lg bg-muted px-4 py-2 font-mono text-sm tracking-widest"
+                  >
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={copyCodes}>
+                <Copy /> Copy all codes
+              </Button>
+            </div>
+          )}
+          <DialogFooter>
+            {regenerateStep === "confirm" && (
+              <Button variant="destructive" onClick={regenerateCodes} disabled={busy}>
+                {busy && <Loader2 className="animate-spin" />}
+                Generate new codes
+              </Button>
+            )}
+            {regenerateStep === "codes" && (
+              <Button onClick={() => setRegenerateOpen(false)}>Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

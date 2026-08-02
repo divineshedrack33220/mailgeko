@@ -56,6 +56,7 @@ type Config struct {
 
 type TokenIssuer interface {
 	Issue(userID, email, workspaceID, role string) (string, error)
+	IssuePendingTwoFactor(userID, email string) (string, error)
 	Parse(tokenString string) (*auth.Claims, error)
 }
 
@@ -106,9 +107,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/auth/oauth/github", s.handleOAuthStart(oauth.GitHub))
 	mux.HandleFunc("GET /api/v1/auth/oauth/google/callback", s.handleOAuthCallback(oauth.Google))
 	mux.HandleFunc("GET /api/v1/auth/oauth/github/callback", s.handleOAuthCallback(oauth.GitHub))
-
 	mux.Handle("POST /api/v1/auth/logout", s.withAuth(http.HandlerFunc(s.handleLogout)))
 	mux.Handle("GET /api/v1/me", s.withAuth(http.HandlerFunc(s.handleMe)))
+	mux.Handle("GET /api/v1/auth/sessions", s.withAuth(http.HandlerFunc(s.handleListSessions)))
+	mux.Handle("DELETE /api/v1/auth/sessions", s.withAuth(http.HandlerFunc(s.handleRevokeAllSessions)))
+	mux.Handle("DELETE /api/v1/auth/sessions/{tokenID}", s.withAuth(http.HandlerFunc(s.handleRevokeSession)))
+	mux.Handle("POST /api/v1/auth/2fa/verify", http.HandlerFunc(s.handleVerifyTwoFactor))
+	mux.Handle("POST /api/v1/auth/2fa/setup", s.withAuth(http.HandlerFunc(s.handle2FASetup)))
+	mux.Handle("POST /api/v1/auth/2fa/enable", s.withAuth(http.HandlerFunc(s.handle2FAEnable)))
+	mux.Handle("POST /api/v1/auth/2fa/disable", s.withAuth(http.HandlerFunc(s.handle2FADisable)))
+	mux.Handle("POST /api/v1/auth/2fa/recovery-codes", s.withAuth(http.HandlerFunc(s.handle2FARegenerateCodes)))
 
 	// Domain API (all scoped to the caller's workspace).
 	mux.Handle("GET /api/v1/contacts", s.withAuth(http.HandlerFunc(s.handleListContacts)))
@@ -268,6 +276,10 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
 			return
 		}
+		if claims.Pending {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "complete the second-factor step to continue")
+			return
+		}
 		if s.session != nil {
 			blacklisted, err := s.session.IsBlacklisted(r.Context(), claims.GetTokenID())
 			if err != nil {
@@ -280,6 +292,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			}
 		}
 		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		s.refreshSessionActivity(ctx, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

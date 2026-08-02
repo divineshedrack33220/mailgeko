@@ -15,6 +15,7 @@ type Claims struct {
 	Email       string `json:"email"`
 	WorkspaceID string `json:"wid"`
 	Role        string `json:"role"`
+	Pending     bool   `json:"pending,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -23,6 +24,10 @@ func (c *Claims) GetEmail() string       { return c.Email }
 func (c *Claims) GetWorkspaceID() string { return c.WorkspaceID }
 func (c *Claims) GetRole() string        { return c.Role }
 func (c *Claims) GetTokenID() string     { return c.ID }
+
+// pendingTwoFactorTTL bounds the lifetime of the short-lived token that is
+// exchanged for a real session after a second-factor challenge.
+const pendingTwoFactorTTL = 10 * time.Minute
 
 type TokenManager struct {
 	secret []byte
@@ -72,4 +77,25 @@ func (m *TokenManager) Parse(tokenString string) (*Claims, error) {
 		return nil, ErrInvalidClaims
 	}
 	return claims, nil
+}
+
+// IssuePendingTwoFactor issues a short-lived token that is only valid for
+// completing the second-factor step of a login. It carries no workspace or
+// role and is rejected by withAuth.
+func (m *TokenManager) IssuePendingTwoFactor(userID, email string) (string, error) {
+	now := time.Now()
+	claims := Claims{
+		UserID:  userID,
+		Email:   email,
+		Pending: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			Issuer:    m.issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(pendingTwoFactorTTL)),
+			ID:        uuid.NewString(),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.secret)
 }

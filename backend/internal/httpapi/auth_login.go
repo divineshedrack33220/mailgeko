@@ -49,15 +49,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.tokens.Issue(user.ID, user.Email, workspaceID, user.Role)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not create session")
+	if user.TOTPEnabled {
+		pending, err := s.tokens.IssuePendingTwoFactor(user.ID, user.Email)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not start session")
+			return
+		}
+		writeOK(w, map[string]any{
+			"requiresTwoFactor": true,
+			"pendingToken":      pending,
+		})
 		return
 	}
 
-	writeOK(w, map[string]any{
-		"token":       token,
-		"user":        userResponse(user),
-		"workspaceID": workspaceID,
-	})
+	s.issueSessionToken(r.Context(), w, user, workspaceID, r, http.StatusOK)
 }

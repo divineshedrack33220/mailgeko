@@ -82,15 +82,5 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.tokens.Issue(user.ID, user.Email, workspace.ID, user.Role)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not create session")
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"token":       token,
-		"user":        userResponse(user),
-		"workspaceID": workspace.ID,
-	})
+	s.issueSessionToken(r.Context(), w, user, workspace.ID, r, http.StatusCreated)
 }

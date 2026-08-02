@@ -88,6 +88,7 @@ func (s *Server) handleOAuthCallback(provider oauth.Provider) http.HandlerFunc {
 			s.oauthRedirectError(w, r, "internal")
 			return
 		}
+		s.recordSession(r.Context(), jwt, r)
 
 		http.Redirect(w, r, s.cfg.BaseURL+"/oauth/callback?token="+jwt, http.StatusFound)
 	}

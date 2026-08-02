@@ -16,8 +16,6 @@ existing API can support it today:
 - [ ] **AI Studio brand voice chooser** — `ai/page.tsx:474` — Backend? No
 - [ ] **Draft a template from a prompt** — `templates/page.tsx:163` — Backend? No
       (no template-generation endpoint)
-- [ ] **Two-factor authentication** — `settings/security/page.tsx:80,172` — Backend? No
-- [ ] **Session management** (list/revoke) — `settings/security/page.tsx:209,239` — Backend? No
 - [ ] **Workspace slug** — hardcoded `acme.mailgeko.dev` (`settings/page.tsx`) — Backend? No
       (no subdomain infra)
 - [ ] **Member reminders** — `settings/team/page.tsx:307` — Backend? No
@@ -37,6 +35,11 @@ existing API can support it today:
 - [x] **Automations: choose a template** — template-library dialog; **tag picker** — fetches `/api/v1/tags`.
 - [x] **View contacts in a list** — `/lists/{id}` page uses `GET /api/v1/contacts?listId=`.
 - [x] **Sending defaults** (from-name / from-email / reply-to) — `PATCH /api/v1/workspace`.
+- [x] **Draft a template from a prompt** — `templates/new/page.tsx` → `POST /api/v1/templates/generate`.
+- [x] **Two-factor authentication** — setup/enable/disable/recovery codes + login challenge
+      (`POST /api/v1/auth/2fa/*`); `settings/security/page.tsx` + login page.
+- [x] **Session management** (list/revoke/revoke-all) — `GET/DELETE /api/v1/auth/sessions`;
+      sessions recorded in Redis at every sign-in.
 
 ## Notes
 
