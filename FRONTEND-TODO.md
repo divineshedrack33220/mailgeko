@@ -1,74 +1,42 @@
 # Frontend — not-yet-implemented features
 
-Checklist of frontend UI that is currently stubbed (shows a "coming soon" toast,
+Checklist of frontend UI that is still stubbed (shows a "coming soon" toast,
 hardcoded data, or static values). Grouped by screen. `Backend?` marks whether an
 existing API can support it today:
 
 - **Yes** → frontend-only work (wire to an existing endpoint)
 - **No** → needs backend work first (new endpoint / storage / provider)
 
-## Auth — src/app/(auth)/
+## Remaining (all need backend work)
 
-- [x] **Google sign-in** — redirects to `GET /api/v1/auth/oauth/google`; callback handled at
-      `/oauth/callback`. Backend: native OAuth (Google userinfo), optional via `GOOGLE_CLIENT_*`.
-- [x] **GitHub sign-in** — redirects to `GET /api/v1/auth/oauth/github`; same callback flow.
-      Backend: native OAuth (GitHub `/user` + primary verified email), optional via `GITHUB_CLIENT_*`.
-
-## Topbar — src/components/layout/topbar.tsx
-
-- [x] **Notification center** — bell dropdown fetches `GET /api/v1/notifications` on open, shows real
-      unread count badge, mark-as-read on click (navigates to link), "Mark all as read" (`POST
-      /notifications/read-all`), empty/loading states. Backend generates notifications on campaign
-      send/failure via engine hooks.
-
-## Contacts list — src/app/(app)/contacts/page.tsx
-
-- [ ] **Bulk tag selected contacts** (`:275`) — Backend? No (no bulk endpoint)
-- [ ] **Bulk add selected to a list** (`:278`) — Backend? No (no bulk endpoint)
-- [ ] **Row menu "Manage tags"** (`:432`) — Backend? Yes (PATCH /api/v1/contacts/{id} takes tags)
-
-## Contact detail — src/app/(app)/contacts/[id]/page.tsx
-
-- [ ] **Add to list** (`:123`) — Backend? Partial (POST /api/v1/lists/{id}/contacts exists, reverse direction)
-- [ ] **Compose a 1:1 email** (`:126`) — Backend? No
-- [ ] **Edit profile** (`:137`) — Backend? Yes (PATCH /api/v1/contacts/{id})
-- [ ] **Manage tags** (`:140`) — Backend? Yes (same PATCH)
-- [ ] **Add a tag** chip (`:212`) — Backend? Yes (same PATCH)
-
-## Campaign detail — src/app/(app)/campaigns/[id]/page.tsx
-
-- [ ] **Per-campaign breakdown** (`:373`) — Backend? Yes (GET /api/v1/analytics/campaigns/{id} exists, not wired)
-- [ ] **Email preview** (`:472`) — Backend? Yes (client-side render of HTML)
-
-## AI Studio — src/app/(app)/ai/page.tsx
-
-- [ ] **Full generation history** (`:361`) — Backend? No (only POST /api/v1/ai/subject; no history endpoint)
-- [ ] **Brand voice chooser** (`:474`) — Backend? No
-
-## Automations — src/app/(app)/automations/
-
-- [ ] **Choose a template from the library** (add-step) — `automations/page.tsx:140` — Backend? Yes (templates API + create-from-template)
-- [ ] **Tag picker** (condition step) — `automations/[id]/page.tsx:912` — Backend? No (no tags endpoint)
-
-## Templates — src/app/(app)/templates/page.tsx
-
-- [ ] **Draft a template from a prompt** (`:163`) — Backend? No (no template-generation endpoint)
-
-## Lists — src/app/(app)/lists/page.tsx
-
-- [ ] **View contacts in a list** (`:275`) — Backend? No (list endpoint returns count only; contacts API has no list filter)
-
-## Settings — src/app/(app)/settings/
-
-- [x] **Profile photo upload** — `settings/page.tsx` — Backend: `POST /api/v1/me/avatar` (Cloudinary,
-      optional; returns "not configured" without `CLOUDINARY_*` keys).
-- [x] **Workspace logo upload** — `settings/page.tsx` — Backend: `POST /api/v1/workspace/logo`
-      (Cloudinary, optional).
-- [ ] **Sending defaults** (from-name / from-email) — `settings/page.tsx:272` — Backend? No
-- [ ] **Workspace slug** — hardcoded `acme.mailgeko.dev` (`settings/page.tsx:211`) — Backend? No (no subdomain infra)
+- [ ] **Compose a 1:1 email** — `contacts/[id]/page.tsx:234` — Backend? No (no
+      direct-send endpoint; the engine sends through campaigns)
+- [ ] **AI Studio generation history** — `ai/page.tsx:361` — Backend? No (only
+      `POST /api/v1/ai/subject`; no history table/endpoint)
+- [ ] **AI Studio brand voice chooser** — `ai/page.tsx:474` — Backend? No
+- [ ] **Draft a template from a prompt** — `templates/page.tsx:163` — Backend? No
+      (no template-generation endpoint)
 - [ ] **Two-factor authentication** — `settings/security/page.tsx:80,172` — Backend? No
 - [ ] **Session management** (list/revoke) — `settings/security/page.tsx:209,239` — Backend? No
+- [ ] **Workspace slug** — hardcoded `acme.mailgeko.dev` (`settings/page.tsx`) — Backend? No
+      (no subdomain infra)
 - [ ] **Member reminders** — `settings/team/page.tsx:307` — Backend? No
+
+## Done
+
+- [x] **Google / GitHub sign-in** — native OAuth in Go; buttons on login/register
+      redirect to `/api/v1/auth/oauth/{google,github}`, callback handled at `/oauth/callback`.
+- [x] **Profile photo + workspace logo upload** — `POST /api/v1/me/avatar` and
+      `POST /api/v1/workspace/logo` (Cloudinary); sidebar/topbar/settings show them.
+- [x] **Bulk tag selected contacts** — `contacts/page.tsx` → `POST /api/v1/contacts/bulk/tags`.
+- [x] **Bulk add selected to a list** — `contacts/page.tsx` → `POST /api/v1/lists/{id}/contacts`.
+- [x] **Row menu "Manage tags"** — `contacts/page.tsx`.
+- [x] **Contact detail: add to list / edit profile / manage tags / add tag chip** — all wired.
+- [x] **Per-campaign analytics breakdown** — `campaigns/[id]/page.tsx` → `GET /api/v1/analytics/campaigns/{id}`.
+- [x] **Email preview** — `campaigns/[id]/page.tsx` renders `htmlContent` in an iframe.
+- [x] **Automations: choose a template** — template-library dialog; **tag picker** — fetches `/api/v1/tags`.
+- [x] **View contacts in a list** — `/lists/{id}` page uses `GET /api/v1/contacts?listId=`.
+- [x] **Sending defaults** (from-name / from-email / reply-to) — `PATCH /api/v1/workspace`.
 
 ## Notes
 
@@ -81,9 +49,8 @@ existing API can support it today:
 
 ## Suggested order
 
-1. **Frontend-only wins** (Backend? Yes): contact Manage/Edit/Add-tag, email preview,
-   per-campaign breakdown, automation "choose template".
-2. **Small backend additions**: bulk tag / bulk add-to-list, list-contacts view, tags picker,
-   sending defaults, in-app notifications.
-3. **New infrastructure**: OAuth (Google/GitHub), 2FA, session management, file uploads,
-   template-from-prompt, AI history/brand voice, 1:1 email.
+1. **1:1 email** — contact detail → send a one-off to a single contact (new direct-send endpoint).
+2. **AI Studio history + brand voice** — store/recall generated subjects; persistence table + endpoints.
+3. **Template from prompt** — reuse the AI client for a template-generation endpoint.
+4. **Security** — 2FA + session list/revoke (TOTP via the existing session store).
+5. **Member reminders** — scheduled re-send of an invitation.
