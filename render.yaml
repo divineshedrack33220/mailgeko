@@ -47,3 +47,22 @@ services:
         value: static
       - key: EMBED_DIMENSIONS
         value: "1536"
+      # Cloudinary (avatars + workspace logos). Optional: omit to disable uploads.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Google OAuth sign-in (optional; add the app's OAuth redirect URIs as
+      # <BASE_URL>/api/v1/auth/oauth/google/callback).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # GitHub OAuth sign-in (optional; redirect URI
+      # <BASE_URL>/api/v1/auth/oauth/github/callback).
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false

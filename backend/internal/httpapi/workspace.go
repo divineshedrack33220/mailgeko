@@ -73,5 +73,6 @@ func workspaceResponse(ws *store.Workspace) map[string]any {
 		"fromName":  ws.FromName,
 		"fromEmail": ws.FromEmail,
 		"replyTo":   ws.ReplyTo,
+		"logoUrl":   ws.LogoURL,
 	}
 }

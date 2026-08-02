@@ -310,7 +310,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button className="focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-full p-0.5 outline-none transition-colors focus-visible:ring-2">
           <Avatar className="size-8">
-            <AvatarImage src="" alt={user?.name ?? "User"} />
+            <AvatarImage src={user?.avatarUrl ?? ""} alt={user?.name ?? "User"} />
             <AvatarFallback className="bg-primary/10 text-primary font-semibold">
               {user?.name
                 ?.split(" ")

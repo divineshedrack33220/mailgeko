@@ -22,6 +22,7 @@ var mysqlMigrations = []string{
 	"migrations/0007_settings.sql",
 	"migrations/0008_sending_defaults.sql",
 	"migrations/0009_notifications.sql",
+	"migrations/0010_uploads.sql",
 }
 
 // postgresMigrations are the Postgres / pgvector migrations, in order.

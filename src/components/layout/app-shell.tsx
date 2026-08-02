@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandMenu } from "@/components/layout/command-menu";
 import { AiPanel } from "@/components/layout/ai-panel";
+import { SupportFab } from "@/components/layout/support-fab";
 import { GekoLoader } from "@/components/shared/geko-loader";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <RouteLoader />
       <CommandMenu />
       <AiPanel />
+      <SupportFab />
     </div>
   );
 }

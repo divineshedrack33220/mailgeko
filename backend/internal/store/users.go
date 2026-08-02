@@ -6,12 +6,15 @@ import (
 )
 
 type User struct {
-	ID           string    `db:"id"`
-	Email        string    `db:"email"`
-	PasswordHash string    `db:"password_hash"`
-	Name         string    `db:"name"`
-	Role         string    `db:"role"`
-	CreatedAt    time.Time `db:"created_at"`
+	ID            string    `db:"id"`
+	Email         string    `db:"email"`
+	PasswordHash  string    `db:"password_hash"`
+	Name          string    `db:"name"`
+	Role          string    `db:"role"`
+	AvatarURL     string    `db:"avatar_url"`
+	OAuthProvider string    `db:"oauth_provider"`
+	OAuthUID      string    `db:"oauth_uid"`
+	CreatedAt     time.Time `db:"created_at"`
 }
 
 type Workspace struct {
@@ -25,20 +28,27 @@ type Workspace struct {
 	FromName                 string     `db:"from_name"`
 	FromEmail                string     `db:"from_email"`
 	ReplyTo                  string     `db:"reply_to"`
+	LogoURL                  string     `db:"logo_url"`
 	CreatedAt                time.Time  `db:"created_at"`
 }
 
 func (s *Store) CreateUser(ctx context.Context, u *User) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)`,
-		u.ID, u.Email, u.PasswordHash, u.Name, u.Role)
+		`INSERT INTO users (id, email, password_hash, name, role, avatar_url, oauth_provider, oauth_uid)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.Email, u.PasswordHash, u.Name, u.Role, nullIfEmpty(u.AvatarURL), nullIfEmpty(u.OAuthProvider), nullIfEmpty(u.OAuthUID))
 	return err
 }
 
 func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 	var u User
 	err := s.db.GetContext(ctx, &u,
-		`SELECT id, email, password_hash, name, role, created_at FROM users WHERE email = ?`, email)
+		`SELECT id, email, password_hash, name, role,
+		        COALESCE(avatar_url, '') AS avatar_url,
+		        COALESCE(oauth_provider, '') AS oauth_provider,
+		        COALESCE(oauth_uid, '') AS oauth_uid,
+		        created_at
+		 FROM users WHERE email = ?`, email)
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +58,40 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 func (s *Store) UserByID(ctx context.Context, id string) (*User, error) {
 	var u User
 	err := s.db.GetContext(ctx, &u,
-		`SELECT id, email, password_hash, name, role, created_at FROM users WHERE id = ?`, id)
+		`SELECT id, email, password_hash, name, role,
+		        COALESCE(avatar_url, '') AS avatar_url,
+		        COALESCE(oauth_provider, '') AS oauth_provider,
+		        COALESCE(oauth_uid, '') AS oauth_uid,
+		        created_at
+		 FROM users WHERE id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (s *Store) UpdateUserAvatar(ctx context.Context, userID, avatarURL string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET avatar_url = ? WHERE id = ?`, nullIfEmpty(avatarURL), userID)
+	return err
+}
+
+// UpdateUserOAuth links a user to an OAuth identity (provider + provider uid).
+func (s *Store) UpdateUserOAuth(ctx context.Context, userID, provider, providerUID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users
+		 SET oauth_provider = COALESCE(?, oauth_provider),
+		     oauth_uid = COALESCE(?, oauth_uid)
+		 WHERE id = ?`,
+		nullIfEmpty(provider), nullIfEmpty(providerUID), userID)
+	return err
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func (s *Store) CreateWorkspace(ctx context.Context, w *Workspace) error {
@@ -86,6 +125,7 @@ func (s *Store) GetWorkspace(ctx context.Context, workspaceID string) (*Workspac
 		        COALESCE(from_name, '') AS from_name,
 		        COALESCE(from_email, '') AS from_email,
 		        COALESCE(reply_to, '') AS reply_to,
+		        COALESCE(logo_url, '') AS logo_url,
 		        created_at
 		 FROM workspaces WHERE id = ?`, workspaceID)
 	if err != nil {
@@ -107,6 +147,12 @@ func (s *Store) UpdateWorkspaceSending(ctx context.Context, workspaceID, fromNam
 	return err
 }
 
+func (s *Store) UpdateWorkspaceLogo(ctx context.Context, workspaceID, logoURL string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE workspaces SET logo_url = ? WHERE id = ?`, nullIfEmpty(logoURL), workspaceID)
+	return err
+}
+
 func (s *Store) WorkspaceByStripeCustomer(ctx context.Context, customerID string) (*Workspace, error) {
 	var w Workspace
 	err := s.db.GetContext(ctx, &w,
@@ -118,6 +164,7 @@ func (s *Store) WorkspaceByStripeCustomer(ctx context.Context, customerID string
 		        COALESCE(from_name, '') AS from_name,
 		        COALESCE(from_email, '') AS from_email,
 		        COALESCE(reply_to, '') AS reply_to,
+		        COALESCE(logo_url, '') AS logo_url,
 		        created_at
 		 FROM workspaces WHERE stripe_customer_id = ?`, customerID)
 	if err != nil {

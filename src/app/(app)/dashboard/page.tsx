@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatDateTime, formatNumber, formatPercent } from "@/lib/format";
+import { formatDateTime, formatNumber, formatPercent, greetingForTime } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -138,7 +138,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Good morning, {firstName} 🦎</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{greetingForTime()}, {firstName}</h2>
           <p className="text-muted-foreground mt-1 text-sm">
             Here&apos;s what&apos;s happening across your audience today.
           </p>

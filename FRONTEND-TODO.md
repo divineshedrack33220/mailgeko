@@ -9,8 +9,10 @@ existing API can support it today:
 
 ## Auth — src/app/(auth)/
 
-- [ ] **Google sign-in** — `login/page.tsx:130`, `register/page.tsx:183` — Backend? No (OAuth)
-- [ ] **GitHub sign-in** — `login/page.tsx:136`, `register/page.tsx:189` — Backend? No (OAuth)
+- [x] **Google sign-in** — redirects to `GET /api/v1/auth/oauth/google`; callback handled at
+      `/oauth/callback`. Backend: native OAuth (Google userinfo), optional via `GOOGLE_CLIENT_*`.
+- [x] **GitHub sign-in** — redirects to `GET /api/v1/auth/oauth/github`; same callback flow.
+      Backend: native OAuth (GitHub `/user` + primary verified email), optional via `GITHUB_CLIENT_*`.
 
 ## Topbar — src/components/layout/topbar.tsx
 
@@ -58,8 +60,10 @@ existing API can support it today:
 
 ## Settings — src/app/(app)/settings/
 
-- [ ] **Profile photo upload** — `settings/page.tsx:115,122` — Backend? No (no file storage)
-- [ ] **Workspace logo upload** — `settings/page.tsx:189,192` — Backend? No (no file storage)
+- [x] **Profile photo upload** — `settings/page.tsx` — Backend: `POST /api/v1/me/avatar` (Cloudinary,
+      optional; returns "not configured" without `CLOUDINARY_*` keys).
+- [x] **Workspace logo upload** — `settings/page.tsx` — Backend: `POST /api/v1/workspace/logo`
+      (Cloudinary, optional).
 - [ ] **Sending defaults** (from-name / from-email) — `settings/page.tsx:272` — Backend? No
 - [ ] **Workspace slug** — hardcoded `acme.mailgeko.dev` (`settings/page.tsx:211`) — Backend? No (no subdomain infra)
 - [ ] **Two-factor authentication** — `settings/security/page.tsx:80,172` — Backend? No

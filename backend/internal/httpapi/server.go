@@ -9,7 +9,9 @@ import (
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/ai"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/cloudinary"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/engine"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/oauth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
 
@@ -29,6 +31,8 @@ type Server struct {
 	biller    Biller
 	rateLimit *RateLimiter
 	ai        *ai.Client
+	uploads   *cloudinary.Client
+	oauth     *oauth.Manager
 }
 
 type Config struct {
@@ -42,6 +46,12 @@ type Config struct {
 	OpenAIKey     string
 	OpenAIModel   string
 	OpenAIBaseURL string
+
+	// Cloudinary image uploads (optional).
+	Cloudinary *cloudinary.Client
+
+	// Google/GitHub OAuth sign-in (optional).
+	OAuth *oauth.Manager
 }
 
 type TokenIssuer interface {
@@ -79,6 +89,8 @@ func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssu
 		biller:    biller,
 		rateLimit: rateLimit,
 		ai:        ai.NewClient(cfg.OpenAIBaseURL, cfg.OpenAIKey, cfg.OpenAIModel),
+		uploads:   cfg.Cloudinary,
+		oauth:     cfg.OAuth,
 	}
 }
 
@@ -90,6 +102,10 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+	mux.HandleFunc("GET /api/v1/auth/oauth/google", s.handleOAuthStart(oauth.Google))
+	mux.HandleFunc("GET /api/v1/auth/oauth/github", s.handleOAuthStart(oauth.GitHub))
+	mux.HandleFunc("GET /api/v1/auth/oauth/google/callback", s.handleOAuthCallback(oauth.Google))
+	mux.HandleFunc("GET /api/v1/auth/oauth/github/callback", s.handleOAuthCallback(oauth.GitHub))
 
 	mux.Handle("POST /api/v1/auth/logout", s.withAuth(http.HandlerFunc(s.handleLogout)))
 	mux.Handle("GET /api/v1/me", s.withAuth(http.HandlerFunc(s.handleMe)))
@@ -167,7 +183,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /webhooks/resend", s.handleResendWebhook)
 
 	mux.Handle("PATCH /api/v1/me", s.withAuth(http.HandlerFunc(s.handleUpdateProfile)))
+	mux.Handle("POST /api/v1/me/avatar", s.withAuth(http.HandlerFunc(s.handleUploadAvatar)))
 	mux.Handle("POST /api/v1/auth/password", s.withAuth(http.HandlerFunc(s.handleChangePassword)))
+
+	mux.Handle("POST /api/v1/workspace/logo", s.withAuth(http.HandlerFunc(s.handleUploadLogo)))
 
 	mux.Handle("GET /api/v1/workspace/members", s.withAuth(http.HandlerFunc(s.handleListWorkspaceMembers)))
 	mux.Handle("POST /api/v1/workspace/members/invite", s.withAuth(http.HandlerFunc(s.handleInviteWorkspaceMember)))

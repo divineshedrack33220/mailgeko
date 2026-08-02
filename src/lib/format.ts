@@ -37,3 +37,11 @@ export function initials(first?: string, last?: string, fallback = "?"): string 
 export function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
+
+export function greetingForTime(date: Date = new Date()): string {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 22) return "Good evening";
+  return "Good night";
+}

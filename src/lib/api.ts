@@ -24,6 +24,10 @@ export function setToken(token: string | null): void {
   else window.localStorage.removeItem(TOKEN_KEY);
 }
 
+export function oauthUrl(provider: "google" | "github"): string {
+  return `${API_BASE}/api/v1/auth/oauth/${provider}`;
+}
+
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
 }

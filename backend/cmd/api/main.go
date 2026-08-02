@@ -12,11 +12,13 @@ import (
 	"github.com/divineshedrack33220/mailgeko/backend/internal/analytics"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/billing"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/cloudinary"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/config"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/database"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/embed"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/engine"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/httpapi"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/oauth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/queue"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/sender"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
@@ -102,6 +104,20 @@ func main() {
 	biller := billing.NewService(db, gateway, cfg.BaseURL)
 	log.Printf("billing enabled (provider=%s)", provider)
 
+	cloudinaryClient := cloudinary.New(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, "")
+	if cloudinaryClient.Enabled() {
+		log.Printf("cloudinary uploads enabled (cloud=%s)", cfg.CloudinaryCloudName)
+	} else {
+		log.Println("cloudinary uploads disabled (no credentials)")
+	}
+
+	oauthManager := oauth.NewManager(cfg.BaseURL, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GitHubClientID, cfg.GitHubClientSecret)
+	if oauthManager.Enabled(oauth.Google) || oauthManager.Enabled(oauth.GitHub) {
+		log.Println("oauth sign-in enabled")
+	} else {
+		log.Println("oauth sign-in disabled (no credentials)")
+	}
+
 	srv := httpapi.New(httpapi.Config{
 		Env:           cfg.Env,
 		TokenTTL:      tokenTTL,
@@ -110,6 +126,8 @@ func main() {
 		OpenAIKey:     cfg.OpenAIKey,
 		OpenAIModel:   cfg.AIModel,
 		OpenAIBaseURL: cfg.AIBaseURL,
+		Cloudinary:    cloudinaryClient,
+		OAuth:         oauthManager,
 	}, db, analyticsStore, manager, httpapi.NewSessionStore(rdb), queueAdapter, engine_, searcher, biller, rateLimit)
 
 	server := &http.Server{

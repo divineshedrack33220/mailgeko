@@ -22,9 +22,10 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func userResponse(u *store.User) map[string]any {
 	return map[string]any{
-		"id":    u.ID,
-		"email": u.Email,
-		"name":  u.Name,
-		"role":  u.Role,
+		"id":        u.ID,
+		"email":     u.Email,
+		"name":      u.Name,
+		"role":      u.Role,
+		"avatarUrl": u.AvatarURL,
 	}
 }

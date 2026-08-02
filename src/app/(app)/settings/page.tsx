@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
@@ -32,6 +32,8 @@ export default function ProfileSettingsPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [avatarUrl, setAvatarUrl] = React.useState("");
+  const [logoUrl, setLogoUrl] = React.useState("");
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [fromName, setFromName] = React.useState("");
   const [fromEmail, setFromEmail] = React.useState("");
@@ -41,18 +43,23 @@ export default function ProfileSettingsPage() {
   const [workspaceSaving, setWorkspaceSaving] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [sendingSaving, setSendingSaving] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
+  const [uploadingLogo, setUploadingLogo] = React.useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [saved, setSaved] = React.useState(false);
 
   React.useEffect(() => {
     const run = async () => {
       try {
         const res = await api.get<{
-          workspace: { id: string; name: string; fromName?: string; fromEmail?: string; replyTo?: string };
+          workspace: { id: string; name: string; fromName?: string; fromEmail?: string; replyTo?: string; logoUrl?: string };
         }>("/api/v1/workspace");
         setWorkspaceName(res.workspace?.name ?? "");
         setFromName(res.workspace?.fromName ?? "");
         setFromEmail(res.workspace?.fromEmail ?? "");
         setReplyTo(res.workspace?.replyTo ?? "");
+        setLogoUrl(res.workspace?.logoUrl ?? "");
       } catch {
         // Keep the input editable; the save action will surface errors.
       }
@@ -65,6 +72,7 @@ export default function ProfileSettingsPage() {
       if (user) {
         setName(user.name);
         setEmail(user.email);
+        setAvatarUrl(user.avatarUrl ?? "");
       }
     };
     run();
@@ -125,29 +133,78 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const res = await api.upload<{ avatarUrl: string }>("/api/v1/me/avatar", file);
+      setAvatarUrl(res.avatarUrl);
+      if (user) setUser({ ...user, avatarUrl: res.avatarUrl });
+      toast.success("Profile photo updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload photo");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const res = await api.upload<{ logoUrl: string }>("/api/v1/workspace/logo", file);
+      setLogoUrl(res.logoUrl);
+      toast.success("Workspace logo updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-4">
             <Avatar className="size-16">
-              <AvatarFallback className="bg-primary/15 text-primary text-lg">
-                {initials(name.split(" ")[0], name.split(" ")[1])}
-              </AvatarFallback>
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={name} />
+              ) : (
+                <AvatarFallback className="bg-primary/15 text-primary text-lg">
+                  {initials(name.split(" ")[0], name.split(" ")[1])}
+                </AvatarFallback>
+              )}
             </Avatar>
             <div className="min-w-0 flex-1">
               <CardTitle>{name || "Your profile"}</CardTitle>
               <CardDescription>{user?.role ? `${user.role} · ${user.email}` : email}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.info("Photo upload is coming soon")}>
-                <Upload /> Upload
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+              >
+                {uploadingAvatar ? <Loader2 className="animate-spin" /> : <Upload />} Upload
               </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Remove photo"
-                onClick={() => toast.info("Photo upload is coming soon")}
+                onClick={() => toast.info("Removing photos is not supported yet")}
               >
                 <Camera />
               </Button>
@@ -210,14 +267,35 @@ export default function ProfileSettingsPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <span className="bg-secondary text-secondary-foreground flex size-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
-              AC
-            </span>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt="Workspace logo"
+                className="bg-secondary flex size-12 shrink-0 items-center justify-center rounded-xl object-contain"
+              />
+            ) : (
+              <span className="bg-secondary text-secondary-foreground flex size-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
+                AC
+              </span>
+            )}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.info("Logo upload is coming soon")}>
-                <Upload /> Upload logo
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+              >
+                {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload />} Upload logo
               </Button>
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info("Logo upload is coming soon")}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info("Removing logos is not supported yet")}>
                 Remove
               </Button>
             </div>

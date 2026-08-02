@@ -37,6 +37,17 @@ type Config struct {
 	StripeWebhookSecret string
 	StripePrices        map[string]string
 	BillingProvider     string // "local" (default, no key) or "stripe"
+
+	// Cloudinary (avatars, logos, template images).
+	CloudinaryCloudName string
+	CloudinaryAPIKey    string
+	CloudinaryAPISecret string
+
+	// OAuth (Google / GitHub sign-in).
+	GoogleClientID     string
+	GoogleClientSecret string
+	GitHubClientID     string
+	GitHubClientSecret string
 }
 
 func Load() (*Config, error) {
@@ -66,6 +77,15 @@ func Load() (*Config, error) {
 			"scale":   getEnv("STRIPE_PRICE_SCALE", ""),
 		},
 		BillingProvider: getEnv("BILLING_PROVIDER", ""),
+
+		CloudinaryCloudName: os.Getenv("CLOUDINARY_CLOUD_NAME"),
+		CloudinaryAPIKey:    os.Getenv("CLOUDINARY_API_KEY"),
+		CloudinaryAPISecret: os.Getenv("CLOUDINARY_API_SECRET"),
+
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 	}
 
 	if cfg.TiDBDSN == "" {
