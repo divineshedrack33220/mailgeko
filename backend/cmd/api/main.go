@@ -65,19 +65,21 @@ func main() {
 	if cfg.PostgresDSN != "" {
 		pg, err := database.ConnectPostgres(ctx, cfg.PostgresDSN)
 		if err != nil {
-			log.Fatalf("postgres: %v", err)
-		}
-		defer pg.Close()
-		if err := database.MigratePostgres(ctx, pg); err != nil {
-			log.Fatalf("migrate postgres: %v", err)
-		}
-		analyticsStore = analytics.New(pg)
-		log.Println("postgres analytics connected")
+			log.Printf("postgres analytics disabled (connect failed): %v", err)
+		} else {
+			defer pg.Close()
+			if err := database.MigratePostgres(ctx, pg); err != nil {
+				log.Printf("postgres analytics disabled (migrate failed): %v", err)
+			} else {
+				analyticsStore = analytics.New(pg)
+				log.Println("postgres analytics connected")
 
-		if em := embed.FromConfig(cfg.EmbedProvider, cfg.EmbedBaseURL, cfg.OpenAIKey, cfg.EmbedModel, cfg.EmbedDims); em != nil {
-			engine_.WithEmbedding(vector.New(pg), em)
-			searcher = engine_
-			log.Printf("vector search enabled (provider=%s)", cfg.EmbedProvider)
+				if em := embed.FromConfig(cfg.EmbedProvider, cfg.EmbedBaseURL, cfg.OpenAIKey, cfg.EmbedModel, cfg.EmbedDims); em != nil {
+					engine_.WithEmbedding(vector.New(pg), em)
+					searcher = engine_
+					log.Printf("vector search enabled (provider=%s)", cfg.EmbedProvider)
+				}
+			}
 		}
 	}
 
