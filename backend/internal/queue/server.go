@@ -16,7 +16,7 @@ type Server struct {
 
 func NewServer(redisAddr string) *Server {
 	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: redisAddr},
+		ParseRedisAddr(redisAddr).Asynq(),
 		asynq.Config{
 			Concurrency: 10,
 			Queues: map[string]int{

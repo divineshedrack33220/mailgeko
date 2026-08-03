@@ -61,7 +61,7 @@ type Client struct {
 }
 
 func NewClient(redisAddr string) *Client {
-	return &Client{Client: asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})}
+	return &Client{Client: asynq.NewClient(ParseRedisAddr(redisAddr).Asynq())}
 }
 
 func (c *Client) EnqueueCampaignSend(ctx context.Context, campaignID string) error {
