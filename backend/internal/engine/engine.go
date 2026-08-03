@@ -179,7 +179,7 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 
 	from := campaign.FromEmail
 	if from == "" {
-		from = "team@mailgeko.dev"
+		from = "onboarding@resend.dev"
 	}
 	fromName := campaign.FromName
 	if fromName != "" {
@@ -355,7 +355,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 
 	from := c.FromEmail
 	if from == "" {
-		from = "team@mailgeko.dev"
+		from = "onboarding@resend.dev"
 	}
 	if c.FromName != "" {
 		from = c.FromName + " <" + from + ">"
@@ -384,7 +384,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 
 	from := ws.FromEmail
 	if from == "" {
-		from = "team@mailgeko.dev"
+		from = "onboarding@resend.dev"
 	}
 	if ws.FromName != "" {
 		from = ws.FromName + " <" + from + ">"
@@ -413,7 +413,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, body string) (*sender.SendResult, error) {
 	from := ws.FromEmail
 	if from == "" {
-		from = "team@mailgeko.dev"
+		from = "onboarding@resend.dev"
 	}
 	if ws.FromName != "" {
 		from = ws.FromName + " <" + from + ">"

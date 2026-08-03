@@ -277,7 +277,7 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 		Subject:          subject,
 		HTMLContent:      tpl.HTML,
 		FromName:         "Mailgeko",
-		FromEmail:        "team@mailgeko.dev",
+		FromEmail:        "onboarding@resend.dev",
 		TrackOpens:       true,
 		TrackClicks:      true,
 		AllowUnsubscribe: true,

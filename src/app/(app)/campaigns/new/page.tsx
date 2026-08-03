@@ -63,8 +63,8 @@ export default function NewCampaignPage() {
   const [template, setTemplate] = React.useState<string>("");
   const [subject, setSubject] = React.useState("");
   const [previewText, setPreviewText] = React.useState("");
-  const [fromName, setFromName] = React.useState("Mailgeko Team");
-  const [fromEmail, setFromEmail] = React.useState("team@mailgeko.dev");
+  const [fromName, setFromName] = React.useState("Mailgeko");
+  const [fromEmail, setFromEmail] = React.useState("onboarding@resend.dev");
   const [replyTo, setReplyTo] = React.useState("");
 
   const [scheduleMode, setScheduleMode] = React.useState<"now" | "later" | "recurring">("now");
@@ -81,15 +81,22 @@ export default function NewCampaignPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [listsRes, segmentsRes, templatesRes] = await Promise.all([
+        const [listsRes, segmentsRes, templatesRes, workspaceRes] = await Promise.all([
           api.get<{ lists: ContactList[] }>("/api/v1/lists"),
           api.get<{ segments: Segment[] }>("/api/v1/segments"),
           api.get<{ templates: Template[] }>("/api/v1/templates"),
+          api.get<{ workspace?: { fromName?: string; fromEmail?: string; replyTo?: string } }>("/api/v1/workspace"),
         ]);
         if (cancelled) return;
         setLists(listsRes.lists ?? []);
         setSegments(segmentsRes.segments ?? []);
         setTemplates(templatesRes.templates ?? []);
+        const ws = workspaceRes.workspace;
+        if (ws) {
+          if (ws.fromName) setFromName(ws.fromName);
+          if (ws.fromEmail) setFromEmail(ws.fromEmail);
+          if (ws.replyTo) setReplyTo(ws.replyTo);
+        }
       } catch (err) {
         if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load campaign data");
       }
@@ -614,7 +621,7 @@ function ContentStep({
               type="email"
               value={replyTo}
               onChange={(e) => onReplyToChange(e.target.value)}
-              placeholder="no-reply@mailgeko.dev"
+              placeholder="onboarding@resend.dev"
             />
           </div>
         </div>
