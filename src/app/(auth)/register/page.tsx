@@ -46,7 +46,9 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(`${firstName} ${lastName}`.trim(), email, password);
-      toast.success("Account created — welcome to Mailgeko!");
+      toast.success(
+        "Account created — check your inbox to verify your email"
+      );
       router.push("/dashboard");
     } catch (err) {
       shake.trigger();

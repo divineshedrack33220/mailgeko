@@ -28,5 +28,6 @@ func userResponse(u *store.User) map[string]any {
 		"role":             u.Role,
 		"avatarUrl":        u.AvatarURL,
 		"twoFactorEnabled": u.TOTPEnabled,
+		"emailVerified":    u.EmailVerifiedAt != nil,
 	}
 }

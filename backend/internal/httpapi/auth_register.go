@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -80,6 +81,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.AddWorkspaceMember(r.Context(), workspace.ID, user.ID, "owner"); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create workspace")
 		return
+	}
+
+	// Best-effort: email a verification link without blocking signup.
+	if err := s.sendEmailVerification(r.Context(), user); err != nil {
+		log.Printf("httpapi: verification email to %s failed: %v", user.Email, err)
 	}
 
 	s.issueSessionToken(r.Context(), w, user, workspace.ID, r, http.StatusCreated)

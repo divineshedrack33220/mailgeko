@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { EmailVerificationBanner } from "@/components/layout/email-verification-banner";
 import { CommandMenu } from "@/components/layout/command-menu";
 import { AiPanel } from "@/components/layout/ai-panel";
 import { SupportFab } from "@/components/layout/support-fab";
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <Topbar />
+        <EmailVerificationBanner />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 lg:px-8">
           {children}
         </main>

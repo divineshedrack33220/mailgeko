@@ -14,10 +14,11 @@ type User struct {
 	AvatarURL     string    `db:"avatar_url"`
 	OAuthProvider string    `db:"oauth_provider"`
 	OAuthUID      string    `db:"oauth_uid"`
-	TOTPSecret    string    `db:"totp_secret"`
-	TOTPEnabled   bool      `db:"totp_enabled"`
-	TOTPRecovery  string    `db:"totp_recovery_codes"`
-	CreatedAt     time.Time `db:"created_at"`
+	TOTPSecret    string     `db:"totp_secret"`
+	TOTPEnabled   bool       `db:"totp_enabled"`
+	TOTPRecovery  string     `db:"totp_recovery_codes"`
+	EmailVerifiedAt *time.Time `db:"email_verified_at"`
+	CreatedAt     time.Time  `db:"created_at"`
 }
 
 type Workspace struct {
@@ -54,6 +55,7 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 		        COALESCE(totp_secret, '') AS totp_secret,
 		        COALESCE(totp_enabled, 0) AS totp_enabled,
 		        COALESCE(totp_recovery_codes, '') AS totp_recovery_codes,
+		        email_verified_at,
 		        created_at
 		 FROM users WHERE email = ?`, email)
 	if err != nil {
@@ -72,6 +74,7 @@ func (s *Store) UserByID(ctx context.Context, id string) (*User, error) {
 		        COALESCE(totp_secret, '') AS totp_secret,
 		        COALESCE(totp_enabled, 0) AS totp_enabled,
 		        COALESCE(totp_recovery_codes, '') AS totp_recovery_codes,
+		        email_verified_at,
 		        created_at
 		 FROM users WHERE id = ?`, id)
 	if err != nil {
@@ -83,6 +86,22 @@ func (s *Store) UserByID(ctx context.Context, id string) (*User, error) {
 func (s *Store) UpdateUserAvatar(ctx context.Context, userID, avatarURL string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE users SET avatar_url = ? WHERE id = ?`, nullIfEmpty(avatarURL), userID)
+	return err
+}
+
+// MarkEmailVerified records when a user confirmed ownership of their email
+// address. It is idempotent.
+func (s *Store) MarkEmailVerified(ctx context.Context, userID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?`, userID)
+	return err
+}
+
+// SetPasswordHash replaces a user's password hash, used when resetting a
+// forgotten password.
+func (s *Store) SetPasswordHash(ctx context.Context, userID, passwordHash string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
 	return err
 }
 

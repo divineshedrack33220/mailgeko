@@ -57,6 +57,8 @@ type Config struct {
 type TokenIssuer interface {
 	Issue(userID, email, workspaceID, role string) (string, error)
 	IssuePendingTwoFactor(userID, email string) (string, error)
+	IssueEmailVerification(userID, email string) (string, error)
+	IssuePasswordReset(userID, email string) (string, error)
 	Parse(tokenString string) (*auth.Claims, error)
 }
 
@@ -103,6 +105,10 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/v1/auth/forgot-password", s.handleForgotPassword)
+	mux.HandleFunc("POST /api/v1/auth/reset-password", s.handleResetPassword)
+	mux.HandleFunc("POST /api/v1/auth/verify-email", s.handleVerifyEmail)
+	mux.Handle("POST /api/v1/auth/resend-verification", s.withAuth(http.HandlerFunc(s.handleResendVerification)))
 	mux.HandleFunc("GET /api/v1/auth/oauth/google", s.handleOAuthStart(oauth.Google))
 	mux.HandleFunc("GET /api/v1/auth/oauth/github", s.handleOAuthStart(oauth.GitHub))
 	mux.HandleFunc("GET /api/v1/auth/oauth/google/callback", s.handleOAuthCallback(oauth.Google))

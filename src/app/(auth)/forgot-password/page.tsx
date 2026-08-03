@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FitZoom } from "@/components/auth/fit-zoom";
 import { useShake } from "@/hooks/use-shake";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function ForgotPasswordPage() {
@@ -16,21 +17,25 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = React.useState(false);
   const shake = useShake();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const email = String(data.get("email") ?? "");
+    const email = String(data.get("email") ?? "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       shake.trigger();
       toast.error("Enter a valid email to receive the reset link");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.post("/api/v1/auth/forgot-password", { email });
       setSent(true);
       toast.success("Reset link sent — check your inbox");
-    }, 900);
+    } catch {
+      toast.error("Something went wrong sending the reset link. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (sent) {

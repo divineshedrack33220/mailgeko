@@ -115,6 +115,8 @@ func (s *Server) oauthUpsert(r *http.Request, ident *oauth.Identity) (*store.Use
 		if err := s.db.CreateUser(ctx, user); err != nil {
 			return nil, "", err
 		}
+		// Emails obtained via a provider are already verified.
+		_ = s.db.MarkEmailVerified(ctx, user.ID)
 		ws := &store.Workspace{ID: newID(), Name: workspaceNameFor(ident.Name, email)}
 		if err := s.db.CreateWorkspace(ctx, ws); err != nil {
 			return nil, "", err
@@ -130,6 +132,9 @@ func (s *Server) oauthUpsert(r *http.Request, ident *oauth.Identity) (*store.Use
 		if err := s.db.UpdateUserOAuth(ctx, user.ID, string(ident.Provider), ident.ProviderUID); err != nil {
 			return nil, "", err
 		}
+		// The user just authenticated through the provider, which confirms
+		// ownership of the email address.
+		_ = s.db.MarkEmailVerified(ctx, user.ID)
 	}
 	if user.Name == "" && ident.Name != "" {
 		if err := s.db.UpdateUserName(ctx, user.ID, ident.Name); err != nil {

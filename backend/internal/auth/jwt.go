@@ -17,8 +17,14 @@ type Claims struct {
 	Role        string   `json:"role"`
 	Scopes      []string `json:"scopes,omitempty"`
 	Pending     bool     `json:"pending,omitempty"`
+	Purpose     string   `json:"purpose,omitempty"`
 	jwt.RegisteredClaims
 }
+
+const (
+	PurposeEmailVerification = "email_verification"
+	PurposePasswordReset     = "password_reset"
+)
 
 func (c *Claims) GetUserID() string      { return c.UserID }
 func (c *Claims) GetEmail() string       { return c.Email }
@@ -29,6 +35,13 @@ func (c *Claims) GetTokenID() string     { return c.ID }
 // pendingTwoFactorTTL bounds the lifetime of the short-lived token that is
 // exchanged for a real session after a second-factor challenge.
 const pendingTwoFactorTTL = 10 * time.Minute
+
+const (
+	// emailVerificationTTL is how long an email-verification link stays valid.
+	emailVerificationTTL = 24 * time.Hour
+	// passwordResetTTL is how long a password-reset link stays valid.
+	passwordResetTTL = 30 * time.Minute
+)
 
 type TokenManager struct {
 	secret []byte
@@ -95,6 +108,50 @@ func (m *TokenManager) IssuePendingTwoFactor(userID, email string) (string, erro
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(pendingTwoFactorTTL)),
+			ID:        uuid.NewString(),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.secret)
+}
+
+// IssueEmailVerification issues a long-lived token bound to a single user and
+// email address, intended to be embedded in a "confirm your email" link. It is
+// marked pending so withAuth rejects it as a session token.
+func (m *TokenManager) IssueEmailVerification(userID, email string) (string, error) {
+	now := time.Now()
+	claims := Claims{
+		UserID:  userID,
+		Email:   email,
+		Pending: true,
+		Purpose: PurposeEmailVerification,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			Issuer:    m.issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(emailVerificationTTL)),
+			ID:        uuid.NewString(),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.secret)
+}
+
+// IssuePasswordReset issues a short-lived token bound to a single user and
+// email address, intended to be embedded in a "reset your password" link. It is
+// marked pending so withAuth rejects it as a session token.
+func (m *TokenManager) IssuePasswordReset(userID, email string) (string, error) {
+	now := time.Now()
+	claims := Claims{
+		UserID:  userID,
+		Email:   email,
+		Pending: true,
+		Purpose: PurposePasswordReset,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			Issuer:    m.issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(passwordResetTTL)),
 			ID:        uuid.NewString(),
 		},
 	}

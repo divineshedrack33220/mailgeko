@@ -2,18 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, Loader2, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FitZoom } from "@/components/auth/fit-zoom";
 import { useShake } from "@/hooks/use-shake";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") ?? "";
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [password, setPassword] = React.useState("");
@@ -28,19 +31,47 @@ export default function ResetPasswordPage() {
     return score;
   }, [password]);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (password.length < 8 || strength < 2) {
       shake.trigger();
       toast.error("Use at least 8 characters with a capital letter and a number");
       return;
     }
+    if (!token) {
+      toast.error("This reset link is invalid or expired");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await api.post("/api/v1/auth/reset-password", { token, password });
       toast.success("Password updated — sign in with your new password");
       router.push("/login");
-    }, 900);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update your password");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (!token) {
+    return (
+      <FitZoom className="flex flex-col items-center gap-4 text-center">
+        <span className="bg-destructive/10 text-destructive flex size-14 items-center justify-center rounded-2xl">
+          <AlertCircle className="size-7" />
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Invalid reset link</h1>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            This link is missing or expired. Request a new one to continue.
+          </p>
+        </div>
+        <Button variant="outline" asChild className="mt-2">
+          <Link href="/forgot-password">Request a new link</Link>
+        </Button>
+      </FitZoom>
+    );
+  }
 
   return (
     <>
@@ -106,5 +137,13 @@ export default function ResetPasswordPage() {
       </p>
     </FitZoom>
     </>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <ResetPasswordForm />
+    </React.Suspense>
   );
 }

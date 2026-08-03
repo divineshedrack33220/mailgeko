@@ -11,6 +11,7 @@ export interface AuthUser {
   role: string;
   avatarUrl?: string;
   twoFactorEnabled?: boolean;
+  emailVerified?: boolean;
 }
 
 interface AuthResponse {

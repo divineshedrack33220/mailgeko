@@ -430,6 +430,36 @@ func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, s
 	})
 }
 
+// SendEmailVerification emails a link that confirms the user's email address.
+func (e *Engine) SendEmailVerification(ctx context.Context, to, name, link string) (*sender.SendResult, error) {
+	body := fmt.Sprintf(
+		"Hi %s,<br/><br/>Please confirm your email address by clicking the button below.<br/><br/><a href=\"%s\" style=\"display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px\">Confirm my email</a><br/><br/>If you didn't create an account with Mailgeko, you can safely ignore this email.",
+		html.EscapeString(name), link)
+	return e.sender.Send(ctx, sender.Message{
+		From:    "Mailgeko <onboarding@resend.dev>",
+		To:      to,
+		Subject: "Confirm your email address",
+		HTML:    renderTransactionalHTML(body, e.baseURL),
+		Text:    "Hi " + name + ",\n\nConfirm your email address by opening this link:\n" + link + "\n\nIf you didn't create an account with Mailgeko, you can safely ignore this email.",
+		Tags:    []sender.Tag{{Name: "type", Value: "verify"}},
+	})
+}
+
+// SendPasswordReset emails a link that lets the user choose a new password.
+func (e *Engine) SendPasswordReset(ctx context.Context, to, name, link string) (*sender.SendResult, error) {
+	body := fmt.Sprintf(
+		"Hi %s,<br/><br/>We received a request to reset your Mailgeko password. Click the button below to choose a new one.<br/><br/><a href=\"%s\" style=\"display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px\">Reset my password</a><br/><br/>This link expires in 30 minutes. If you didn't request a reset, you can safely ignore this email.",
+		html.EscapeString(name), link)
+	return e.sender.Send(ctx, sender.Message{
+		From:    "Mailgeko <onboarding@resend.dev>",
+		To:      to,
+		Subject: "Reset your Mailgeko password",
+		HTML:    renderTransactionalHTML(body, e.baseURL),
+		Text:    "Hi " + name + ",\n\nReset your Mailgeko password by opening this link:\n" + link + "\n\nThis link expires in 30 minutes. If you didn't request a reset, you can safely ignore this email.",
+		Tags:    []sender.Tag{{Name: "type", Value: "reset"}},
+	})
+}
+
 // renderTransactionalHTML wraps a plain-text message in a minimal branded
 // email with a sign-in button.
 func renderTransactionalHTML(body, baseURL string) string {
