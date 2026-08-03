@@ -2,9 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import CodeMirror, { EditorView } from "@uiw/react-codemirror";
+import { xml } from "@codemirror/lang-xml";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import {
-  ChevronLeft,
+  X,
   Save,
   Send,
   Monitor,
@@ -18,13 +23,15 @@ import {
   Loader2,
   Undo2,
   Redo2,
+  Copy,
+  AlertCircle,
+  Braces,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -72,8 +79,44 @@ const builtInVariables = [
   { name: "{{unsubscribe_url}}", label: "Unsubscribe link" },
 ];
 
+const sampleValues: Record<string, string> = {
+  "{{first_name}}": "Sarah",
+  "{{last_name}}": "Johnson",
+  "{{company}}": "Acme Corp",
+  "{{email}}": "sarah@acme.com",
+  "{{cta_url}}": "https://example.com/cta",
+  "{{unsubscribe_url}}": "https://example.com/unsubscribe",
+};
+
+type CompileError = { line?: number; message: string; tagName?: string };
+
+const applySampleValues = (source: string) =>
+  Object.entries(sampleValues).reduce((acc, [key, value]) => acc.split(key).join(value), source);
+
+const extractVariables = (source: string) => {
+  const names = new Set<string>();
+  const re = /{{\s*([a-zA-Z_][a-zA-Z0-9_.-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(source))) names.add(match[1]);
+  return Array.from(names);
+};
+
+const editorTheme = EditorView.theme({
+  "&": { fontSize: "0.82rem", height: "100%" },
+  ".cm-scroller": {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+    lineHeight: "1.6",
+  },
+  ".cm-content": { padding: "16px 0" },
+  ".cm-gutters": { paddingLeft: "4px" },
+});
+
 export default function TemplateEditorPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
   const [template, setTemplate] = React.useState<Template | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -86,9 +129,59 @@ export default function TemplateEditorPage() {
   const [saved, setSaved] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [code, setCode] = React.useState(fallbackMjml);
-  const [history, setHistory] = React.useState<string[]>([fallbackMjml]);
-  const [historyIndex, setHistoryIndex] = React.useState(0);
+  const [compiledHtml, setCompiledHtml] = React.useState("");
+  const [compileErrors, setCompileErrors] = React.useState<CompileError[]>([]);
+  const [rendering, setRendering] = React.useState(false);
+  const [dirty, setDirty] = React.useState(false);
   const [variablesOpen, setVariablesOpen] = React.useState(true);
+  const [sampleData, setSampleData] = React.useState(true);
+
+  const editorRef = React.useRef<EditorView | null>(null);
+  const loadedRef = React.useRef(false);
+
+  const detectedVariables = React.useMemo(() => extractVariables(code), [code]);
+  const availableBuiltIns = builtInVariables.filter(
+    (b) => !detectedVariables.includes(b.name.slice(2, -2))
+  );
+
+  const renderRaw = React.useCallback(async (source: string) => {
+    const res = await fetch("/api/preview/mjml", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mjml: source }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error ?? "Failed to render MJML");
+    return { html: data.html ?? "", errors: (data.errors ?? []) as CompileError[] };
+  }, []);
+
+  const compile = React.useCallback(
+    async (source: string) => {
+      setRendering(true);
+      try {
+        const input = sampleData ? applySampleValues(source) : source;
+        const { html, errors } = await renderRaw(input);
+        setCompiledHtml(html);
+        setCompileErrors(errors);
+      } catch (err) {
+        setCompiledHtml("");
+        setCompileErrors([
+          { message: err instanceof Error ? err.message : "Failed to render MJML" },
+        ]);
+      } finally {
+        setRendering(false);
+      }
+    },
+    [renderRaw, sampleData]
+  );
+
+  React.useEffect(() => {
+    if (!loadedRef.current) return;
+    const timer = setTimeout(() => {
+      void compile(code);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [code, compile]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -100,13 +193,15 @@ export default function TemplateEditorPage() {
         setName(res.template.name);
         const initial = res.template.mjml || fallbackMjml;
         setCode(initial);
-        setHistory([initial]);
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof Error ? err.message : "Could not load template");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          loadedRef.current = true;
+          setLoading(false);
+        }
       }
     })();
     return () => {
@@ -114,60 +209,90 @@ export default function TemplateEditorPage() {
     };
   }, [params.id]);
 
-  const onCodeChange = (next: string) => {
-    const trimmed = history.slice(0, historyIndex + 1);
-    setHistory([...trimmed, next]);
-    setHistoryIndex(trimmed.length);
-    setCode(next);
-  };
-
-  const undo = () => {
-    if (historyIndex <= 0) return;
-    setHistoryIndex((i) => i - 1);
-    setCode(history[historyIndex - 1]);
-  };
-
-  const redo = () => {
-    if (historyIndex >= history.length - 1) return;
-    setHistoryIndex((i) => i + 1);
-    setCode(history[historyIndex + 1]);
-  };
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  const insertVariable = (variable: string) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    setCode((prev) => prev.slice(0, start) + variable + prev.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + variable.length, start + variable.length);
-    });
-  };
-
-  const handleSave = async () => {
-    if (!template) return;
+  const handleSave = React.useCallback(async () => {
+    if (!template || saving) return;
     setSaving(true);
     try {
+      let html = "";
+      try {
+        const { html: fresh } = await renderRaw(code);
+        html = fresh;
+      } catch {
+        html = "";
+      }
       await api.patch(`/api/v1/templates/${template.id}`, {
         name,
         description: template.description,
         category: template.category,
         thumbnail: template.thumbnail,
         mjml: code,
-        html: code,
-        variables: template.variables,
+        html: html || code,
+        variables: detectedVariables,
         tags: template.tags,
         isFavorite: template.isFavorite,
       });
       setSaved(true);
+      setDirty(false);
       toast.success("Template saved");
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save template");
     } finally {
       setSaving(false);
+    }
+  }, [template, saving, name, code, detectedVariables, renderRaw]);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void handleSave();
+      } else if (e.key === "Escape") {
+        router.push("/templates");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [router, handleSave]);
+
+  const onCodeChange = React.useCallback((value: string) => {
+    setCode(value);
+    setDirty(true);
+  }, []);
+
+  const onCreateEditor = React.useCallback((view: EditorView) => {
+    editorRef.current = view;
+  }, []);
+
+  const undo = React.useCallback(() => {
+    if (editorRef.current) cmUndo(editorRef.current);
+  }, []);
+  const redo = React.useCallback(() => {
+    if (editorRef.current) cmRedo(editorRef.current);
+  }, []);
+
+  const insertVariable = React.useCallback((variable: string) => {
+    const view = editorRef.current;
+    if (view) {
+      const { from } = view.state.selection.main;
+      view.dispatch({
+        changes: { from, insert: variable },
+        selection: { anchor: from + variable.length },
+        scrollIntoView: true,
+      });
+      view.focus();
+      return;
+    }
+    setCode((prev) => prev + variable);
+    setDirty(true);
+  }, []);
+
+  const copyHtml = async () => {
+    try {
+      await navigator.clipboard.writeText(compiledHtml);
+      toast.success("Copied HTML to clipboard");
+    } catch {
+      toast.error("Could not copy HTML");
     }
   };
 
@@ -205,73 +330,161 @@ export default function TemplateEditorPage() {
   if (!template) return null;
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col">
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link href="/templates" aria-label="Back to templates">
-            <ChevronLeft />
+    <div className="bg-background fixed inset-0 z-[60] flex flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+        <Button variant="ghost" size="icon-sm" asChild aria-label="Close editor">
+          <Link href="/templates">
+            <X />
           </Link>
         </Button>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="h-8 w-64 border-transparent bg-transparent font-medium shadow-none hover:border-border focus:border-input"
-        />
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setDirty(true);
+            }}
+            className="h-8 w-64 border-transparent bg-transparent font-medium shadow-none hover:border-border focus:border-input"
+          />
+          <span
+            title={dirty ? "Unsaved changes" : "All changes saved"}
+            className={cn(
+              "size-1.5 rounded-full transition-colors",
+              dirty ? "bg-primary" : "bg-transparent"
+            )}
+          />
+        </div>
         <Badge variant="secondary" className="hidden sm:inline-flex">
           {template.category}
         </Badge>
         <div className="ml-auto flex items-center gap-2">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "code" | "html")}>
-            <TabsList className="h-8">
-              <TabsTrigger value="code" className="gap-1.5">
-                <Code2 className="size-3.5" /> MJML
-              </TabsTrigger>
-              <TabsTrigger value="html" className="gap-1.5">
-                <Eye className="size-3.5" /> HTML
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Separator orientation="vertical" className="h-6" />
           <Button variant="outline" size="sm" onClick={() => setTestOpen(true)}>
             <Send /> Test send
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saved ? <Check /> : <Save />}
-            {saved ? "Saved" : "Save"}
+          <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
+            {saved ? <Check /> : saving ? <Loader2 className="animate-spin" /> : <Save />}
+            {saved ? "Saved" : saving ? "Saving…" : "Save"}
           </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_auto]">
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 grid-cols-1",
+          variablesOpen
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_240px]"
+            : "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)]"
+        )}
+      >
         <div className="flex min-w-0 flex-col border-r">
-          <div className="bg-muted/40 flex items-center justify-between border-b px-4 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
-                <Code2 className="size-3.5" /> template.{mode === "html" ? "html" : "mjml"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon-sm" aria-label="Undo" onClick={undo} disabled={historyIndex === 0}>
-                <Undo2 />
+          <div className="bg-muted/40 flex items-center gap-3 border-b px-3 py-2">
+            <Tabs value={mode} onValueChange={(v) => setMode(v as "code" | "html")}>
+              <TabsList className="h-8">
+                <TabsTrigger value="code" className="gap-1.5">
+                  <Code2 className="size-3.5" /> MJML
+                </TabsTrigger>
+                <TabsTrigger value="html" className="gap-1.5">
+                  <Eye className="size-3.5" /> HTML
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <span className="text-muted-foreground hidden font-mono text-xs sm:inline">
+              template.{mode === "html" ? "html" : "mjml"}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Open variables panel"
+                onClick={() => setVariablesOpen(true)}
+                className={cn(variablesOpen && "hidden")}
+              >
+                <Variable />
               </Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Redo" onClick={redo} disabled={historyIndex >= history.length - 1}>
-                <Redo2 />
-              </Button>
+              {mode === "html" && compiledHtml ? (
+                <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyHtml}>
+                  <Copy className="size-3.5" /> Copy
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Undo"
+                    onClick={undo}
+                  >
+                    <Undo2 />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Redo"
+                    onClick={redo}
+                  >
+                    <Redo2 />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-          <textarea
-            ref={textareaRef}
-            value={code}
-            onChange={(e) => onCodeChange(e.target.value)}
-            spellCheck={false}
-            className="bg-card font-mono scrollbar-thin min-h-0 flex-1 resize-none p-4 text-[0.8rem] leading-relaxed whitespace-pre outline-none"
-          />
+          <div className="min-h-0 flex-1">
+            {mode === "code" ? (
+              <CodeMirror
+                value={code}
+                height="100%"
+                style={{ height: "100%" }}
+                theme={isDark ? oneDark : undefined}
+                extensions={[xml(), editorTheme]}
+                onChange={onCodeChange}
+                onCreateEditor={onCreateEditor}
+                basicSetup={{
+                  foldGutter: true,
+                  highlightActiveLine: true,
+                  highlightActiveLineGutter: true,
+                  bracketMatching: true,
+                  closeBrackets: true,
+                  autocompletion: false,
+                }}
+              />
+            ) : compiledHtml ? (
+              <CodeMirror
+                value={compiledHtml}
+                height="100%"
+                style={{ height: "100%" }}
+                editable={false}
+                theme={isDark ? oneDark : undefined}
+                extensions={[xml(), editorTheme]}
+                basicSetup={{ lineNumbers: true, foldGutter: true, autocompletion: false }}
+              />
+            ) : (
+              <div className="bg-muted/40 flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+                <Eye className="text-muted-foreground size-6" />
+                <p className="text-muted-foreground text-sm">
+                  {compileErrors.length > 0
+                    ? "Fix the MJML errors to see the compiled HTML."
+                    : "Compiled HTML will appear here."}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex min-h-0 w-full flex-col lg:w-[52rem]">
-          <div className="flex items-center justify-between border-b px-4 py-2">
-            <span className="text-muted-foreground text-xs font-medium">Preview</span>
+        <div className="flex min-h-0 w-full flex-col lg:w-[46rem]">
+          <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium">Preview</span>
+              {rendering && <Loader2 className="text-muted-foreground size-3.5 animate-spin" />}
+            </div>
             <div className="flex items-center gap-1">
+              <Button
+                variant={sampleData ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => setSampleData((v) => !v)}
+                aria-label="Toggle sample data"
+              >
+                <Braces className="size-3.5" /> Sample data
+              </Button>
               {[
                 { value: "desktop" as const, icon: Monitor, label: "Desktop" },
                 { value: "tablet" as const, icon: Tablet, label: "Tablet" },
@@ -289,6 +502,26 @@ export default function TemplateEditorPage() {
               ))}
             </div>
           </div>
+
+          {compileErrors.length > 0 && (
+            <div className="bg-destructive/10 border-destructive/30 flex items-start gap-2 border-b px-4 py-2">
+              <AlertCircle className="text-destructive mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-destructive text-xs font-medium">MJML validation</p>
+                <ul className="text-destructive/80 mt-0.5 space-y-0.5 text-xs">
+                  {compileErrors.slice(0, 3).map((err, i) => (
+                    <li key={i} className="font-mono">
+                      {err.line ? `Line ${err.line}: ` : ""}
+                      {err.message}
+                    </li>
+                  ))}
+                  {compileErrors.length > 3 && (
+                    <li>…and {compileErrors.length - 3} more</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
 
           <ScrollArea className="bg-muted/50 min-h-0 flex-1">
             <div className="flex justify-center px-4 py-6">
@@ -311,53 +544,25 @@ export default function TemplateEditorPage() {
                   </span>
                   <span className="w-8" />
                 </div>
-                <div className="border-b px-4 py-3">
-                  <p className="text-sm font-semibold">Hi {"{{first_name}}"}, {template.name}</p>
-                  <p className="text-muted-foreground text-xs">Mailgeko Team · 10:00 AM</p>
-                  <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
-                    We&apos;re thrilled to have you on board. Here are three things you can do to get the most…
-                  </p>
-                </div>
-                <div className="bg-[#f4f4f5] p-4">
-                  <div className="bg-background mx-auto overflow-hidden rounded-xl shadow-sm" style={{ maxWidth: 480 }}>
-                    <div className="p-6">
-                      <div className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-xl">
-                        <span className="text-xl">🦎</span>
-                      </div>
-                      <h1 className="mt-4 text-center text-xl font-bold">
-                        Hi {"{{first_name}}"}, {template.name}
-                      </h1>
-                      <p className="text-muted-foreground mt-2 text-center text-sm leading-relaxed">
-                        We&apos;re thrilled to have you on board. Here are three
-                        things you can do to get the most out of your first week.
-                      </p>
-                      <div className="mt-5 rounded-lg border bg-muted/40 p-4 text-xs text-muted-foreground">
-                        ✓ Verify your sending domain
-                        <br />✓ Import your first contacts
-                        <br />✓ Launch a welcome automation
-                      </div>
-                      <div className="mt-5 flex justify-center">
-                        <span className="bg-primary rounded-lg px-6 py-3 text-sm font-medium text-primary-foreground">
-                          Get started →
-                        </span>
-                      </div>
-                    </div>
-                    <div className="border-t bg-muted/40 px-6 py-3 text-center text-[0.65rem] text-muted-foreground">
-                      © Mailgeko · Unsubscribe
-                    </div>
+                {compiledHtml ? (
+                  <iframe
+                    title="Email preview"
+                    srcDoc={compiledHtml}
+                    sandbox=""
+                    className="h-[720px] w-full"
+                  />
+                ) : (
+                  <div className="flex h-[720px] flex-col items-center justify-center gap-2 p-6 text-center">
+                    <Loader2 className="text-muted-foreground size-5 animate-spin" />
+                    <p className="text-muted-foreground text-xs">Rendering preview…</p>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </ScrollArea>
         </div>
 
-        <aside
-          className={cn(
-            "border-l bg-card",
-            variablesOpen ? "flex w-full max-w-[240px] flex-col" : "hidden lg:block"
-          )}
-        >
+        <aside className={cn("border-l bg-card", variablesOpen ? "flex w-60 flex-col" : "hidden")}>
           {variablesOpen && (
             <>
               <div className="flex items-center justify-between border-b px-4 py-2.5">
@@ -371,7 +576,7 @@ export default function TemplateEditorPage() {
                   aria-label="Close variables panel"
                   className="h-6 w-6"
                 >
-                  <ChevronLeft className="size-3.5" />
+                  <X className="size-3.5" />
                 </Button>
               </div>
               <ScrollArea className="flex-1">
@@ -379,30 +584,63 @@ export default function TemplateEditorPage() {
                   <p className="text-muted-foreground px-1 pb-2 text-[0.65rem] font-medium uppercase">
                     Insert at cursor
                   </p>
-                  <div className="flex flex-col gap-1.5">
-                    {builtInVariables.map((variable) => (
-                      <button
-                        key={variable.name}
-                        onClick={() => insertVariable(variable.name)}
-                        className="hover:bg-accent group flex cursor-pointer items-center justify-between rounded-md border px-2.5 py-1.5 text-left transition-colors"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate font-mono text-xs text-primary">
-                            {variable.name}
-                          </span>
-                          <span className="text-muted-foreground block text-[0.65rem]">
-                            {variable.label}
-                          </span>
-                        </span>
-                        <Plus className="text-muted-foreground group-hover:text-foreground size-3.5 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-4">
+                  {detectedVariables.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-muted-foreground px-1 pb-2 text-[0.65rem] font-medium uppercase">
+                        Used in template
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {detectedVariables.map((variable) => (
+                          <button
+                            key={variable}
+                            onClick={() => insertVariable(`{{${variable}}}`)}
+                            className="hover:bg-accent group flex cursor-pointer items-center justify-between rounded-md border px-2.5 py-1.5 text-left transition-colors"
+                          >
+                            <span className="text-primary min-w-0 truncate font-mono text-xs">
+                              {`{{${variable}}}`}
+                            </span>
+                            <Plus className="text-muted-foreground group-hover:text-foreground size-3.5 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {availableBuiltIns.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-muted-foreground px-1 pb-2 text-[0.65rem] font-medium uppercase">
+                        Available variables
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {availableBuiltIns.map((variable) => (
+                          <button
+                            key={variable.name}
+                            onClick={() => insertVariable(variable.name)}
+                            className="hover:bg-accent group flex cursor-pointer items-center justify-between rounded-md border px-2.5 py-1.5 text-left transition-colors"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-mono text-xs text-primary">
+                                {variable.name}
+                              </span>
+                              <span className="text-muted-foreground block text-[0.65rem]">
+                                {variable.label}
+                              </span>
+                            </span>
+                            <Plus className="text-muted-foreground group-hover:text-foreground size-3.5 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
                     <p className="text-muted-foreground px-1 pb-2 text-[0.65rem] font-medium uppercase">
                       Custom
                     </p>
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => insertVariable("{{custom_value}}")}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => insertVariable("{{custom_value}}")}
+                    >
                       <Plus /> Add variable
                     </Button>
                   </div>
