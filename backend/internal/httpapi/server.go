@@ -266,6 +266,20 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if apiKey := apiKeyFromRequest(r); apiKey != "" {
+			claims, ok := s.authenticateAPIKey(r, apiKey)
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "unauthorized", "invalid API key")
+				return
+			}
+			if !s.apiKeyAllowed(r, claims) {
+				writeError(w, http.StatusForbidden, "forbidden", "API key lacks the required scope")
+				return
+			}
+			ctx := context.WithValue(r.Context(), claimsKey, claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		authHeader := r.Header.Get("Authorization")
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token == "" || token == authHeader {

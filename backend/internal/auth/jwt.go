@@ -11,11 +11,12 @@ import (
 var ErrInvalidClaims = errors.New("auth: invalid token claims")
 
 type Claims struct {
-	UserID      string `json:"uid"`
-	Email       string `json:"email"`
-	WorkspaceID string `json:"wid"`
-	Role        string `json:"role"`
-	Pending     bool   `json:"pending,omitempty"`
+	UserID      string   `json:"uid"`
+	Email       string   `json:"email"`
+	WorkspaceID string   `json:"wid"`
+	Role        string   `json:"role"`
+	Scopes      []string `json:"scopes,omitempty"`
+	Pending     bool     `json:"pending,omitempty"`
 	jwt.RegisteredClaims
 }
 

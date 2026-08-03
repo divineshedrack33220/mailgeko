@@ -311,6 +311,25 @@ export default function ApiKeysSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <KeyRound className="text-primary size-4" /> Using your key
+          </CardTitle>
+          <CardDescription>
+            Send the key in the <code className="font-mono text-xs">X-API-Key</code> header (or as a
+            Bearer token). Keys authenticate as their workspace — scopes gate which routes they can
+            touch.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <pre className="bg-muted/50 text-muted-foreground overflow-x-auto rounded-lg border p-4 font-mono text-xs leading-relaxed">
+{`curl -H "X-API-Key: mgk_live_..." \\
+     https://api.mailgeko.dev/api/v1/campaigns`}
+          </pre>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="text-primary size-4" /> Security best practices
           </CardTitle>
           <CardDescription>Keep your keys safe with these tips.</CardDescription>

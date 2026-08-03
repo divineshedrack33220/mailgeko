@@ -197,6 +197,38 @@ func (s *Store) DeleteAPIKey(ctx context.Context, workspaceID, id string) error 
 	return err
 }
 
+// GetAPIKeyByHash returns an API key matching the given SHA-256 hash, or nil
+// when no key matches.
+func (s *Store) GetAPIKeyByHash(ctx context.Context, keyHash string) (*APIKey, error) {
+	var k APIKey
+	var scopes sql.NullString
+	var lastUsed sql.NullTime
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, workspace_id, name, prefix, key_hash, scopes, last_used_at, created_at
+		 FROM api_keys WHERE key_hash = ?`, keyHash).
+		Scan(&k.ID, &k.WorkspaceID, &k.Name, &k.Prefix, &k.KeyHash, &scopes, &lastUsed, &k.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if scopes.Valid {
+		_ = json.Unmarshal([]byte(scopes.String), &k.Scopes)
+	}
+	if lastUsed.Valid {
+		k.LastUsedAt = &lastUsed.Time
+	}
+	return &k, nil
+}
+
+// TouchAPIKeyLastUsed updates the last_used_at column without failing the
+// request if the update errors (best-effort bookkeeping).
+func (s *Store) TouchAPIKeyLastUsed(ctx context.Context, id string) {
+	_, _ = s.db.ExecContext(ctx,
+		`UPDATE api_keys SET last_used_at = NOW() WHERE id = ?`, id)
+}
+
 func (s *Store) NotificationPrefs(ctx context.Context, userID string) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pref_key, value FROM notification_prefs WHERE user_id = ?`, userID)
