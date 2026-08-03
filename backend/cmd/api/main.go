@@ -20,6 +20,7 @@ import (
 	"github.com/divineshedrack33220/mailgeko/backend/internal/httpapi"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/oauth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/queue"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/scheduler"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/sender"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/vector"
@@ -137,6 +138,9 @@ func main() {
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+
+	scheduler_ := scheduler.New(db, queueClient, 30*time.Second)
+	go scheduler_.Run(ctx)
 
 	go func() {
 		log.Printf("api listening on :%s (env=%s)", cfg.Port, cfg.Env)

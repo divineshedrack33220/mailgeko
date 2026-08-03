@@ -132,6 +132,44 @@ func (s *Store) SetCampaignStatus(ctx context.Context, workspaceID, id, status s
 	return err
 }
 
+// ListDueScheduledCampaigns returns campaigns whose send time has arrived and
+// that are still waiting to go out (draft or scheduled, not paused/sent).
+func (s *Store) ListDueScheduledCampaigns(ctx context.Context, now time.Time) ([]Campaign, error) {
+	rows, err := s.db.QueryxContext(ctx,
+		`SELECT `+campaignColumns+` FROM campaigns
+		 WHERE status IN ('draft', 'scheduled')
+		   AND schedule_at IS NOT NULL
+		   AND schedule_at <= ?`,
+		now.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Campaign
+	for rows.Next() {
+		var r campaignRow
+		if err := rows.StructScan(&r); err != nil {
+			return nil, err
+		}
+		out = append(out, *r.toCampaign())
+	}
+	return out, rows.Err()
+}
+
+// MarkCampaignScheduled atomically claims a due campaign so it is enqueued
+// exactly once. It reports whether this caller won the claim.
+func (s *Store) MarkCampaignScheduled(ctx context.Context, id string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE campaigns SET status = 'scheduled'
+		 WHERE id = ? AND status IN ('draft', 'scheduled')`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 func (s *Store) DeleteCampaign(ctx context.Context, workspaceID, id string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM campaigns WHERE workspace_id = ? AND id = ?`, workspaceID, id)
