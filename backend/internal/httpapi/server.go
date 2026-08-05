@@ -43,6 +43,10 @@ type Config struct {
 	HTTPAddr  string
 	BaseURL   string
 
+	// AllowedOrigins is the CORS allowlist. Origins not listed receive no
+	// Access-Control-Allow-Origin header. Empty disables cross-origin access.
+	AllowedOrigins []string
+
 	// TrackingSecret signs email tracking links (opens/clicks/unsubscribes).
 	TrackingSecret string
 
@@ -283,8 +287,10 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
+			if s.originAllowed(origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+			w.Header().Add("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
@@ -295,6 +301,18 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// originAllowed reports whether a request Origin is on the CORS allowlist.
+// Comparison is case-insensitive and ignores trailing slashes.
+func (s *Server) originAllowed(origin string) bool {
+	origin = strings.TrimRight(origin, "/")
+	for _, allowed := range s.cfg.AllowedOrigins {
+		if strings.EqualFold(strings.TrimRight(allowed, "/"), origin) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) withAuth(next http.Handler) http.Handler {

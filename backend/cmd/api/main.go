@@ -127,6 +127,7 @@ func main() {
 		TokenTTL:            tokenTTL,
 		HTTPAddr:            ":" + cfg.Port,
 		BaseURL:             cfg.BaseURL,
+		AllowedOrigins:      cfg.AllowedOrigins,
 		TrackingSecret:      cfg.TrackingSecret,
 		ResendWebhookSecret: cfg.ResendWebhookSecret,
 		OpenAIKey:           cfg.OpenAIKey,

@@ -737,6 +737,7 @@ Full reference: `.env.production.example`.
 | `APP_ENV` | no | `development` / `production` (HSTS, logging) |
 | `PORT` | no | Web port (default `3000`); API always binds `:8080` |
 | `BASE_URL` | yes (prod) | Public origin; used in tracking/unsubscribe links |
+| `ALLOWED_ORIGINS` | no | Comma-separated CORS allowlist; defaults to the `BASE_URL` origin (plus localhost in dev) |
 | `JWT_SECRET` | yes | HS256 signing secret — **stable across restarts** |
 | `TRACKING_SECRET` | yes (prod) | HMAC key for tracking/unsubscribe links |
 | `TIDB_DSN` | yes | MySQL/TiDB DSN (auto-migrates at boot) |

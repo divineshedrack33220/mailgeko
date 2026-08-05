@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -11,6 +12,12 @@ type Config struct {
 	Env     string
 	Port    string
 	BaseURL string
+
+	// AllowedOrigins is the CORS allowlist. Requests whose Origin is not
+	// listed get no Access-Control-Allow-Origin header and are blocked by the
+	// browser. When ALLOWED_ORIGINS is unset it falls back to the BASE_URL
+	// origin, plus the common localhost origins in development.
+	AllowedOrigins []string
 
 	TiDBDSN     string
 	PostgresDSN string
@@ -97,6 +104,8 @@ func Load() (*Config, error) {
 		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 	}
 
+	cfg.AllowedOrigins = loadAllowedOrigins(cfg.BaseURL, cfg.Env)
+
 	if cfg.TiDBDSN == "" {
 		return nil, fmt.Errorf("config: TIDB_DSN is required")
 	}
@@ -129,4 +138,38 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// loadAllowedOrigins returns the CORS allowlist. An explicit ALLOWED_ORIGINS
+// env var (comma-separated) wins; otherwise the BASE_URL origin is used, with
+// the common localhost origins added in development.
+func loadAllowedOrigins(baseURL, env string) []string {
+	if explicit := splitCSV(os.Getenv("ALLOWED_ORIGINS")); len(explicit) > 0 {
+		return explicit
+	}
+	allowed := make([]string, 0, 5)
+	if origin, err := originOf(baseURL); err == nil {
+		allowed = append(allowed, origin)
+	}
+	if env != "production" {
+		allowed = append(allowed,
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"http://localhost:8080",
+			"http://127.0.0.1:8080",
+		)
+	}
+	return allowed
+}
+
+// originOf reduces a URL to its scheme://host[:port] origin.
+func originOf(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("invalid base url %q", rawurl)
+	}
+	return u.Scheme + "://" + u.Host, nil
 }
