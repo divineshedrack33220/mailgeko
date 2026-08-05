@@ -33,6 +33,7 @@ type Server struct {
 	ai        *ai.Client
 	uploads   *cloudinary.Client
 	oauth     *oauth.Manager
+	trackingSecret string
 }
 
 type Config struct {
@@ -41,6 +42,13 @@ type Config struct {
 	TokenTTL  time.Duration
 	HTTPAddr  string
 	BaseURL   string
+
+	// TrackingSecret signs email tracking links (opens/clicks/unsubscribes).
+	TrackingSecret string
+
+	// ResendWebhookSecret verifies Resend webhook deliveries. Empty disables
+	// webhook processing.
+	ResendWebhookSecret string
 
 	// AI subject-line generation (optional; falls back to built-in templates).
 	OpenAIKey     string
@@ -81,19 +89,20 @@ type CampaignEnqueuer interface {
 
 func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssuer, session *SessionStore, queue CampaignEnqueuer, eng *engine.Engine, searcher ContactSearcher, biller Biller, rateLimit *RateLimiter) *Server {
 	return &Server{
-		cfg:       cfg,
-		db:        db,
-		analytics: analytics,
-		tokens:    tokens,
-		session:   session,
-		queue:     queue,
-		engine:    eng,
-		searcher:  searcher,
-		biller:    biller,
-		rateLimit: rateLimit,
-		ai:        ai.NewClient(cfg.OpenAIBaseURL, cfg.OpenAIKey, cfg.OpenAIModel),
-		uploads:   cfg.Cloudinary,
-		oauth:     cfg.OAuth,
+		cfg:            cfg,
+		db:             db,
+		analytics:      analytics,
+		tokens:         tokens,
+		session:        session,
+		queue:          queue,
+		engine:         eng,
+		searcher:       searcher,
+		biller:         biller,
+		rateLimit:      rateLimit,
+		ai:             ai.NewClient(cfg.OpenAIBaseURL, cfg.OpenAIKey, cfg.OpenAIModel),
+		uploads:        cfg.Cloudinary,
+		oauth:          cfg.OAuth,
+		trackingSecret: cfg.TrackingSecret,
 	}
 }
 

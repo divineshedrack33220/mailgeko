@@ -42,6 +42,13 @@ services:
         sync: false
       - key: RESEND_API_ENDPOINT
         value: https://api.resend.com/emails
+      # Resend webhook signing secret (whsec_...). Leave empty to disable
+      # webhook processing (no open/click/bounce events recorded).
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      # Signs email tracking links. Defaults to JWT_SECRET when empty.
+      - key: TRACKING_SECRET
+        sync: false
       # "static" needs no keys and works on free; switch to "openai" later.
       - key: EMBED_PROVIDER
         value: static

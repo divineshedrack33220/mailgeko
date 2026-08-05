@@ -59,6 +59,7 @@ func main() {
 
 	db := store.New(tiDB)
 	engine_ := engine.New(db, sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueAdapter, cfg.BaseURL)
+	engine_.WithTrackingSecret(cfg.TrackingSecret)
 
 	var analyticsStore httpapi.AnalyticsStore
 	var searcher httpapi.ContactSearcher
@@ -122,15 +123,17 @@ func main() {
 	}
 
 	srv := httpapi.New(httpapi.Config{
-		Env:           cfg.Env,
-		TokenTTL:      tokenTTL,
-		HTTPAddr:      ":" + cfg.Port,
-		BaseURL:       cfg.BaseURL,
-		OpenAIKey:     cfg.OpenAIKey,
-		OpenAIModel:   cfg.AIModel,
-		OpenAIBaseURL: cfg.AIBaseURL,
-		Cloudinary:    cloudinaryClient,
-		OAuth:         oauthManager,
+		Env:                 cfg.Env,
+		TokenTTL:            tokenTTL,
+		HTTPAddr:            ":" + cfg.Port,
+		BaseURL:             cfg.BaseURL,
+		TrackingSecret:      cfg.TrackingSecret,
+		ResendWebhookSecret: cfg.ResendWebhookSecret,
+		OpenAIKey:           cfg.OpenAIKey,
+		OpenAIModel:         cfg.AIModel,
+		OpenAIBaseURL:       cfg.AIBaseURL,
+		Cloudinary:          cloudinaryClient,
+		OAuth:               oauthManager,
 	}, db, analyticsStore, manager, httpapi.NewSessionStore(rdb), queueAdapter, engine_, searcher, biller, rateLimit)
 
 	server := &http.Server{

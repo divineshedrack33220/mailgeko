@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/track"
 )
 
 var hrefRegex = regexp.MustCompile(`(?i)href=["']([^"']+)["']`)
@@ -17,6 +18,9 @@ type RenderOptions struct {
 	AllowUnsubscribe bool
 	CampaignID       string
 	ContactID        string
+	// SigningKey, when non-empty, signs each tracking URL so forged links are
+	// rejected.
+	SigningKey string
 }
 
 func contactVariables(c *store.Contact) map[string]string {
@@ -48,6 +52,22 @@ func Substitute(content string, vars map[string]string) string {
 	return strings.NewReplacer(pairs...).Replace(content)
 }
 
+// trackURL builds a signed tracking URL for the given kind and optional
+// target. The signature covers the raw (unescaped) target so verification can
+// reproduce it after URL-decoding.
+func trackURL(opts RenderOptions, kind, target string) string {
+	q := url.Values{}
+	q.Set("c", opts.CampaignID)
+	q.Set("m", opts.ContactID)
+	if target != "" {
+		q.Set("u", target)
+	}
+	if opts.SigningKey != "" {
+		q.Set("s", track.Sign(opts.SigningKey, kind, opts.CampaignID, opts.ContactID, target))
+	}
+	return opts.BaseURL + "/track/" + kind + "?" + q.Encode()
+}
+
 func RenderHTML(htmlContent string, vars map[string]string, opts RenderOptions) string {
 	out := Substitute(htmlContent, vars)
 
@@ -58,15 +78,12 @@ func RenderHTML(htmlContent string, vars map[string]string, opts RenderOptions) 
 			if err != nil || u.Scheme == "" {
 				return m
 			}
-			target := opts.BaseURL + "/track/click?c=" + opts.CampaignID + "&m=" + opts.ContactID +
-				"&u=" + url.QueryEscape(inner)
-			return `href="` + target + `"`
+			return `href="` + trackURL(opts, "click", inner) + `"`
 		})
 	}
 
 	if opts.TrackOpens {
-		pixel := `<img src="` + opts.BaseURL + `/track/open?c=` + opts.CampaignID +
-			`&m=` + opts.ContactID + `" width="1" height="1" style="display:none" alt="" />`
+		pixel := `<img src="` + trackURL(opts, "open", "") + `" width="1" height="1" style="display:none" alt="" />`
 		out = strings.Replace(out, "</body>", pixel+"</body>", 1)
 		if !strings.Contains(out, pixel) {
 			out += pixel
@@ -74,7 +91,7 @@ func RenderHTML(htmlContent string, vars map[string]string, opts RenderOptions) 
 	}
 
 	if opts.AllowUnsubscribe {
-		link := opts.BaseURL + "/track/unsubscribe?c=" + opts.CampaignID + "&m=" + opts.ContactID
+		link := trackURL(opts, "unsubscribe", "")
 		label := `<a href="` + link + `">Unsubscribe</a>`
 		out = strings.Replace(out, "</body>", label+"</body>", 1)
 		if !strings.Contains(out, label) {

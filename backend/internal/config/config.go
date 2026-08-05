@@ -19,7 +19,14 @@ type Config struct {
 	ResendAPIKeys  []string
 	ResendEndpoint string
 
+	// ResendWebhookSecret is the signing secret (whsec_...) used to verify
+	// webhook deliveries. Empty disables webhook processing.
+	ResendWebhookSecret string
+
 	JWTSecret string
+
+	// TrackingSecret signs email tracking links. Falls back to JWTSecret.
+	TrackingSecret string
 
 	// Embeddings / vector search.
 	OpenAIKey     string
@@ -60,8 +67,10 @@ func Load() (*Config, error) {
 		PostgresDSN:         getEnv("POSTGRES_DSN", ""),
 		RedisAddr:           getEnv("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:           getEnv("JWT_SECRET", ""),
+		TrackingSecret:      getEnv("TRACKING_SECRET", getEnv("JWT_SECRET", "")),
 		ResendAPIKeys:       splitCSV(os.Getenv("RESEND_API_KEYS")),
 		ResendEndpoint:      getEnv("RESEND_API_ENDPOINT", "https://api.resend.com/emails"),
+		ResendWebhookSecret: getEnv("RESEND_WEBHOOK_SECRET", ""),
 		OpenAIKey:           os.Getenv("OPENAI_API_KEY"),
 		EmbedModel:          getEnv("EMBED_MODEL", "text-embedding-3-small"),
 		EmbedBaseURL:        getEnv("EMBED_BASE_URL", "https://api.openai.com/v1"),

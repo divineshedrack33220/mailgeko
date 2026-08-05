@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/engine"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/svix"
 )
 
 type resendWebhookRequest struct {
@@ -39,6 +40,17 @@ func (s *Server) handleResendWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 2<<20))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "could not read body")
+		return
+	}
+
+	if s.cfg.ResendWebhookSecret == "" {
+		writeError(w, http.StatusServiceUnavailable, "not_configured",
+			"webhook processing is disabled: RESEND_WEBHOOK_SECRET is not set")
+		return
+	}
+	if !svix.Verify(body, s.cfg.ResendWebhookSecret, r.Header.Get("svix-id"),
+		r.Header.Get("svix-timestamp"), r.Header.Get("svix-signature")) {
+		writeError(w, http.StatusUnauthorized, "invalid_signature", "invalid webhook signature")
 		return
 	}
 

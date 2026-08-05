@@ -30,16 +30,24 @@ type EventInput struct {
 }
 
 type Engine struct {
-	store    *store.Store
-	sender   *sender.Client
-	queue    Queue
-	baseURL  string
-	embeds   *vector.Store
-	embedder embed.Embedder
+	store          *store.Store
+	sender         *sender.Client
+	queue          Queue
+	baseURL        string
+	trackingSecret string
+	embeds         *vector.Store
+	embedder       embed.Embedder
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {
 	return &Engine{store: db, sender: sender, queue: queue, baseURL: baseURL}
+}
+
+// WithTrackingSecret enables signed tracking links so engagement events can't
+// be forged and tracking URLs can't be used as open redirects.
+func (e *Engine) WithTrackingSecret(secret string) *Engine {
+	e.trackingSecret = secret
+	return e
 }
 
 // WithEmbedding enables pgvector contact search. Both the vector store and the
@@ -175,6 +183,7 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		AllowUnsubscribe: campaign.AllowUnsubscribe,
 		CampaignID:       campaign.ID,
 		ContactID:        contact.ID,
+		SigningKey:       e.trackingSecret,
 	})
 
 	from := campaign.FromEmail
@@ -351,6 +360,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		AllowUnsubscribe: c.AllowUnsubscribe,
 		CampaignID:       c.ID,
 		ContactID:        "test",
+		SigningKey:       e.trackingSecret,
 	})
 
 	from := c.FromEmail
