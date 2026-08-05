@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { getToken } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -24,7 +23,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [boot]);
 
   React.useEffect(() => {
-    if (ready && !isAuthenticated && !getToken()) {
+    if (ready && !isAuthenticated) {
       router.replace("/login");
     }
   }, [ready, isAuthenticated, router]);

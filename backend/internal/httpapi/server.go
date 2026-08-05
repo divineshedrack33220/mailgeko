@@ -245,12 +245,30 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
-	next = s.withCORS(next)
 	next = s.withLogging(next)
 	if s.rateLimit != nil {
 		next = s.rateLimit.Middleware(next)
 	}
+	next = s.withCORS(next)
+	next = s.withSecurityHeaders(next)
 	return next
+}
+
+// withSecurityHeaders hardens every response. It is the outermost middleware so
+// even OPTIONS preflight and error responses get the headers.
+func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+		if s.cfg.Env == "production" {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {

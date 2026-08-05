@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import { api, getToken, setToken } from "@/lib/api";
+import { api, ApiError, getToken, setToken } from "@/lib/api";
 
 export interface AuthUser {
   id: string;
@@ -49,9 +49,16 @@ export const useAuthStore = create<AuthState>((set) => ({
         workspaceID: res.workspaceID,
         isAuthenticated: true,
       });
-    } catch {
-      setToken(null);
-      set({ user: null, workspaceID: null, isAuthenticated: false });
+    } catch (err) {
+      // The server is the source of truth for the session. Only clear the
+      // token when it explicitly rejects it (401/403); a transient network or
+      // server error must not log the user out.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setToken(null);
+        set({ user: null, workspaceID: null, isAuthenticated: false });
+        return;
+      }
+      set({ isAuthenticated: false });
     }
   },
 
