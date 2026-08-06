@@ -63,6 +63,25 @@ func TestRenderHTMLNoTracking(t *testing.T) {
 	}
 }
 
+func TestUnsubscribeURL(t *testing.T) {
+	if u := UnsubscribeURL(RenderOptions{AllowUnsubscribe: false}); u != "" {
+		t.Errorf("UnsubscribeURL should be empty when disabled, got %q", u)
+	}
+	u := UnsubscribeURL(RenderOptions{
+		BaseURL:          "https://mailgeko.example",
+		AllowUnsubscribe: true,
+		CampaignID:       "cmp-1",
+		ContactID:        "c-1",
+		SigningKey:       "secret",
+	})
+	if !strings.HasPrefix(u, "https://mailgeko.example/track/unsubscribe?") {
+		t.Errorf("unexpected unsubscribe URL: %q", u)
+	}
+	if !strings.Contains(u, "c=cmp-1") || !strings.Contains(u, "m=c-1") || !strings.Contains(u, "s=") {
+		t.Errorf("unsubscribe URL missing params: %q", u)
+	}
+}
+
 func TestSegmentAll(t *testing.T) {
 	seg := &store.Segment{
 		MatchType: "all",

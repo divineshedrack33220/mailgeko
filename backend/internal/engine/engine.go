@@ -195,6 +195,22 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		from = fromName + " <" + from + ">"
 	}
 
+	headers := map[string]string{
+		"X-Mailgeko-Campaign":  campaign.ID,
+		"X-Mailgeko-Contact":   contact.ID,
+		"X-Mailgeko-Workspace": campaign.WorkspaceID,
+	}
+	if u := UnsubscribeURL(RenderOptions{
+		BaseURL:          e.baseURL,
+		AllowUnsubscribe: campaign.AllowUnsubscribe,
+		CampaignID:       campaign.ID,
+		ContactID:        contact.ID,
+		SigningKey:       e.trackingSecret,
+	}); u != "" {
+		headers["List-Unsubscribe"] = "<" + u + ">"
+		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+	}
+
 	result, err := e.sender.Send(ctx, sender.Message{
 		From:    from,
 		To:      contact.Email,
@@ -202,11 +218,7 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		HTML:    html,
 		Text:    campaign.PlainText,
 		ReplyTo: campaign.ReplyTo,
-		Headers: map[string]string{
-			"X-Mailgeko-Campaign":  campaign.ID,
-			"X-Mailgeko-Contact":   contact.ID,
-			"X-Mailgeko-Workspace": campaign.WorkspaceID,
-		},
+		Headers: headers,
 		Tags: []sender.Tag{
 			{Name: "campaign", Value: campaign.ID},
 		},
@@ -371,6 +383,18 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		from = c.FromName + " <" + from + ">"
 	}
 
+	headers := map[string]string{}
+	if u := UnsubscribeURL(RenderOptions{
+		BaseURL:          e.baseURL,
+		AllowUnsubscribe: c.AllowUnsubscribe,
+		CampaignID:       c.ID,
+		ContactID:        "test",
+		SigningKey:       e.trackingSecret,
+	}); u != "" {
+		headers["List-Unsubscribe"] = "<" + u + ">"
+		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+	}
+
 	_, err := e.sender.Send(ctx, sender.Message{
 		From:    from,
 		To:      to,
@@ -378,6 +402,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		HTML:    html,
 		Text:    c.PlainText,
 		ReplyTo: c.ReplyTo,
+		Headers: headers,
 	})
 	return err
 }

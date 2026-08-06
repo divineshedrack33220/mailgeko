@@ -68,6 +68,15 @@ func trackURL(opts RenderOptions, kind, target string) string {
 	return opts.BaseURL + "/track/" + kind + "?" + q.Encode()
 }
 
+// UnsubscribeURL returns the signed one-click unsubscribe URL for the
+// campaign/contact, or "" when unsubscribing is disabled for the send.
+func UnsubscribeURL(opts RenderOptions) string {
+	if !opts.AllowUnsubscribe {
+		return ""
+	}
+	return trackURL(opts, "unsubscribe", "")
+}
+
 func RenderHTML(htmlContent string, vars map[string]string, opts RenderOptions) string {
 	out := Substitute(htmlContent, vars)
 
