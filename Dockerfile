@@ -21,6 +21,10 @@ RUN pnpm build
 
 FROM node:20-alpine AS runtime
 
+# Bundled in-memory Redis for the queue/rate-limiter/sessions when no external
+# REDIS_ADDR is configured (see docker-entrypoint.sh).
+RUN apk add --no-cache redis
+
 WORKDIR /app
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

@@ -154,6 +154,11 @@ flowchart TB
 | **Worker** | `backend/cmd/worker` | Consumes asynq tasks: per-recipient render+send, event recording, CSV imports, embeddings |
 | **Web** | Next.js standalone | UI on `:3000`; reverse-proxies `/api/*`, `/webhooks/*`, `/track/*`, `/ping` to the API |
 
+Redis is **bundled inside the image** by default: `docker-entrypoint.sh` starts an
+in-memory `redis-server` on `127.0.0.1:6379` when `REDIS_ADDR` is unset or points
+at localhost. Set `REDIS_ADDR` to an external server (e.g. `rediss://…` Upstash)
+to use a managed Redis instead.
+
 Migrations auto-apply when the API boots, so a deploy is **migrate-and-go** —
 no separate migration job.
 
@@ -742,7 +747,7 @@ Full reference: `.env.production.example`.
 | `TRACKING_SECRET` | yes (prod) | HMAC key for tracking/unsubscribe links |
 | `TIDB_DSN` | yes | MySQL/TiDB DSN (auto-migrates at boot) |
 | `POSTGRES_DSN` | yes | Postgres DSN for analytics + embeddings |
-| `REDIS_ADDR` | yes | Redis address (queue, rate limits, sessions) |
+| `REDIS_ADDR` | no | Redis address (queue, rate limits, sessions). **Leave empty to use the bundled in-container Redis**; set to an external server (e.g. `rediss://…`) to use a managed one |
 | `RESEND_API_KEYS` | yes | Comma-separated Resend keys (needed to boot) |
 | `RESEND_API_ENDPOINT` | no | Defaults to Resend; point at a mock |
 | `RESEND_WEBHOOK_SECRET` | no | Svix secret for `/webhooks/resend`; unset → webhooks disabled |
