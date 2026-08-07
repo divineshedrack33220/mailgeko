@@ -30,15 +30,14 @@ func listResponse(l *store.List, contactCount int64) map[string]any {
 
 func (s *Server) handleListLists(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
-	lists, err := s.db.ListLists(r.Context(), claims.GetWorkspaceID())
+	lists, err := s.db.ListListsWithCounts(r.Context(), claims.GetWorkspaceID())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not list lists")
 		return
 	}
 	out := make([]map[string]any, 0, len(lists))
 	for _, l := range lists {
-		count, _ := s.db.ListContactCount(r.Context(), claims.GetWorkspaceID(), l.ID)
-		out = append(out, listResponse(l, count))
+		out = append(out, listResponse(&l.List, l.ContactCount))
 	}
 	writeOK(w, map[string]any{"lists": out})
 }
@@ -54,7 +53,7 @@ func (s *Server) handleCreateList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
 		return
 	}
-	l := &store.List{ID: newID(), WorkspaceID: claims.GetWorkspaceID(), Name: req.Name, Description: req.Description}
+	l := &store.List{ID: newID(), WorkspaceID: claims.GetWorkspaceID(), Name: req.Name, Description: req.Description, CreatedAt: time.Now()}
 	if err := s.db.CreateList(r.Context(), l); err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {

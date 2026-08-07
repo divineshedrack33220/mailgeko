@@ -68,6 +68,8 @@ func (s *Server) handleCreateSegment(w http.ResponseWriter, r *http.Request) {
 		Description: req.Description,
 		MatchType:   matchType,
 		Conditions:  req.Conditions,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if err := s.db.CreateSegment(r.Context(), seg); err != nil {
 		var mysqlErr *mysql.MySQLError

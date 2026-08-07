@@ -55,6 +55,46 @@ func (s *Store) ListLists(ctx context.Context, workspaceID string) ([]*List, err
 	return out, rows.Err()
 }
 
+type ListWithCount struct {
+	List
+	ContactCount int64
+}
+
+type listCountRow struct {
+	listRow
+	ContactCount int64 `db:"contact_count"`
+}
+
+func (r listCountRow) toListWithCount() *ListWithCount {
+	return &ListWithCount{List: *r.listRow.toList(), ContactCount: r.ContactCount}
+}
+
+func (s *Store) ListListsWithCounts(ctx context.Context, workspaceID string) ([]*ListWithCount, error) {
+	rows, err := s.db.QueryxContext(ctx,
+		`SELECT l.id, l.workspace_id, l.name, l.description, l.created_at,
+		        COUNT(c.id) AS contact_count
+		 FROM lists l
+		 LEFT JOIN list_members lm ON lm.list_id = l.id
+		 LEFT JOIN contacts c ON c.id = lm.contact_id AND c.workspace_id = l.workspace_id
+		 WHERE l.workspace_id = ?
+		 GROUP BY l.id, l.workspace_id, l.name, l.description, l.created_at
+		 ORDER BY l.created_at DESC`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*ListWithCount
+	for rows.Next() {
+		var r listCountRow
+		if err := rows.StructScan(&r); err != nil {
+			return nil, err
+		}
+		out = append(out, r.toListWithCount())
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) UpdateList(ctx context.Context, l *List) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE lists SET name = ?, description = ? WHERE workspace_id = ? AND id = ?`,

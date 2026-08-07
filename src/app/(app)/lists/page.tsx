@@ -135,11 +135,19 @@ export default function ListsPage() {
     if (!listName.trim()) return;
     setSaving(true);
     try {
-      await api.post("/api/v1/lists", { name: listName.trim(), description: "New list" });
+      const created = await api.post<{ list: ContactList }>("/api/v1/lists", {
+        name: listName.trim(),
+        description: "New list",
+      });
+      const createdId = created.list.id;
       setListName("");
       setListOpen(false);
       toast.success("List created");
+      setLists((prev) => [created.list, ...prev]);
       await load();
+      setLists((prev) =>
+        prev.some((l) => l.id === createdId) ? prev : [created.list, ...prev]
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create list");
     } finally {
@@ -149,9 +157,17 @@ export default function ListsPage() {
 
   const duplicateList = async (list: ContactList) => {
     try {
-      await api.post("/api/v1/lists", { name: `${list.name} (copy)`, description: list.description ?? "" });
+      const created = await api.post<{ list: ContactList }>("/api/v1/lists", {
+        name: `${list.name} (copy)`,
+        description: list.description ?? "",
+      });
+      const createdId = created.list.id;
       toast.success("List duplicated");
+      setLists((prev) => [created.list, ...prev]);
       await load();
+      setLists((prev) =>
+        prev.some((l) => l.id === createdId) ? prev : [created.list, ...prev]
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not duplicate list");
     }
@@ -163,7 +179,9 @@ export default function ListsPage() {
     try {
       await api.delete(`/api/v1/lists/${list.id}`);
       toast.success(`List "${list.name}" deleted`);
+      setLists((prev) => prev.filter((l) => l.id !== list.id));
       await load();
+      setLists((prev) => prev.filter((l) => l.id !== list.id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete list");
     } finally {
@@ -198,14 +216,28 @@ export default function ListsPage() {
     };
     try {
       if (editingSegment) {
-        await api.patch(`/api/v1/segments/${editingSegment.id}`, payload);
+        const updated = await api.patch<{ segment: Segment }>(
+          `/api/v1/segments/${editingSegment.id}`,
+          payload
+        );
         toast.success("Segment updated");
+        setSegments((prev) => prev.map((sg) => (sg.id === editingSegment.id ? updated.segment : sg)));
+        setSegmentOpen(false);
+        await load();
+        setSegments((prev) =>
+          prev.some((sg) => sg.id === editingSegment.id) ? prev : [updated.segment, ...prev]
+        );
       } else {
-        await api.post("/api/v1/segments", payload);
+        const created = await api.post<{ segment: Segment }>("/api/v1/segments", payload);
+        const createdId = created.segment.id;
         toast.success("Segment created");
+        setSegments((prev) => [created.segment, ...prev]);
+        setSegmentOpen(false);
+        await load();
+        setSegments((prev) =>
+          prev.some((sg) => sg.id === createdId) ? prev : [created.segment, ...prev]
+        );
       }
-      setSegmentOpen(false);
-      await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save segment");
     } finally {
@@ -215,14 +247,19 @@ export default function ListsPage() {
 
   const duplicateSegment = async (segment: Segment) => {
     try {
-      await api.post("/api/v1/segments", {
+      const created = await api.post<{ segment: Segment }>("/api/v1/segments", {
         name: `${segment.name} (copy)`,
         description: segment.description,
         matchType: segment.matchType,
         conditions: segment.conditions ?? [],
       });
+      const createdId = created.segment.id;
       toast.success("Segment duplicated");
+      setSegments((prev) => [created.segment, ...prev]);
       await load();
+      setSegments((prev) =>
+        prev.some((sg) => sg.id === createdId) ? prev : [created.segment, ...prev]
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not duplicate segment");
     }
@@ -234,7 +271,9 @@ export default function ListsPage() {
     try {
       await api.delete(`/api/v1/segments/${segment.id}`);
       toast.success(`Segment "${segment.name}" deleted`);
+      setSegments((prev) => prev.filter((sg) => sg.id !== segment.id));
       await load();
+      setSegments((prev) => prev.filter((sg) => sg.id !== segment.id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete segment");
     } finally {

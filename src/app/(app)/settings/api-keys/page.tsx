@@ -137,7 +137,9 @@ export default function ApiKeysSettingsPage() {
     try {
       await api.delete(`/api/v1/api-keys/${id}`);
       toast.success(`Revoked key "${name}"`);
+      setKeys((prev) => prev.filter((k) => k.id !== id));
       await load();
+      setKeys((prev) => prev.filter((k) => k.id !== id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not revoke key");
     } finally {
