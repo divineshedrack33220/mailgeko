@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["mjml"],
+  images: {
+    dangerouslyAllowSVG: true,
+    contentDispositionType: "attachment",
+  },
   headers: async () => {
     const headers: { key: string; value: string }[] = [
       { key: "X-Frame-Options", value: "DENY" },
@@ -20,7 +24,7 @@ const nextConfig: NextConfig = {
             "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline' https:",
             "img-src 'self' data: blob: https:",
-            "font-src 'self' data:",
+            "font-src 'self' data: https://fonts.gstatic.com",
             "connect-src 'self'",
             "frame-ancestors 'none'",
             "base-uri 'self'",

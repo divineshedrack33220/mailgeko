@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -716,7 +717,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
         <div className="absolute inset-0" style={{ willChange: "transform" }} id="lg-reelContainer">
           {REEL_IMAGES.map((src, i) => (
             <div key={src} className={cn("lg-reel-frame", i === frame && "lg-active")}>
-              <img src={src} alt="Mailgeko platform" />
+              <Image src={src} alt="Mailgeko platform" fill sizes="100vw" priority={i === 0} />
             </div>
           ))}
         </div>
