@@ -26,6 +26,7 @@ import {
   Copy,
   AlertCircle,
   Braces,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Template } from "@/lib/types";
+import {
+  EmailBuilder,
+  Device,
+} from "@/components/email-builder/EmailBuilder";
+import {
+  Block,
+  DesignSettings,
+  defaultSettings,
+  blocksToMjml,
+  parseMjml,
+} from "@/components/email-builder/blocks";
 
 const fallbackMjml = `<mjml>
   <mj-body background-color="#f4f4f5">
@@ -121,8 +133,10 @@ export default function TemplateEditorPage() {
   const [loading, setLoading] = React.useState(true);
 
   const [name, setName] = React.useState("");
-  const [mode, setMode] = React.useState<"code" | "html">("code");
+  const [mode, setMode] = React.useState<"design" | "code" | "html">("design");
   const [previewDevice, setPreviewDevice] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [designBlocks, setDesignBlocks] = React.useState<Block[]>([]);
+  const [designSettings, setDesignSettings] = React.useState<DesignSettings>(defaultSettings);
   const [testOpen, setTestOpen] = React.useState(false);
   const [testEmails, setTestEmails] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -193,6 +207,11 @@ export default function TemplateEditorPage() {
         setName(res.template.name);
         const initial = res.template.mjml || fallbackMjml;
         setCode(initial);
+        const parsed = parseMjml(initial);
+        if (parsed) {
+          setDesignBlocks(parsed.blocks);
+          setDesignSettings({ ...defaultSettings, ...parsed.settings });
+        }
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof Error ? err.message : "Could not load template");
@@ -213,9 +232,11 @@ export default function TemplateEditorPage() {
     if (!template || saving) return;
     setSaving(true);
     try {
+      const saveSource = mode === "design" ? blocksToMjml(designBlocks, designSettings) : code;
+      const saveVariables = extractVariables(saveSource);
       let html = "";
       try {
-        const { html: fresh } = await renderRaw(code);
+        const { html: fresh } = await renderRaw(saveSource);
         html = fresh;
       } catch {
         html = "";
@@ -225,9 +246,9 @@ export default function TemplateEditorPage() {
         description: template.description,
         category: template.category,
         thumbnail: template.thumbnail,
-        mjml: code,
-        html: html || code,
-        variables: detectedVariables,
+        mjml: saveSource,
+        html: html || saveSource,
+        variables: saveVariables,
         tags: template.tags,
         isFavorite: template.isFavorite,
       });
@@ -240,7 +261,7 @@ export default function TemplateEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [template, saving, name, code, detectedVariables, renderRaw]);
+  }, [template, saving, name, mode, designBlocks, designSettings, code, renderRaw]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -259,6 +280,49 @@ export default function TemplateEditorPage() {
     setCode(value);
     setDirty(true);
   }, []);
+
+  const builderVariables = React.useMemo(() => {
+    const seen = new Set<string>();
+    const vars: { name: string; label: string }[] = [];
+    for (const b of builtInVariables) {
+      if (!seen.has(b.name)) {
+        seen.add(b.name);
+        vars.push(b);
+      }
+    }
+    for (const v of detectedVariables) {
+      const name = `{{${v}}}`;
+      if (!seen.has(name)) {
+        seen.add(name);
+        vars.push({ name, label: v });
+      }
+    }
+    return vars;
+  }, [detectedVariables]);
+
+  const handleModeChange = React.useCallback(
+    (next: "design" | "code" | "html") => {
+      if (next === "design") {
+        const parsed = parseMjml(code);
+        if (parsed) {
+          setDesignBlocks(parsed.blocks);
+          setDesignSettings({ ...defaultSettings, ...parsed.settings });
+        }
+      }
+      setMode(next);
+    },
+    [code]
+  );
+
+  const handleDesignChange = React.useCallback(
+    (blocks: Block[], settings: DesignSettings) => {
+      setDesignBlocks(blocks);
+      setDesignSettings(settings);
+      setCode(blocksToMjml(blocks, settings));
+      setDirty(true);
+    },
+    []
+  );
 
   const onCreateEditor = React.useCallback((view: EditorView) => {
     editorRef.current = view;
@@ -370,16 +434,38 @@ export default function TemplateEditorPage() {
 
       <div
         className={cn(
-          "grid min-h-0 flex-1 grid-cols-1",
-          variablesOpen
-            ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_240px]"
-            : "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)]"
+          "min-h-0 flex-1",
+          mode === "design"
+            ? "grid grid-cols-1"
+            : cn(
+                "grid grid-cols-1",
+                variablesOpen
+                  ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_240px]"
+                  : "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)]"
+              )
         )}
       >
+        {mode === "design" ? (
+          <EmailBuilder
+            blocks={designBlocks}
+            settings={designSettings}
+            onChange={handleDesignChange}
+            device={previewDevice}
+            onDeviceChange={setPreviewDevice}
+            variables={builderVariables}
+            mode={mode}
+            onModeChange={handleModeChange}
+            emptyHint="Start with a banner image or a hero section, then add text and a button."
+          />
+        ) : (
+          <>
         <div className="flex min-w-0 flex-col border-r">
           <div className="bg-muted/40 flex items-center gap-3 border-b px-3 py-2">
-            <Tabs value={mode} onValueChange={(v) => setMode(v as "code" | "html")}>
+            <Tabs value={mode} onValueChange={(v) => handleModeChange(v as "design" | "code" | "html")}>
               <TabsList className="h-8">
+                <TabsTrigger value="design" className="gap-1.5">
+                  <LayoutGrid className="size-3.5" /> Design
+                </TabsTrigger>
                 <TabsTrigger value="code" className="gap-1.5">
                   <Code2 className="size-3.5" /> MJML
                 </TabsTrigger>
@@ -649,6 +735,8 @@ export default function TemplateEditorPage() {
             </>
           )}
         </aside>
+          </>
+        )}
       </div>
 
       <Dialog open={testOpen} onOpenChange={setTestOpen}>
