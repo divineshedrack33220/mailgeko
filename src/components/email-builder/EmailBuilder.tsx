@@ -687,7 +687,7 @@ export function EmailBuilder({
           </div>
         </ScrollArea>
 
-        <aside className="bg-card flex w-full shrink-0 flex-col border-t lg:w-72 lg:border-t-0 lg:border-l">
+        <aside className="bg-card flex w-full min-h-0 shrink-0 flex-col border-t lg:w-72 lg:border-t-0 lg:border-l">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <span className="flex items-center gap-1.5 text-xs font-medium">
               {selected ? (
@@ -710,7 +710,7 @@ export function EmailBuilder({
               </Button>
             )}
           </div>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="flex flex-col gap-4 p-4">
               {selected ? (
                 <BlockSettings
