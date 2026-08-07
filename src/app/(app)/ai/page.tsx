@@ -11,13 +11,11 @@ import {
   Languages,
   Clock,
   ArrowRight,
-  TrendingUp,
   Users,
   Copy,
   Check,
   ThumbsUp,
   ThumbsDown,
-  Send,
   Loader2,
   Trash2,
   FileText,
@@ -51,7 +49,6 @@ interface Tool {
   icon: React.ComponentType<{ className?: string }>;
   color: string;
   bg: string;
-  usage: string;
 }
 
 const tools: Tool[] = [
@@ -62,7 +59,6 @@ const tools: Tool[] = [
     icon: PenLine,
     color: "text-primary",
     bg: "bg-primary/10",
-    usage: "1,284 runs",
   },
   {
     id: "copy",
@@ -71,7 +67,6 @@ const tools: Tool[] = [
     icon: Mail,
     color: "text-sky-500",
     bg: "bg-info/10",
-    usage: "942 runs",
   },
   {
     id: "spam",
@@ -80,7 +75,6 @@ const tools: Tool[] = [
     icon: ScanSearch,
     color: "text-amber-500",
     bg: "bg-warning/10",
-    usage: "611 runs",
   },
   {
     id: "translate",
@@ -89,7 +83,6 @@ const tools: Tool[] = [
     icon: Languages,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
-    usage: "388 runs",
   },
   {
     id: "segments",
@@ -98,7 +91,6 @@ const tools: Tool[] = [
     icon: Users,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
-    usage: "274 runs",
   },
   {
     id: "timing",
@@ -107,7 +99,6 @@ const tools: Tool[] = [
     icon: Clock,
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
-    usage: "198 runs",
   },
 ];
 
@@ -144,12 +135,6 @@ export default function AiStudioPage() {
   const [brandVoiceDraft, setBrandVoiceDraft] = React.useState("");
   const [brandVoiceOpen, setBrandVoiceOpen] = React.useState(false);
   const [voiceSaving, setVoiceSaving] = React.useState(false);
-
-  const [savedPrompts, setSavedPrompts] = React.useState([
-    { id: "p-1", title: "Brand voice", preview: "Write like a friendly expert — short sentences, no hype.", icon: Wand2 },
-    { id: "p-2", title: "Monthly digest", preview: "Turn changelog bullet points into a story-driven digest.", icon: Mail },
-    { id: "p-3", title: "Product launch", preview: "Tease, announce, and follow up across 3 emails.", icon: TrendingUp },
-  ]);
 
   const loadHistory = React.useCallback(async () => {
     try {
@@ -407,20 +392,6 @@ export default function AiStudioPage() {
                   ))}
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Try on a live campaign</CardTitle>
-                  <CardDescription>Pick any draft to optimize</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  {["July Product Digest", "Fall Flash Sale — Draft"].map((c) => (
-                    <Button key={c} variant="outline" size="sm" className="justify-between">
-                      {c} <ArrowRight className="size-3.5" />
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
             </div>
           </div>
         </TabsContent>
@@ -479,59 +450,6 @@ export default function AiStudioPage() {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Saved prompts</CardTitle>
-            <CardDescription>Reusable instructions for consistent output</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {savedPrompts.map((prompt) => (
-              <div key={prompt.id} className="hover:bg-muted/40 flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors">
-                <span className="bg-secondary text-secondary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  <prompt.icon className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{prompt.title}</p>
-                  <p className="text-muted-foreground line-clamp-1 text-xs">{prompt.preview}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSubjectInput(prompt.preview);
-                    toast.success(`Prompt "${prompt.title}" loaded`);
-                  }}
-                >
-                  Use
-                </Button>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => {
-                if (!subjectInput.trim()) {
-                  toast.error("Write a prompt first, then save it");
-                  return;
-                }
-                setSavedPrompts((prev) => [
-                  {
-                    id: `p-${Date.now()}`,
-                    title: subjectInput.trim().slice(0, 28),
-                    preview: subjectInput.trim(),
-                    icon: Wand2,
-                  },
-                  ...prev,
-                ]);
-                toast.success("Prompt saved to your library");
-              }}
-            >
-              <Send /> Save new prompt
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -709,6 +627,19 @@ function CopywriterTool({
     toast.success("Draft saved — open a campaign to apply it");
   };
 
+  const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+
+  const lengthDelta = React.useMemo(() => {
+    if (!output) return null;
+    const body = output.replace(/^Subject:.*\n?/, "").trim();
+    const before = wordCount(input);
+    const after = wordCount(body);
+    if (!before) return null;
+    const pct = Math.round(((after - before) / before) * 100);
+    if (pct === 0) return "similar length";
+    return `${pct > 0 ? "+" : ""}${pct}% words`;
+  }, [input, output]);
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
@@ -748,7 +679,8 @@ function CopywriterTool({
               </pre>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-xs">
-                  {brandVoice ? "Voice: your brand voice" : "Voice: friendly"} · Length: −22% · Flesch score: 68
+                  {brandVoice ? "Voice: your brand voice" : "Voice: friendly"}
+                  {lengthDelta ? ` · Length: ${lengthDelta}` : ""}
                 </span>
                 <Button size="sm" onClick={applyToCampaign}>
                   <Mail /> Apply to campaign
