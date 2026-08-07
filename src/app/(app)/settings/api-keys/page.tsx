@@ -27,6 +27,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -64,6 +74,7 @@ export default function ApiKeysSettingsPage() {
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
   const [revoking, setRevoking] = React.useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = React.useState<{ id: string; name: string } | null>(null);
   const [keyName, setKeyName] = React.useState("");
   const [scopes, setScopes] = React.useState<string[]>(["campaigns:write", "contacts:write"]);
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -295,7 +306,7 @@ export default function ApiKeysSettingsPage() {
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive cursor-pointer"
                         disabled={revoking === key.id}
-                        onClick={() => revokeKey(key.id, key.name)}
+                        onClick={() => setRevokeTarget({ id: key.id, name: key.name })}
                       >
                         <Trash2 /> Revoke key
                       </DropdownMenuItem>
@@ -357,6 +368,33 @@ export default function ApiKeysSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={!!revokeTarget}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke this API key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any integration using{" "}
+              <span className="font-medium">{revokeTarget?.name}</span> will immediately
+              lose access. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={revoking !== null}
+              onClick={() => revokeTarget && revokeKey(revokeTarget.id, revokeTarget.name)}
+            >
+              {revoking !== null && <Loader2 className="animate-spin" />}
+              Revoke key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
