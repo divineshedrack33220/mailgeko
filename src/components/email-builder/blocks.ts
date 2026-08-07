@@ -238,6 +238,23 @@ const attr = (k: string, v?: string) =>
 
 const textContent = (content: string) => esc(content).replace(/\n/g, "<br/>");
 
+// mjml v5 only accepts px units for mj-image/mj-button width. Convert
+// percentages against the email content width and normalize bare numbers
+// to px so "50%", "240", or "240px" all compile cleanly.
+const widthToPx = (contentWidth: string, w: string): string => {
+  const t = (w ?? "").trim();
+  if (!t || t === "100%") return t;
+  if (t.endsWith("%")) {
+    const pct = parseFloat(t);
+    if (Number.isNaN(pct)) return "";
+    const base = parseInt(contentWidth, 10) || 600;
+    return `${Math.round((pct / 100) * base)}px`;
+  }
+  if (/^\d+(\.\d+)?$/.test(t)) return `${t}px`;
+  if (/^\d+(\.\d+)?px$/.test(t)) return t;
+  return "";
+};
+
 const renderBlock = (b: Block, settings: DesignSettings): string => {
   switch (b.type) {
     case "hero": {
@@ -279,10 +296,11 @@ const renderBlock = (b: Block, settings: DesignSettings): string => {
     }
     case "image": {
       const p = b.props as ImageProps;
+      const w = widthToPx(settings.contentWidth, p.width);
       return [
         `<mj-section background-color="${esc(settings.contentBgColor)}" padding="0">`,
         `  <mj-column>`,
-        `    <mj-image src="${esc(p.src)}" alt="${esc(p.alt)}"${p.width && p.width.trim() !== "100%" ? ` width="${esc(p.width)}"` : ""} align="${p.align}" border-radius="${esc(p.borderRadius)}" padding="${esc(p.padding)}"${attr("href", p.href)} />`,
+        `    <mj-image src="${esc(p.src)}" alt="${esc(p.alt)}"${w && w !== "100%" ? ` width="${esc(w)}"` : ""} align="${p.align}" border-radius="${esc(p.borderRadius)}" padding="${esc(p.padding)}"${attr("href", p.href)} />`,
         `  </mj-column>`,
         `</mj-section>`,
       ].join("\n");
@@ -299,10 +317,11 @@ const renderBlock = (b: Block, settings: DesignSettings): string => {
     }
     case "button": {
       const p = b.props as ButtonProps;
+      const w = widthToPx(settings.contentWidth, p.width);
       return [
         `<mj-section background-color="${esc(settings.contentBgColor)}" padding="0">`,
         `  <mj-column>`,
-        `    <mj-button${attr("href", p.href)} background-color="${esc(p.backgroundColor)}" color="${esc(p.color)}" border-radius="${esc(p.borderRadius)}" align="${p.align}" width="${esc(p.width)}" padding="${esc(p.padding)}">${esc(p.text)}</mj-button>`,
+        `    <mj-button${attr("href", p.href)} background-color="${esc(p.backgroundColor)}" color="${esc(p.color)}" border-radius="${esc(p.borderRadius)}" align="${p.align}"${w ? ` width="${esc(w)}"` : ""} padding="${esc(p.padding)}">${esc(p.text)}</mj-button>`,
         `  </mj-column>`,
         `</mj-section>`,
       ].join("\n");
