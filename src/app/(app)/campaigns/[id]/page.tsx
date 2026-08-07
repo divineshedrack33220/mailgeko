@@ -482,7 +482,7 @@ export default function CampaignDetailPage() {
                 <div>
                   <p className="text-sm font-semibold">{campaign.subject}</p>
                   <p className="text-muted-foreground text-xs">
-                    From {campaign.sender?.fromName ?? "Mailgeko"} &lt;{campaign.sender?.fromEmail ?? "onboarding@resend.dev"}&gt;
+                    From {campaign.sender?.fromName ?? "Mailgeko"} &lt;{campaign.sender?.fromEmail ?? "mailgeko@clawmark.online"}&gt;
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -511,7 +511,7 @@ export default function CampaignDetailPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label className="text-xs">From email</Label>
-                  <Input readOnly value={campaign.sender?.fromEmail ?? "onboarding@resend.dev"} />
+                  <Input readOnly value={campaign.sender?.fromEmail ?? "mailgeko@clawmark.online"} />
                 </div>
               </div>
               <Separator />
@@ -634,7 +634,7 @@ export default function CampaignDetailPage() {
             <DialogTitle>{campaign.subject}</DialogTitle>
             <DialogDescription>
               From {campaign.sender?.fromName ?? "Mailgeko"} &lt;
-              {campaign.sender?.fromEmail ?? "onboarding@resend.dev"}&gt;
+              {campaign.sender?.fromEmail ?? "mailgeko@clawmark.online"}&gt;
             </DialogDescription>
           </DialogHeader>
           {campaign.htmlContent ? (

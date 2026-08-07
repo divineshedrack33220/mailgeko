@@ -64,7 +64,7 @@ export default function NewCampaignPage() {
   const [subject, setSubject] = React.useState("");
   const [previewText, setPreviewText] = React.useState("");
   const [fromName, setFromName] = React.useState("Mailgeko");
-  const [fromEmail, setFromEmail] = React.useState("onboarding@resend.dev");
+  const [fromEmail, setFromEmail] = React.useState("mailgeko@clawmark.online");
   const [replyTo, setReplyTo] = React.useState("");
 
   const [scheduleMode, setScheduleMode] = React.useState<"now" | "later" | "recurring">("now");
@@ -621,7 +621,7 @@ function ContentStep({
               type="email"
               value={replyTo}
               onChange={(e) => onReplyToChange(e.target.value)}
-              placeholder="onboarding@resend.dev"
+              placeholder="mailgeko@clawmark.online"
             />
           </div>
         </div>
