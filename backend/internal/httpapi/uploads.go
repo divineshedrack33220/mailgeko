@@ -29,6 +29,9 @@ func (s *Server) handleUploadLogo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "not_configured", "image uploads are not configured")
 		return
 	}
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	claims := claimsFrom(r)
 	url, err := s.uploadImage(r, "logos")
 	if err != nil {

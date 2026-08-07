@@ -30,13 +30,18 @@ func (s *Server) verifyTrackSignature(r *http.Request, kind string, parts ...str
 }
 
 // clientIP extracts the caller address from proxy headers first (X-Forwarded-For
-// is trusted here because tracking pixels are public by design).
+// is trusted here because tracking pixels are public by design) and strips the
+// ephemeral source port from RemoteAddr so rate limits key on the client
+// rather than each connection.
 func clientIP(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 		first := strings.TrimSpace(strings.Split(fwd, ",")[0])
 		if first != "" {
 			return first
 		}
+	}
+	if real := strings.TrimSpace(r.Header.Get("X-Real-IP")); real != "" {
+		return real
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

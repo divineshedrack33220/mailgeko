@@ -138,6 +138,9 @@ func (s *Server) handleGetBrandVoice(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateBrandVoice(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	var req struct {
 		BrandVoice string `json:"brandVoice"`
 	}

@@ -53,8 +53,7 @@ func (rl *RateLimiter) Middleware(handler http.Handler) http.Handler {
 			handler.ServeHTTP(w, r)
 			return
 		}
-		ip := r.RemoteAddr
-		key := ip + ":" + r.URL.Path
+		key := clientIP(r) + ":" + r.URL.Path
 		ok, _ := rl.Allow(r.Context(), key)
 		if !ok {
 			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests")

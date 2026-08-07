@@ -59,11 +59,12 @@ func TestAPIKeyAllowed(t *testing.T) {
 		{"matching read scope on analytics", "GET", "/api/v1/analytics/overview", []string{"analytics:read"}, true},
 		{"wrong write scope denied", "DELETE", "/api/v1/contacts/123", []string{"campaigns:write"}, false},
 		{"read key denied on write route", "POST", "/api/v1/templates", []string{"analytics:read"}, false},
-		{"neutral route allowed", "GET", "/api/v1/workspace", []string{"campaigns:write"}, true},
+		{"workspace settings blocked", "GET", "/api/v1/workspace", []string{"campaigns:write"}, false},
+		{"workspace brand-voice blocked", "PUT", "/api/v1/workspace/brand-voice", []string{"campaigns:write"}, false},
+		{"ai blocked for keys", "POST", "/api/v1/ai/subject", []string{"campaigns:write"}, false},
 		{"blocked account route", "GET", "/api/v1/me", []string{"campaigns:write"}, false},
 		{"blocked billing route", "GET", "/api/v1/billing", nil, false},
 		{"blocked api-keys route", "DELETE", "/api/v1/api-keys/123", nil, false},
-		{"unrelated scope still allows neutral route", "GET", "/api/v1/workspace", []string{"events:read"}, true},
 	}
 
 	for _, tt := range tests {

@@ -25,6 +25,9 @@ func (s *Server) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	var req struct {
 		Name      string `json:"name"`
 		FromName  string `json:"fromName"`
@@ -50,15 +53,23 @@ func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
 		return
 	}
+	ws.FromName = strings.TrimSpace(req.FromName)
+	ws.FromEmail = strings.TrimSpace(req.FromEmail)
+	ws.ReplyTo = strings.TrimSpace(req.ReplyTo)
+	if ws.FromEmail != "" && !strings.Contains(ws.FromEmail, "@") {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "a valid sender email is required")
+		return
+	}
+	if ws.ReplyTo != "" && !strings.Contains(ws.ReplyTo, "@") {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "a valid reply-to email is required")
+		return
+	}
 	if err := s.db.UpdateWorkspaceName(r.Context(), claims.GetWorkspaceID(), req.Name); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update workspace")
 		return
 	}
 	ws.Name = req.Name
 
-	ws.FromName = strings.TrimSpace(req.FromName)
-	ws.FromEmail = strings.TrimSpace(req.FromEmail)
-	ws.ReplyTo = strings.TrimSpace(req.ReplyTo)
 	if err := s.db.UpdateWorkspaceSending(r.Context(), claims.GetWorkspaceID(), ws.FromName, ws.FromEmail, ws.ReplyTo); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update sending defaults")
 		return

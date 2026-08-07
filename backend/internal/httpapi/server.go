@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"strings"
@@ -368,4 +369,31 @@ func claimsFrom(r *http.Request) ClaimsReader {
 		return c
 	}
 	return nil
+}
+
+// requireMemberRole rejects the request unless the caller's current role in
+// this workspace is one of allowed. The role is read fresh from the database
+// so role changes and removals take effect immediately.
+func (s *Server) requireMemberRole(w http.ResponseWriter, r *http.Request, allowed ...string) bool {
+	claims := claimsFrom(r)
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return false
+	}
+	role, err := s.db.WorkspaceMemberByUserID(r.Context(), claims.GetWorkspaceID(), claims.GetUserID())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusForbidden, "forbidden", "you are not a member of this workspace")
+		} else {
+			writeError(w, http.StatusInternalServerError, "internal", "could not verify permissions")
+		}
+		return false
+	}
+	for _, a := range allowed {
+		if role == a {
+			return true
+		}
+	}
+	writeError(w, http.StatusForbidden, "forbidden", "you do not have permission to do that")
+	return false
 }

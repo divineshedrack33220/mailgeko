@@ -79,6 +79,9 @@ func (s *Server) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Reque
 
 func (s *Server) handleInviteWorkspaceMember(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	var req struct {
 		Email string `json:"email"`
 		Role  string `json:"role"`
@@ -127,6 +130,9 @@ func (s *Server) handleInviteWorkspaceMember(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleUpdateWorkspaceMember(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	id := r.PathValue("id")
 	var req struct {
 		Role string `json:"role"`
@@ -166,6 +172,9 @@ func (s *Server) handleUpdateWorkspaceMember(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	id := r.PathValue("id")
 
 	if id == claims.GetUserID() {
@@ -198,6 +207,9 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleResendInvitation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	inv, err := s.db.InvitationByID(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -212,6 +224,9 @@ func (s *Server) handleResendInvitation(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleSendMemberReminder(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	id := r.PathValue("id")
 	if id == claims.GetUserID() {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "you cannot send a reminder to yourself")
@@ -299,6 +314,9 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	var req struct {
 		Name   string   `json:"name"`
 		Scopes []string `json:"scopes"`
@@ -352,6 +370,9 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	if err := s.db.DeleteAPIKey(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not revoke API key")
 		return

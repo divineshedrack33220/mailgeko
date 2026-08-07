@@ -30,14 +30,16 @@ var apiKeyScopeRoutes = []struct {
 }
 
 // apiKeyBlockedPrefixes are user-account endpoints that API keys must never
-// reach (they operate on a session user, which an API key does not have).
+// reach (they operate on a session user or alter workspace identity/settings,
+// which an API key does not have).
 var apiKeyBlockedPrefixes = []string{
 	"/api/v1/auth/",
 	"/api/v1/me",
 	"/api/v1/api-keys",
 	"/api/v1/notifications",
 	"/api/v1/billing",
-	"/api/v1/workspace/members",
+	"/api/v1/workspace",
+	"/api/v1/ai/",
 }
 
 // apiKeyFromRequest extracts an API key from either the X-API-Key header or an
