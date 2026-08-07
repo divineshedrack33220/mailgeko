@@ -40,6 +40,13 @@ type Config struct {
 	DefaultFromName  string
 	DefaultFromEmail string
 
+	// AllowedFromDomains is the comma-separated list of sender domains that
+	// are verified with the email provider. Outgoing mail falls back to the
+	// default sender when a configured campaign/workspace sender uses any
+	// other domain (e.g. a user's personal @gmail.com), which the provider
+	// would otherwise reject.
+	AllowedFromDomains []string
+
 	// Embeddings / vector search.
 	OpenAIKey     string
 	EmbedModel    string
@@ -82,6 +89,7 @@ func Load() (*Config, error) {
 		TrackingSecret:      getEnv("TRACKING_SECRET", getEnv("JWT_SECRET", "")),
 		DefaultFromName:     getEnv("DEFAULT_FROM_NAME", "Mailgeko"),
 		DefaultFromEmail:    getEnv("DEFAULT_FROM_EMAIL", "mailgeko@clawmark.online"),
+		AllowedFromDomains:  splitCSV(getEnv("ALLOWED_FROM_DOMAINS", "clawmark.online")),
 		ResendAPIKeys:       splitCSV(os.Getenv("RESEND_API_KEYS")),
 		ResendEndpoint:      getEnv("RESEND_API_ENDPOINT", "https://api.resend.com/emails"),
 		ResendWebhookSecret: getEnv("RESEND_WEBHOOK_SECRET", ""),

@@ -126,3 +126,22 @@ func TestSegmentCustomField(t *testing.T) {
 		t.Error("expected custom field match")
 	}
 }
+
+func TestResolveFromFallsBackOnUnverifiedDomain(t *testing.T) {
+	e := New(nil, nil, nil, "").
+		WithDefaultSender("Mailgeko", "mailgeko@clawmark.online").
+		WithAllowedFromDomains("clawmark.online")
+
+	if got := e.resolveFrom("Grace Lee", "divineshedrack1@gmail.com"); got != "Mailgeko <mailgeko@clawmark.online>" {
+		t.Fatalf("gmail sender should fall back to default, got %q", got)
+	}
+	if got := e.resolveFrom("Grace Lee", ""); got != "Mailgeko <mailgeko@clawmark.online>" {
+		t.Fatalf("empty sender should fall back to default, got %q", got)
+	}
+	if got := e.resolveFrom("Mailgeko", "mailgeko@clawmark.online"); got != "Mailgeko <mailgeko@clawmark.online>" {
+		t.Fatalf("verified sender should be used, got %q", got)
+	}
+	if got := e.resolveFrom("Mailgeko", "noatsign"); got != "Mailgeko <mailgeko@clawmark.online>" {
+		t.Fatalf("malformed sender should fall back to default, got %q", got)
+	}
+}

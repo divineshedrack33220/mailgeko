@@ -39,6 +39,7 @@ func main() {
 	eng := engine.New(store.New(tiDB), sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueClient, cfg.BaseURL)
 	eng.WithTrackingSecret(cfg.TrackingSecret)
 	eng.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
+	eng.WithAllowedFromDomains(cfg.AllowedFromDomains...)
 
 	var eventLog *analytics.Store
 	if cfg.PostgresDSN != "" {

@@ -61,6 +61,7 @@ func main() {
 	engine_ := engine.New(db, sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueAdapter, cfg.BaseURL)
 	engine_.WithTrackingSecret(cfg.TrackingSecret)
 	engine_.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
+	engine_.WithAllowedFromDomains(cfg.AllowedFromDomains...)
 
 	var analyticsStore httpapi.AnalyticsStore
 	var searcher httpapi.ContactSearcher

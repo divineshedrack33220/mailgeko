@@ -30,15 +30,16 @@ type EventInput struct {
 }
 
 type Engine struct {
-	store           *store.Store
-	sender          *sender.Client
-	queue           Queue
-	baseURL         string
-	trackingSecret  string
-	defaultFromName string
-	defaultFromMail string
-	embeds          *vector.Store
-	embedder        embed.Embedder
+	store              *store.Store
+	sender             *sender.Client
+	queue              Queue
+	baseURL            string
+	trackingSecret     string
+	defaultFromName    string
+	defaultFromMail    string
+	allowedFromDomains []string
+	embeds             *vector.Store
+	embedder           embed.Embedder
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {
@@ -71,6 +72,45 @@ func (e *Engine) defaultFrom(name string) string {
 		from = e.defaultFromName + " <" + from + ">"
 	}
 	return from
+}
+
+// WithAllowedFromDomains sets the sender domains verified with the email
+// provider. A configured campaign/workspace sender whose domain is not in
+// this list (e.g. a personal @gmail.com) is silently replaced by the default
+// sender instead of being rejected by the provider with a 403.
+func (e *Engine) WithAllowedFromDomains(domains ...string) *Engine {
+	e.allowedFromDomains = domains
+	return e
+}
+
+func (e *Engine) domainAllowed(email string) bool {
+	if email == "" {
+		return false
+	}
+	at := strings.LastIndex(email, "@")
+	if at < 0 || at == len(email)-1 {
+		return false
+	}
+	domain := strings.ToLower(email[at+1:])
+	for _, d := range e.allowedFromDomains {
+		if domain == strings.ToLower(d) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveFrom returns a sendable From address. It uses the configured
+// campaign/workspace sender only when its domain is allowed; otherwise it
+// falls back to the default verified sender.
+func (e *Engine) resolveFrom(name, email string) string {
+	if e.domainAllowed(email) {
+		if name != "" {
+			return name + " <" + email + ">"
+		}
+		return email
+	}
+	return e.defaultFrom("")
 }
 
 // WithEmbedding enables pgvector contact search. Both the vector store and the
@@ -209,10 +249,7 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		SigningKey:       e.trackingSecret,
 	})
 
-	from := campaign.FromEmail
-	if from == "" {
-		from = e.defaultFrom(campaign.FromName)
-	}
+	from := e.resolveFrom(campaign.FromName, campaign.FromEmail)
 
 	headers := map[string]string{
 		"X-Mailgeko-Campaign":  campaign.ID,
@@ -394,10 +431,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		SigningKey:       e.trackingSecret,
 	})
 
-	from := c.FromEmail
-	if from == "" {
-		from = e.defaultFrom(c.FromName)
-	}
+	from := e.resolveFrom(c.FromName, c.FromEmail)
 
 	headers := map[string]string{}
 	if u := UnsubscribeURL(RenderOptions{
@@ -433,10 +467,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 	vars := contactVariables(contact)
 	htmlBody := textToHTML(Substitute(body, vars))
 
-	from := ws.FromEmail
-	if from == "" {
-		from = e.defaultFrom(ws.FromName)
-	}
+	from := e.resolveFrom(ws.FromName, ws.FromEmail)
 
 	return e.sender.Send(ctx, sender.Message{
 		From:    from,
@@ -459,10 +490,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 // SendMemberEmail sends a short transactional email (invite reminder or
 // check-in) to a member of the workspace, from the workspace sender defaults.
 func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, body string) (*sender.SendResult, error) {
-	from := ws.FromEmail
-	if from == "" {
-		from = e.defaultFrom(ws.FromName)
-	}
+	from := e.resolveFrom(ws.FromName, ws.FromEmail)
 	return e.sender.Send(ctx, sender.Message{
 		From:    from,
 		To:      to,
