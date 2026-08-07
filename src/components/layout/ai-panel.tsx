@@ -129,9 +129,8 @@ export function AiPanel() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent className="w-full p-0 sm:max-w-md">
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-md">
         <SheetTitle className="sr-only">AI Studio</SheetTitle>
-        <div className="flex h-full flex-col">
         <div className="bg-card flex h-16 shrink-0 items-center gap-3 border-b px-5">
           <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-xl">
             <Sparkles className="size-5" />
@@ -141,9 +140,8 @@ export function AiPanel() {
             <span className="text-muted-foreground text-xs">Your email marketing copilot</span>
           </div>
         </div>
-        </div>
 
-        <ScrollArea className="flex-1 px-5 py-4" ref={scrollRef}>
+        <ScrollArea className="min-h-0 flex-1 px-5 py-4" ref={scrollRef}>
           <div className="space-y-5">
             {messages.map((m) => (
               <div
@@ -211,7 +209,7 @@ export function AiPanel() {
           </div>
         </ScrollArea>
 
-        <div className="border-t p-4">
+        <div className="shrink-0 border-t p-4">
           <div className="bg-muted/60 focus-within:ring-ring flex items-end gap-2 rounded-xl border p-2 transition-shadow focus-within:ring-2">
             <Textarea
               value={input}

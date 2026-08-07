@@ -8,8 +8,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { useUiStore } from "@/stores/ui-store";
 
 export function SupportFab() {
+  const aiOpen = useUiStore((s) => s.aiOpen);
+  if (aiOpen) return null;
+
   return (
     <div className="fixed right-5 bottom-5 z-50">
       <Popover>
