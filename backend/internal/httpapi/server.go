@@ -69,7 +69,9 @@ type Config struct {
 
 type TokenIssuer interface {
 	Issue(userID, email, workspaceID, role string) (string, error)
+	IssueWithTTL(userID, email, workspaceID, role string, ttl time.Duration) (string, error)
 	IssuePendingTwoFactor(userID, email string) (string, error)
+	IssuePendingTwoFactorWithTTL(userID, email string, ttl time.Duration) (string, error)
 	IssueEmailVerification(userID, email string) (string, error)
 	IssuePasswordReset(userID, email string) (string, error)
 	Parse(tokenString string) (*auth.Claims, error)

@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/stores/auth-store";
 import { FitZoom } from "@/components/auth/fit-zoom";
 import { useShake } from "@/hooks/use-shake";
-import { cn } from "@/lib/utils";
+import { cn, safeNextPath } from "@/lib/utils";
 import { oauthUrl } from "@/lib/api";
 
 export default function LoginPage() {
@@ -22,8 +22,19 @@ export default function LoginPage() {
   const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(true);
   const [pendingToken, setPendingToken] = React.useState<string | null>(null);
   const shake = useShake();
+
+  // Return the validated "next" target so the user lands back on the page
+  // they originally tried to visit (falling back to the dashboard).
+  const destination = React.useCallback(() => {
+    const next =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("next")
+        : null;
+    return safeNextPath(next) ?? "/dashboard";
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,13 +48,13 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const pending = await login(email, password);
+      const pending = await login(email, password, rememberMe);
       if (pending) {
         setPendingToken(pending);
         return;
       }
       toast.success("Welcome back");
-      router.push("/dashboard");
+      router.push(destination());
     } catch (err) {
       shake.trigger();
       toast.error(err instanceof Error ? err.message : "Could not sign in");
@@ -65,7 +76,7 @@ export default function LoginPage() {
     try {
       await verifyTwoFactor(pendingToken, code);
       toast.success("Verified — welcome back");
-      router.push("/dashboard");
+      router.push(destination());
     } catch (err) {
       shake.trigger();
       toast.error(err instanceof Error ? err.message : "That code didn't work");
@@ -180,7 +191,7 @@ export default function LoginPage() {
           </div>
           <div className="flex items-center justify-between">
             <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox defaultChecked />
+              <Checkbox checked={rememberMe} onCheckedChange={(v) => setRememberMe(v === true)} />
               Remember me
             </label>
           </div>

@@ -88,5 +88,5 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		log.Printf("httpapi: verification email to %s failed: %v", user.Email, err)
 	}
 
-	s.issueSessionToken(r.Context(), w, user, workspace.ID, r, http.StatusCreated)
+	s.issueSessionToken(r.Context(), w, user, workspace.ID, r, s.cfg.TokenTTL, http.StatusCreated)
 }

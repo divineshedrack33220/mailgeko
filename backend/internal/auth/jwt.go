@@ -18,6 +18,10 @@ type Claims struct {
 	Scopes      []string `json:"scopes,omitempty"`
 	Pending     bool     `json:"pending,omitempty"`
 	Purpose     string   `json:"purpose,omitempty"`
+	// SessionTTL is the lifetime in seconds for the session token a pending
+	// 2FA token will be exchanged for. It lets the "remember me" choice made
+	// at login survive the second-factor step.
+	SessionTTL int64 `json:"ttl,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -58,6 +62,11 @@ func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
 }
 
 func (m *TokenManager) Issue(userID, email, workspaceID, role string) (string, error) {
+	return m.IssueWithTTL(userID, email, workspaceID, role, m.ttl)
+}
+
+// IssueWithTTL issues a session token that expires after ttl.
+func (m *TokenManager) IssueWithTTL(userID, email, workspaceID, role string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:      userID,
@@ -69,7 +78,7 @@ func (m *TokenManager) Issue(userID, email, workspaceID, role string) (string, e
 			Issuer:    m.issuer,
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			ID:        uuid.NewString(),
 		},
 	}
@@ -97,11 +106,18 @@ func (m *TokenManager) Parse(tokenString string) (*Claims, error) {
 // completing the second-factor step of a login. It carries no workspace or
 // role and is rejected by withAuth.
 func (m *TokenManager) IssuePendingTwoFactor(userID, email string) (string, error) {
+	return m.IssuePendingTwoFactorWithTTL(userID, email, 0)
+}
+
+// IssuePendingTwoFactorWithTTL behaves like IssuePendingTwoFactor but records
+// the requested session lifetime so the remember-me choice survives the step.
+func (m *TokenManager) IssuePendingTwoFactorWithTTL(userID, email string, sessionTTL time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID:  userID,
-		Email:   email,
-		Pending: true,
+		UserID:     userID,
+		Email:      email,
+		Pending:    true,
+		SessionTTL: int64(sessionTTL.Seconds()),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			Issuer:    m.issuer,

@@ -24,7 +24,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (ready && !isAuthenticated) {
-      router.replace("/login");
+      const current = window.location.pathname + window.location.search;
+      const next = current && current !== "/" ? `?next=${encodeURIComponent(current)}` : "";
+      router.replace(`/login${next}`);
     }
   }, [ready, isAuthenticated, router]);
 

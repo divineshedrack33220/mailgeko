@@ -25,7 +25,7 @@ interface AuthState {
   workspaceID: string | null;
   isAuthenticated: boolean;
   boot: () => Promise<void>;
-  login: (email: string, password: string) => Promise<string | null>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<string | null>;
   verifyTwoFactor: (pendingToken: string, code: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -62,11 +62,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  login: async (email, password) => {
+  login: async (email, password, rememberMe = true) => {
     const res = await api.post<
       | (AuthResponse & { requiresTwoFactor?: never })
       | { requiresTwoFactor: true; pendingToken: string }
-    >("/api/v1/auth/login", { email, password });
+    >("/api/v1/auth/login", { email, password, rememberMe });
     if ("requiresTwoFactor" in res && res.requiresTwoFactor) {
       return res.pendingToken;
     }

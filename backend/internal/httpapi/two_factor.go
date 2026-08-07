@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/boombuler/barcode/qr"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
@@ -226,18 +227,22 @@ func (s *Server) handleVerifyTwoFactor(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not sign in")
 		return
 	}
-	s.issueSessionToken(r.Context(), w, user, workspaceID, r, http.StatusOK)
+	ttl := s.cfg.TokenTTL
+	if claims.SessionTTL > 0 {
+		ttl = time.Duration(claims.SessionTTL) * time.Second
+	}
+	s.issueSessionToken(r.Context(), w, user, workspaceID, r, ttl, http.StatusOK)
 }
 
 // issueSessionToken issues a real session token, records it in the session
 // store, and writes the standard auth response.
-func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, user *store.User, workspaceID string, r *http.Request, status int) bool {
-	token, err := s.tokens.Issue(user.ID, user.Email, workspaceID, user.Role)
+func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, user *store.User, workspaceID string, r *http.Request, ttl time.Duration, status int) bool {
+	token, err := s.tokens.IssueWithTTL(user.ID, user.Email, workspaceID, user.Role, ttl)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create session")
 		return false
 	}
-	s.recordSession(r.Context(), token, r)
+	s.recordSession(r.Context(), token, r, ttl)
 	writeJSON(w, status, map[string]any{
 		"token":       token,
 		"user":        userResponse(user),
@@ -247,7 +252,7 @@ func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, u
 }
 
 // recordSession stores the issued token as an active session record.
-func (s *Server) recordSession(ctx context.Context, token string, r *http.Request) {
+func (s *Server) recordSession(ctx context.Context, token string, r *http.Request, ttl time.Duration) {
 	if s.session == nil {
 		return
 	}
@@ -259,7 +264,7 @@ func (s *Server) recordSession(ctx context.Context, token string, r *http.Reques
 	if err != nil {
 		ip = r.RemoteAddr
 	}
-	_ = s.session.Create(ctx, claims.GetUserID(), claims.GetTokenID(), deviceFromUserAgent(r.UserAgent()), ip, ip, s.cfg.TokenTTL)
+	_ = s.session.Create(ctx, claims.GetUserID(), claims.GetTokenID(), deviceFromUserAgent(r.UserAgent()), ip, ip, ttl)
 }
 
 // qrPNGDataURL renders an otpauth URL as a base64 data URL PNG.

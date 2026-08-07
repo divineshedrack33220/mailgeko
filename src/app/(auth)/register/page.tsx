@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/stores/auth-store";
 import { FitZoom } from "@/components/auth/fit-zoom";
 import { useShake } from "@/hooks/use-shake";
-import { cn } from "@/lib/utils";
+import { cn, safeNextPath } from "@/lib/utils";
 import { oauthUrl } from "@/lib/api";
 
 export default function RegisterPage() {
@@ -22,6 +22,14 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [password, setPassword] = React.useState("");
   const shake = useShake();
+
+  const destination = () => {
+    const next =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("next")
+        : null;
+    return safeNextPath(next) ?? "/dashboard";
+  };
 
   const strength = React.useMemo(() => {
     let score = 0;
@@ -49,7 +57,7 @@ export default function RegisterPage() {
       toast.success(
         "Account created — check your inbox to verify your email"
       );
-      router.push("/dashboard");
+      router.push(destination());
     } catch (err) {
       shake.trigger();
       toast.error(err instanceof Error ? err.message : "Could not create account");

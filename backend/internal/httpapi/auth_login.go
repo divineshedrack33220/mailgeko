@@ -5,13 +5,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 )
 
+// rememberMeTTL is the session lifetime granted when the user opts in to
+// staying signed in on a trusted device.
+const rememberMeTTL = 30 * 24 * time.Hour
+
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// RememberMe requests a longer-lived session for trusted devices.
+	RememberMe bool `json:"rememberMe"`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +57,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.TOTPEnabled {
-		pending, err := s.tokens.IssuePendingTwoFactor(user.ID, user.Email)
+		ttl := s.cfg.TokenTTL
+		if req.RememberMe {
+			ttl = rememberMeTTL
+		}
+		pending, err := s.tokens.IssuePendingTwoFactorWithTTL(user.ID, user.Email, ttl)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", "could not start session")
 			return
@@ -62,5 +73,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.issueSessionToken(r.Context(), w, user, workspaceID, r, http.StatusOK)
+	ttl := s.cfg.TokenTTL
+	if req.RememberMe {
+		ttl = rememberMeTTL
+	}
+	s.issueSessionToken(r.Context(), w, user, workspaceID, r, ttl, http.StatusOK)
 }
