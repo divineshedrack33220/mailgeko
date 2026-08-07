@@ -1,6 +1,7 @@
 package cloudinary
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -37,24 +38,26 @@ func (c *Client) Upload(file multipart.File, filename string) (string, error) {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	signature := c.sign("folder=" + c.Folder + "&timestamp=" + timestamp)
 
-	body, writer := io.Pipe()
-	mw := multipart.NewWriter(writer)
-	go func() {
-		defer mw.Close()
-		defer writer.Close()
-		_ = mw.WriteField("api_key", c.APIKey)
-		_ = mw.WriteField("timestamp", timestamp)
-		_ = mw.WriteField("folder", c.Folder)
-		_ = mw.WriteField("signature", signature)
-		part, err := mw.CreateFormFile("file", filename)
-		if err != nil {
-			return
-		}
-		_, _ = io.Copy(part, file)
-	}()
+	// Build the whole multipart body in memory. Streamed (chunked) requests
+	// are rejected by Cloudinary as unsigned uploads, so the body must carry a
+	// Content-Length, which net/http only sets for bounded readers.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("api_key", c.APIKey)
+	_ = mw.WriteField("timestamp", timestamp)
+	_ = mw.WriteField("folder", c.Folder)
+	_ = mw.WriteField("signature", signature)
+	part, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", err
+	}
+	_ = mw.Close()
 
 	req, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/upload", c.CloudName), body)
+		fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/upload", c.CloudName), &buf)
 	if err != nil {
 		return "", err
 	}
