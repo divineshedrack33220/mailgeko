@@ -15,39 +15,67 @@ import (
 )
 
 type contactRequest struct {
-	Email        string            `json:"email"`
-	FirstName    string            `json:"firstName"`
-	LastName     string            `json:"lastName"`
-	Company      string            `json:"company"`
-	Position     string            `json:"position"`
-	Country      string            `json:"country"`
-	City         string            `json:"city"`
-	PhoneNumber  string            `json:"phoneNumber"`
+	Email        *string           `json:"email"`
+	FirstName    *string           `json:"firstName"`
+	LastName     *string           `json:"lastName"`
+	Company      *string           `json:"company"`
+	Position     *string           `json:"position"`
+	Country      *string           `json:"country"`
+	City         *string           `json:"city"`
+	PhoneNumber  *string           `json:"phoneNumber"`
 	CustomFields map[string]string `json:"customFields"`
 	Tags         []string          `json:"tags"`
-	Status       string            `json:"status"`
+	Status       *string           `json:"status"`
 	ListIDs      []string          `json:"listIds"`
 }
 
-func (r *contactRequest) toContact(wsID, id string) *store.Contact {
-	status := r.Status
-	if status == "" {
-		status = store.ContactActive
+// applyTo merges the request's present fields onto c. For PATCH semantics a
+// field that is present (even as "") overwrites c; a field that is absent
+// (nil) leaves c untouched.
+func (r *contactRequest) applyTo(c *store.Contact) {
+	if r.Email != nil {
+		c.Email = strings.ToLower(strings.TrimSpace(*r.Email))
 	}
+	if r.FirstName != nil {
+		c.FirstName = *r.FirstName
+	}
+	if r.LastName != nil {
+		c.LastName = *r.LastName
+	}
+	if r.Company != nil {
+		c.Company = *r.Company
+	}
+	if r.Position != nil {
+		c.Position = *r.Position
+	}
+	if r.Country != nil {
+		c.Country = *r.Country
+	}
+	if r.City != nil {
+		c.City = *r.City
+	}
+	if r.PhoneNumber != nil {
+		c.PhoneNumber = *r.PhoneNumber
+	}
+	if r.Status != nil {
+		c.Status = *r.Status
+	}
+	if r.CustomFields != nil {
+		c.CustomFields = r.CustomFields
+	}
+	if r.Tags != nil {
+		c.Tags = r.Tags
+	}
+}
+
+func (r *contactRequest) toContact(wsID, id string) *store.Contact {
 	c := &store.Contact{
-		ID:           id,
-		WorkspaceID:  wsID,
-		Email:        strings.ToLower(strings.TrimSpace(r.Email)),
-		FirstName:    r.FirstName,
-		LastName:     r.LastName,
-		Company:      r.Company,
-		Position:     r.Position,
-		Country:      r.Country,
-		City:         r.City,
-		PhoneNumber:  r.PhoneNumber,
-		CustomFields: r.CustomFields,
-		Tags:         r.Tags,
-		Status:       status,
+		ID:          id,
+		WorkspaceID: wsID,
+	}
+	r.applyTo(c)
+	if c.Status == "" {
+		c.Status = store.ContactActive
 	}
 	if c.Email == "" {
 		return nil
@@ -226,50 +254,19 @@ func (s *Server) handleUpdateContact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
-	updated := req.toContact(claims.GetWorkspaceID(), id)
-	if updated == nil {
+	updated := *existing
+	req.applyTo(&updated)
+	if strings.TrimSpace(updated.Email) == "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "email is required")
 		return
 	}
-	updated.ID = existing.ID
-	updated.CreatedAt = existing.CreatedAt
-	if updated.CustomFields == nil {
-		updated.CustomFields = existing.CustomFields
-	}
-	if updated.Tags == nil {
-		updated.Tags = existing.Tags
-	}
-	if req.Status == "" {
-		updated.Status = existing.Status
-	}
-	if updated.FirstName == "" {
-		updated.FirstName = existing.FirstName
-	}
-	if updated.LastName == "" {
-		updated.LastName = existing.LastName
-	}
-	if updated.Company == "" {
-		updated.Company = existing.Company
-	}
-	if updated.Position == "" {
-		updated.Position = existing.Position
-	}
-	if updated.Country == "" {
-		updated.Country = existing.Country
-	}
-	if updated.City == "" {
-		updated.City = existing.City
-	}
-	if updated.PhoneNumber == "" {
-		updated.PhoneNumber = existing.PhoneNumber
-	}
 
-	if err := s.db.UpdateContact(r.Context(), updated); err != nil {
+	if err := s.db.UpdateContact(r.Context(), &updated); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update contact")
 		return
 	}
 	s.maybeEnqueueEmbed(r, claims.GetWorkspaceID(), id)
-	writeOK(w, map[string]any{"contact": contactResponse(updated)})
+	writeOK(w, map[string]any{"contact": contactResponse(&updated)})
 }
 
 func (s *Server) handleDeleteContact(w http.ResponseWriter, r *http.Request) {
