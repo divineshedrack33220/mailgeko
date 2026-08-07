@@ -6,16 +6,16 @@ import {
   Wand2,
   Send,
   PenLine,
-  TrendingUp,
   Users,
   Target,
 } from "lucide-react";
 import { useUiStore } from "@/stores/ui-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -46,48 +46,39 @@ interface AiAction {
 const suggestedPrompts = [
   { id: "subject", label: "Write 5 subject lines", icon: PenLine },
   { id: "rewrite", label: "Improve this email", icon: Wand2 },
-  { id: "summary", label: "Summarize last campaign", icon: TrendingUp },
+  { id: "template", label: "Draft a template", icon: PenLine },
   { id: "audience", label: "Suggest segments", icon: Users },
   { id: "timing", label: "Best time to send?", icon: Target },
 ];
 
-const initialMessages: Message[] = [
-  {
-    id: "m-0",
-    role: "assistant",
-    content:
-      "Hi Grace 👋 I'm Geko, your AI marketing copilot. I can write subject lines, improve your copy, analyze campaign performance, and suggest audience segments. What would you like to work on?",
-    actions: suggestedPrompts.map((p) => ({
-      id: p.id,
-      label: p.label,
-      icon: p.icon,
-    })),
-    time: "now",
-  },
-];
-
-const cannedResponses: Record<string, string> = {
-  subject:
-    "Here are 5 subject lines for your July Product Digest:\n\n1. “7 features that ship in July — one is a game-changer”\n2. “Your July digest is here (and it's packed)”\n3. “Inside: the AI tool our customers asked for”\n4. “Don't open this email (unless you love wins) 🦎”\n5. “July recap: 7 ships, 1 surprise, 0 fluff”\n\nWant me to A/B test the top 2?",
-  rewrite:
-    "I reviewed your copy and made these improvements:\n\n• Shortened the opening from 42 to 18 words (busy inboxes)\n• Turned passive headlines into active ones\n• Added one clear CTA instead of three competing ones\n• Matched tone to “professional but approachable”\n\nHere's the revised version — want me to apply it to the campaign?",
-  summary:
-    "Here's your July Product Digest performance:\n\n• Delivered: 1,089 (98.8%)\n• Open rate: 43.8% (+6.2% vs. campaign avg)\n• Click rate: 18.2% (+3.1% vs. campaign avg)\n• Unsubscribes: 9 (0.8%) — healthy\n\n🏆 Best performer: the “What shipped” section.\n\nSuggestion: send to your “Opened but never clicked” segment next week.",
-  audience:
-    "Based on engagement patterns, I'd create these segments:\n\n1. “Hot leads” — opened 3+ emails, clicked in last 30 days (≈412 contacts)\n2. “Warm prospects” — visited pricing but never opened\n3. “At risk” — 60+ days inactive (≈214 contacts)\n4. “Power users” — clicked 5+ campaigns\n\nI can build these automatically — just say the word.",
-  timing:
-    "Based on your audience's behavior:\n\n• Best day: Tuesday–Thursday\n• Peak open window: 9:00–11:00 AM (local time)\n• Your engagement is 18% higher on Tue 10 AM\n\nPro tip: use timezone-aware sending so every subscriber gets the email at 10 AM their time.",
-  default:
-    "I can help with subject lines, copywriting, campaign analysis, segmentation, and send-time optimization. Try one of the suggested prompts below, or tell me what you need in your own words.",
-};
+const initialActions: AiAction[] = suggestedPrompts.map((p) => ({
+  id: p.id,
+  label: p.label,
+  icon: p.icon,
+}));
 
 export function AiPanel() {
   const open = useUiStore((s) => s.aiOpen);
   const setOpen = useUiStore((s) => s.setAiOpen);
-  const [messages, setMessages] = React.useState<Message[]>(initialMessages);
+  const user = useAuthStore((s) => s.user);
+  const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+
+  React.useEffect(() => {
+    if (!open || messages.length > 0) return;
+    const greeting: Message = {
+      id: messageId("m"),
+      role: "assistant",
+      content: `Hi ${firstName ?? "there"} 👋 I'm Geko, your AI marketing copilot. I can write subject lines, improve your copy, and draft templates. What would you like to work on?`,
+      actions: initialActions,
+      time: "now",
+    };
+    setMessages([greeting]);
+  }, [open, messages.length, firstName]);
 
   React.useEffect(() => {
     if (open) {
@@ -98,9 +89,9 @@ export function AiPanel() {
     }
   }, [open, messages]);
 
-  const send = (text: string) => {
+  const send = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || loading) return;
     const userMsg: Message = {
       id: messageId("u"),
       role: "user",
@@ -110,21 +101,25 @@ export function AiPanel() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
-
-    const key = Object.keys(cannedResponses).find(
-      (k) => k !== "default" && (trimmed.toLowerCase().includes(k) || k.split(" ").some((w) => trimmed.toLowerCase().includes(w)))
-    );
-
-    setTimeout(() => {
-      const response: Message = {
-        id: messageId("a"),
-        role: "assistant",
-        content: cannedResponses[key ?? "default"],
-        time: "now",
-      };
-      setMessages((prev) => [...prev, response]);
+    try {
+      const res = await api.post<{ reply: string }>("/api/v1/ai/chat", { message: trimmed });
+      setMessages((prev) => [
+        ...prev,
+        { id: messageId("a"), role: "assistant", content: res.reply, time: "now" },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: messageId("a"),
+          role: "assistant",
+          content: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+          time: "now",
+        },
+      ]);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   };
 
   const runAction = (id: string) => {
@@ -142,13 +137,8 @@ export function AiPanel() {
             <Sparkles className="size-5" />
           </span>
           <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">Geko — AI Studio</span>
-              <Badge variant="success" className="text-[0.6rem]">
-                GPT-4o
-              </Badge>
-            </div>
-            <span className="text-muted-foreground text-xs">Online · answers in seconds</span>
+            <span className="text-sm font-semibold">Geko — AI Studio</span>
+            <span className="text-muted-foreground text-xs">Your email marketing copilot</span>
           </div>
         </div>
         </div>

@@ -97,6 +97,35 @@ func (s *Server) handleGenerateCampaign(w http.ResponseWriter, r *http.Request) 
 	writeOK(w, map[string]any{"subject": out.Subject, "body": out.Body})
 }
 
+func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	req.Message = strings.TrimSpace(req.Message)
+	if req.Message == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "message is required")
+		return
+	}
+
+	system := "You are Geko, the friendly AI marketing copilot inside Mailgeko. You help with email subject lines, campaign copy, and templates. Be concise, specific, and practical. Never invent numbers, metrics, or campaign data — if the user asks about their own performance, direct them to their Analytics dashboard."
+	if ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil && strings.TrimSpace(ws.BrandVoice) != "" {
+		system += " Match the user's brand voice: " + strings.TrimSpace(ws.BrandVoice)
+	}
+
+	reply, err := s.aiClient().Chat(r.Context(), system, []ai.ChatMessage{{Role: "user", Content: req.Message}})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not get a response from the assistant")
+		return
+	}
+	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "chat", req.Message, reply)
+	writeOK(w, map[string]any{"reply": reply})
+}
+
 func (s *Server) handleListAIHistory(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	items, err := s.db.ListAIHistory(r.Context(), claims.GetWorkspaceID(), 50)

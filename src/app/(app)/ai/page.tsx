@@ -106,6 +106,7 @@ const kindMeta = {
   subject: { label: "Subject lines", icon: PenLine, color: "text-primary", bg: "bg-primary/10" },
   campaign: { label: "Campaign copy", icon: Mail, color: "text-sky-500", bg: "bg-info/10" },
   template: { label: "Template", icon: FileText, color: "text-violet-500", bg: "bg-violet-500/10" },
+  chat: { label: "Chat", icon: Sparkles, color: "text-emerald-500", bg: "bg-emerald-500/10" },
 } as const;
 
 interface AIHistoryItem {

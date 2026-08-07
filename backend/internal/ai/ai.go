@@ -91,9 +91,10 @@ func (c *Client) chatSubjectLines(ctx context.Context, topic, audience, tone str
 	}
 	b.WriteString(" Keep each line under 60 characters. Return only the subject lines, one per line, no numbering, no quotes, no extra text.")
 
-	content, err := c.chat(ctx,
-		"You reply with concise, high-converting email subject lines only.",
-		b.String())
+	content, err := c.chat(ctx, []chatMessage{
+		{Role: "system", Content: "You reply with concise, high-converting email subject lines only."},
+		{Role: "user", Content: b.String()},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +148,10 @@ func (c *Client) GenerateCampaign(ctx context.Context, prompt, draft, brandVoice
 	b.WriteString("\nUse {{first_name}} for the contact's first name. Keep the subject under 60 characters.")
 	b.WriteString(" Return only the result in this exact format:\nSUBJECT: <subject line>\nBODY:\n<email body>")
 
-	content, err := c.chat(ctx,
-		"You write concise, high-converting marketing emails. Output only SUBJECT and BODY lines.",
-		b.String())
+	content, err := c.chat(ctx, []chatMessage{
+		{Role: "system", Content: "You write concise, high-converting marketing emails. Output only SUBJECT and BODY lines."},
+		{Role: "user", Content: b.String()},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -210,9 +212,10 @@ func (c *Client) GenerateTemplate(ctx context.Context, prompt, brandVoice string
 	b.WriteString(". Use {{first_name}} for the recipient's first name and {{company}} where it makes sense.")
 	b.WriteString(" Return ONLY a single JSON object with exactly these keys: name (short template name), category (one of Newsletter, Promotional, Transactional, Welcome, Abandoned Cart, Re-engagement, Announcement), subject (subject line, under 60 characters), heading (bold email heading), body (2-4 short paragraphs separated by blank lines, plain text), cta (call-to-action button label, short).")
 
-	content, err := c.chat(ctx,
-		"You generate email templates as JSON only, no markdown fences, no extra text.",
-		b.String())
+	content, err := c.chat(ctx, []chatMessage{
+		{Role: "system", Content: "You generate email templates as JSON only, no markdown fences, no extra text."},
+		{Role: "user", Content: b.String()},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -303,15 +306,42 @@ func fallbackTemplate(prompt string) *TemplateDraft {
 	}
 }
 
+// ChatMessage is a single turn in an assistant conversation.
+type ChatMessage struct {
+	Role    string
+	Content string
+}
+
+// Chat replies to a freeform assistant conversation. system tunes the
+// assistant's behavior (e.g. the workspace brand voice). It falls back to a
+// deterministic, honest reply when no API key is configured.
+func (c *Client) Chat(ctx context.Context, system string, messages []ChatMessage) (string, error) {
+	if c.apiKey == "" {
+		return fallbackChat(messages), nil
+	}
+	msgs := make([]chatMessage, 0, len(messages)+1)
+	if strings.TrimSpace(system) != "" {
+		msgs = append(msgs, chatMessage{Role: "system", Content: system})
+	}
+	for _, m := range messages {
+		if strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		role := m.Role
+		if role != "user" && role != "assistant" {
+			role = "user"
+		}
+		msgs = append(msgs, chatMessage{Role: role, Content: m.Content})
+	}
+	return c.chat(ctx, msgs)
+}
+
 // chat calls the OpenAI-compatible chat completions endpoint and returns the
 // assistant's text. It is only called when an API key is configured.
-func (c *Client) chat(ctx context.Context, system, user string) (string, error) {
+func (c *Client) chat(ctx context.Context, messages []chatMessage) (string, error) {
 	body, err := json.Marshal(chatRequest{
-		Model: c.model,
-		Messages: []chatMessage{
-			{Role: "system", Content: system},
-			{Role: "user", Content: user},
-		},
+		Model:    c.model,
+		Messages: messages,
 	})
 	if err != nil {
 		return "", err
@@ -388,4 +418,37 @@ func truncate(b []byte, n int) string {
 		return string(b[:n])
 	}
 	return string(b)
+}
+
+// fallbackChat replies without an LLM. It routes on intent from the last user
+// message and reuses the deterministic generators. Replies about a user's own
+// data are honest: they never fabricate metrics.
+func fallbackChat(messages []ChatMessage) string {
+	last := ""
+	for i := range messages {
+		if messages[i].Role == "user" {
+			last = messages[i].Content
+		}
+	}
+	last = strings.TrimSpace(last)
+	lower := strings.ToLower(last)
+	switch {
+	case strings.Contains(lower, "subject"):
+		lines := fallbackSubjectLines(last, "", "", 5)
+		return "Here are a few subject lines to try:\n\n" + strings.Join(lines, "\n")
+	case strings.Contains(lower, "template"):
+		d := fallbackTemplate(last)
+		return fmt.Sprintf("Here's a template draft for that:\n\nSubject: %s\n\n%s\n\nCTA: %s", d.Subject, d.Body, d.CTA)
+	case strings.Contains(lower, "segment"):
+		return "Segments are built from your real contact data in Contacts → Segments. Tell me the audience you want to reach (e.g. \"inactive 60+ days\") and I'll help you shape the rules."
+	case strings.Contains(lower, "timing") || strings.Contains(lower, "send time") || strings.Contains(lower, "best time"):
+		return "Send-time advice should come from your actual open/click data — open Analytics to see when your audience engages. As a baseline, mid-week mornings (9–11 AM local) tend to perform well."
+	case strings.Contains(lower, "analy") || strings.Contains(lower, "summary") || strings.Contains(lower, "performance") || strings.Contains(lower, "open rate") || strings.Contains(lower, "click"):
+		return "I won't invent numbers for you. Head to the Analytics dashboard for your real open, click, and deliverability data, then I can help you interpret it."
+	case strings.Contains(lower, "draft") || strings.Contains(lower, "rewrite") || strings.Contains(lower, "improve") || strings.Contains(lower, "copy"):
+		out := fallbackCampaign(last, "")
+		return fmt.Sprintf("Here's a cleaned-up version:\n\nSubject: %s\n\n%s", out.Subject, out.Body)
+	default:
+		return "I can help you write subject lines, draft or improve campaign copy, and build templates. Try one of the suggestions below, or tell me what you're writing and who it's for."
+	}
 }

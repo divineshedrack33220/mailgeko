@@ -75,6 +75,29 @@ func TestGenerateTemplateFallback(t *testing.T) {
 	}
 }
 
+func TestChatFallback(t *testing.T) {
+	c := NewClient("", "", "")
+
+	subjectReply, err := c.Chat(context.Background(), "system", []ChatMessage{{Role: "user", Content: "Write subject lines for a spring sale"}})
+	if err != nil {
+		t.Fatalf("Chat returned error: %v", err)
+	}
+	if !strings.Contains(subjectReply, "spring sale") {
+		t.Fatalf("expected subject fallback to reference the topic, got: %s", subjectReply)
+	}
+
+	analyticsReply, err := c.Chat(context.Background(), "system", []ChatMessage{{Role: "user", Content: "What is my open rate?"}})
+	if err != nil {
+		t.Fatalf("Chat returned error: %v", err)
+	}
+	if strings.Contains(analyticsReply, "%") && !strings.Contains(analyticsReply, "invent") {
+		t.Fatalf("analytics fallback must not fabricate metrics, got: %s", analyticsReply)
+	}
+	if !strings.Contains(strings.ToLower(analyticsReply), "analytics") {
+		t.Fatalf("analytics fallback should point to the dashboard, got: %s", analyticsReply)
+	}
+}
+
 func TestParseTemplateJSON(t *testing.T) {
 	d, err := parseTemplateJSON(`{"name":"Welcome","category":"Welcome","subject":"Welcome aboard","heading":"Hi {{first_name}}","body":"Paragraph one.\n\nParagraph two.","cta":"Get started"}`)
 	if err != nil {

@@ -245,6 +245,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("POST /api/v1/ai/subject", s.withAuth(http.HandlerFunc(s.handleGenerateSubjects)))
 	mux.Handle("POST /api/v1/ai/campaign", s.withAuth(http.HandlerFunc(s.handleGenerateCampaign)))
+	mux.Handle("POST /api/v1/ai/chat", s.withAuth(http.HandlerFunc(s.handleChat)))
 	mux.Handle("GET /api/v1/ai/history", s.withAuth(http.HandlerFunc(s.handleListAIHistory)))
 	mux.Handle("DELETE /api/v1/ai/history/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteAIHistory)))
 
