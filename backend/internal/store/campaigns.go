@@ -117,12 +117,12 @@ func (s *Store) UpdateCampaign(ctx context.Context, c *Campaign) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE campaigns SET name = ?, subject = ?, template_id = ?, preview_text = ?,
 			plain_text = ?, html_content = ?, list_ids = ?, segment_ids = ?, schedule_at = ?,
-			from_name = ?, from_email = ?, reply_to = ?, track_opens = ?, track_clicks = ?,
-			allow_unsubscribe = ? WHERE workspace_id = ? AND id = ?`,
+				from_name = ?, from_email = ?, reply_to = ?, track_opens = ?, track_clicks = ?,
+			allow_unsubscribe = ?, status = ? WHERE workspace_id = ? AND id = ?`,
 		c.Name, c.Subject, nullableStr(c.TemplateID), c.PreviewText, c.PlainText, c.HTMLContent,
 		marshalJSON(c.ListIDs), marshalJSON(c.SegmentIDs), nullableTime(c.ScheduleAt),
 		c.FromName, c.FromEmail, c.ReplyTo, c.TrackOpens, c.TrackClicks, c.AllowUnsubscribe,
-		c.WorkspaceID, c.ID)
+		c.Status, c.WorkspaceID, c.ID)
 	return err
 }
 

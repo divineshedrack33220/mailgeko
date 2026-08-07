@@ -154,10 +154,10 @@ func (s *Store) AllContacts(ctx context.Context, workspaceID string) ([]*Contact
 
 func (s *Store) UpdateContact(ctx context.Context, c *Contact) error {
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE contacts SET first_name = ?, last_name = ?, company = ?, position = ?,
+		UPDATE contacts SET email = ?, first_name = ?, last_name = ?, company = ?, position = ?,
 			country = ?, city = ?, phone_number = ?, custom_fields = ?, tags = ?, status = ?
 		WHERE workspace_id = ? AND id = ?`,
-		c.FirstName, c.LastName, c.Company, c.Position, c.Country, c.City,
+		c.Email, c.FirstName, c.LastName, c.Company, c.Position, c.Country, c.City,
 		c.PhoneNumber, marshalJSON(c.CustomFields), marshalJSON(c.Tags), c.Status,
 		c.WorkspaceID, c.ID)
 	return err

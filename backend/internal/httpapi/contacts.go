@@ -239,6 +239,30 @@ func (s *Server) handleUpdateContact(w http.ResponseWriter, r *http.Request) {
 	if updated.Tags == nil {
 		updated.Tags = existing.Tags
 	}
+	if req.Status == "" {
+		updated.Status = existing.Status
+	}
+	if updated.FirstName == "" {
+		updated.FirstName = existing.FirstName
+	}
+	if updated.LastName == "" {
+		updated.LastName = existing.LastName
+	}
+	if updated.Company == "" {
+		updated.Company = existing.Company
+	}
+	if updated.Position == "" {
+		updated.Position = existing.Position
+	}
+	if updated.Country == "" {
+		updated.Country = existing.Country
+	}
+	if updated.City == "" {
+		updated.City = existing.City
+	}
+	if updated.PhoneNumber == "" {
+		updated.PhoneNumber = existing.PhoneNumber
+	}
 
 	if err := s.db.UpdateContact(r.Context(), updated); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update contact")
