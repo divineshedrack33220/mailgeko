@@ -37,6 +37,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { AppNotification } from "@/lib/types";
@@ -293,21 +303,29 @@ function NotificationsMenu() {
     </DropdownMenu>
   );
 }
-
 function UserMenu() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const [signOutOpen, setSignOutOpen] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
+
   const logout = useAuthStore((s) => s.logout);
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
 
-  const signOut = () => {
-    logout();
-    router.push("/login");
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      logout();
+      router.push("/login");
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
         <button className="focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-full p-0.5 outline-none transition-colors focus-visible:ring-2">
           <Avatar className="size-8">
             <AvatarImage src={user?.avatarUrl ?? ""} alt={user?.name ?? "User"} />
@@ -346,10 +364,28 @@ function UserMenu() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="cursor-pointer" variant="destructive" onClick={signOut}>
+        <DropdownMenuItem className="cursor-pointer" variant="destructive" onClick={() => setSignOutOpen(true)}>
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Sign out of Mailgeko?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You will need your password to sign back in. Any unsaved work will be lost.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={signOut} disabled={signingOut}>
+            {signingOut && <Loader2 className="animate-spin" />}
+            Sign out
+          </AlertDialogAction>
+        </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

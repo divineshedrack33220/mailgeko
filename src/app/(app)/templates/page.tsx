@@ -30,6 +30,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatNumber } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -70,6 +80,7 @@ export default function TemplatesPage() {
   const [category, setCategory] = React.useState<"all" | TemplateCategory>("all");
   const [onlyFavorites, setOnlyFavorites] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "list">("grid");
+  const [deleteTarget, setDeleteTarget] = React.useState<Template | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -313,7 +324,7 @@ export default function TemplatesPage() {
                     <DropdownMenuItem
                       className="cursor-pointer"
                       variant="destructive"
-                      onClick={() => deleteTemplate(template)}
+                      onClick={() => setDeleteTarget(template)}
                     >
                       <Trash2 /> Delete
                     </DropdownMenuItem>
@@ -365,6 +376,26 @@ export default function TemplatesPage() {
           </div>
         </Card>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.name} will be permanently removed. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteTemplate(deleteTarget)}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

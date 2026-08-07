@@ -29,6 +29,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { api } from "@/lib/api";
@@ -128,6 +138,7 @@ export default function AiStudioPage() {
   const [history, setHistory] = React.useState<AIHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; prompt?: string } | null>(null);
 
   const [brandVoice, setBrandVoice] = React.useState("");
   const [brandVoiceDraft, setBrandVoiceDraft] = React.useState("");
@@ -224,6 +235,7 @@ export default function AiStudioPage() {
 
   const deleteHistory = async (id: string) => {
     setDeletingId(id);
+    setDeleteTarget(null);
     try {
       await api.delete(`/api/v1/ai/history/${id}`);
       setHistory((prev) => prev.filter((h) => h.id !== id));
@@ -557,7 +569,7 @@ export default function AiStudioPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => deleteHistory(gen.id)}
+                      onClick={() => setDeleteTarget({ id: gen.id, prompt: gen.prompt })}
                       disabled={deletingId === gen.id}
                       aria-label="Delete generation"
                     >
@@ -618,6 +630,33 @@ export default function AiStudioPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this generation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.prompt
+                ? `“${deleteTarget.prompt}”`
+                : "This generation"}{" "}
+              and its result will be permanently removed. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deletingId !== null}
+              onClick={() => deleteTarget && deleteHistory(deleteTarget.id)}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

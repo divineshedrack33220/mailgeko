@@ -31,6 +31,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -94,6 +104,9 @@ export default function ListsPage() {
     { id: conditionId(), field: "status", operator: "is", value: "active" },
   ]);
   const [editingSegment, setEditingSegment] = React.useState<Segment | null>(null);
+  const [deleteListTarget, setDeleteListTarget] = React.useState<ContactList | null>(null);
+  const [deleteSegmentTarget, setDeleteSegmentTarget] = React.useState<Segment | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -145,12 +158,16 @@ export default function ListsPage() {
   };
 
   const deleteList = async (list: ContactList) => {
+    setDeleting(true);
+    setDeleteListTarget(null);
     try {
       await api.delete(`/api/v1/lists/${list.id}`);
       toast.success(`List "${list.name}" deleted`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete list");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -212,12 +229,16 @@ export default function ListsPage() {
   };
 
   const deleteSegment = async (segment: Segment) => {
+    setDeleting(true);
+    setDeleteSegmentTarget(null);
     try {
       await api.delete(`/api/v1/segments/${segment.id}`);
       toast.success(`Segment "${segment.name}" deleted`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete segment");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -285,7 +306,7 @@ export default function ListsPage() {
                           <DropdownMenuItem
                             className="cursor-pointer"
                             variant="destructive"
-                            onClick={() => deleteList(list)}
+                            onClick={() => setDeleteListTarget(list)}
                           >
                             <Trash2 /> Delete
                           </DropdownMenuItem>
@@ -358,7 +379,7 @@ export default function ListsPage() {
                           <DropdownMenuItem
                             className="cursor-pointer"
                             variant="destructive"
-                            onClick={() => deleteSegment(segment)}
+                            onClick={() => setDeleteSegmentTarget(segment)}
                           >
                             <Trash2 /> Delete
                           </DropdownMenuItem>
@@ -442,10 +463,60 @@ export default function ListsPage() {
         onMatchTypeChange={setMatchType}
         conditions={conditions}
         onConditionsChange={setConditions}
-        onSave={saveSegment}
+         onSave={saveSegment}
         saving={saving}
         isEditing={!!editingSegment}
       />
+
+      <AlertDialog
+        open={!!deleteListTarget}
+        onOpenChange={(open) => !open && setDeleteListTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this list?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteListTarget?.name} and its {deleteListTarget?.contactCount ?? 0}{" "}
+              contact(s) will be removed. Contacts themselves are not deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={() => deleteListTarget && deleteList(deleteListTarget)}
+            >
+              <Trash2 /> Delete list
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteSegmentTarget}
+        onOpenChange={(open) => !open && setDeleteSegmentTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this segment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The segment {deleteSegmentTarget?.name} will be removed. Your contacts
+              are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={() => deleteSegmentTarget && deleteSegment(deleteSegmentTarget)}
+            >
+              <Trash2 /> Delete segment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -40,6 +40,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -60,6 +70,7 @@ export default function ContactDetailPage() {
   const [contact, setContact] = React.useState<Contact | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [deleting, setDeleting] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [tagOpen, setTagOpen] = React.useState(false);
@@ -283,7 +294,7 @@ export default function ContactDetailPage() {
                 <DropdownMenuItem
                   className="cursor-pointer"
                   variant="destructive"
-                  onClick={deleteContact}
+                  onClick={() => setDeleteOpen(true)}
                   disabled={deleting}
                 >
                   <Trash2 /> Delete contact
@@ -602,6 +613,28 @@ export default function ContactDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {contact?.email ?? "This contact"} will be permanently removed from every list.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={deleteContact}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

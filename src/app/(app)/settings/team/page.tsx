@@ -34,6 +34,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -70,6 +80,7 @@ export default function TeamSettingsPage() {
   const [inviteEmail, setInviteEmail] = React.useState("");
   const [inviteRole, setInviteRole] = React.useState<Role>("Manager");
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [removeTarget, setRemoveTarget] = React.useState<{ id: string; name: string } | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -319,7 +330,7 @@ export default function TeamSettingsPage() {
                         )}
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive cursor-pointer"
-                          onClick={() => removeMember(member.id, member.name)}
+                          onClick={() => setRemoveTarget({ id: member.id, name: member.name })}
                         >
                           <Trash2 /> Remove member
                         </DropdownMenuItem>
@@ -381,6 +392,31 @@ export default function TeamSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeTarget?.name} will immediately lose access to this workspace and all of
+              its contacts, campaigns and templates. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={working !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={working !== null}
+              onClick={() => removeTarget && removeMember(removeTarget.id, removeTarget.name)}
+            >
+              <Trash2 /> Remove member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

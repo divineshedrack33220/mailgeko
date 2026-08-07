@@ -44,6 +44,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatNumber, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
 import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
@@ -66,6 +76,7 @@ export default function AutomationsPage() {
   const [tab, setTab] = React.useState("all");
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [creating, setCreating] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<Automation | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -274,7 +285,7 @@ export default function AutomationsPage() {
                       <DropdownMenuItem
                         className="cursor-pointer"
                         variant="destructive"
-                        onClick={() => deleteAutomation(automation)}
+                        onClick={() => setDeleteTarget(automation)}
                       >
                         <Trash2 /> Delete
                       </DropdownMenuItem>
@@ -380,6 +391,27 @@ export default function AutomationsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this automation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.name} and all of its scheduled runs will be removed.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteAutomation(deleteTarget)}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -51,6 +51,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ContactStatusBadge } from "@/components/shared/status-badges";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -164,6 +174,8 @@ export default function ContactsPage() {
 
   const deleteContact = async (id: string) => {
     const contact = contacts.find((c) => c.id === id);
+    setDeleting(true);
+    setDeleteTarget(null);
     setContacts((prev) => prev.filter((c) => c.id !== id));
     try {
       await api.delete(`/api/v1/contacts/${id}`);
@@ -171,6 +183,8 @@ export default function ContactsPage() {
     } catch (err) {
       load();
       toast.error(err instanceof Error ? err.message : "Could not delete contact");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -185,6 +199,9 @@ export default function ContactsPage() {
   const [lists, setLists] = React.useState<{ id: string; name: string }[]>([]);
   const [bulkListId, setBulkListId] = React.useState("");
   const [bulkListSaving, setBulkListSaving] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<Contact | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
 
   const openBulkTag = () => {
     setBulkTagInput("");
@@ -385,7 +402,7 @@ export default function ContactsPage() {
                 variant="outline"
                 size="sm"
                 className="text-destructive hover:text-destructive"
-                onClick={bulkDelete}
+                onClick={() => setBulkDeleteOpen(true)}
               >
                 <Trash2 /> Delete
               </Button>
@@ -537,7 +554,7 @@ export default function ContactsPage() {
                             <DropdownMenuItem
                               className="cursor-pointer"
                               variant="destructive"
-                              onClick={() => deleteContact(contact.id)}
+                              onClick={() => setDeleteTarget(contact)}
                             >
                               <Trash2 /> Delete
                             </DropdownMenuItem>
@@ -726,6 +743,50 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.email} will be removed from every list and this cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={() => deleteTarget && deleteContact(deleteTarget.id)}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.length} contacts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all selected contacts and remove them from every list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                setBulkDeleteOpen(false);
+                bulkDelete();
+              }}
+            >
+              <Trash2 /> Delete all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

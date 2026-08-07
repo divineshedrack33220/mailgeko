@@ -51,6 +51,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatDateTime, formatNumber, formatPercent, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
 import type { Campaign, CampaignStats } from "@/lib/types";
@@ -75,6 +85,7 @@ export default function CampaignDetailPage() {
   const [liveStats, setLiveStats] = React.useState<CampaignStats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [testOpen, setTestOpen] = React.useState(false);
   const [testEmails, setTestEmails] = React.useState("");
   const [previewOpen, setPreviewOpen] = React.useState(false);
@@ -296,7 +307,7 @@ export default function CampaignDetailPage() {
                 <DropdownMenuItem
                   className="cursor-pointer"
                   variant="destructive"
-                  onClick={deleteCampaign}
+                  onClick={() => setDeleteOpen(true)}
                 >
                   <Trash2 /> Delete campaign
                 </DropdownMenuItem>
@@ -644,6 +655,27 @@ export default function CampaignDetailPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {campaign?.name} and its history will be permanently removed.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={deleteCampaign}
+            >
+              <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
