@@ -254,6 +254,7 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Emails  []string `json:"emails"`
 		Subject string   `json:"subject"`
+		HTML    string   `json:"html"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -271,11 +272,15 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 	if subject == "" {
 		subject = tpl.Name
 	}
+	htmlContent := tpl.HTML
+	if strings.TrimSpace(req.HTML) != "" {
+		htmlContent = req.HTML
+	}
 	c := &store.Campaign{
 		ID:               newID(),
 		WorkspaceID:      claims.GetWorkspaceID(),
 		Subject:          subject,
-		HTMLContent:      tpl.HTML,
+		HTMLContent:      htmlContent,
 		TrackOpens:       true,
 		TrackClicks:      true,
 		AllowUnsubscribe: true,

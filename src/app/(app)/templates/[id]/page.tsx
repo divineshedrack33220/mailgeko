@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Braces,
   LayoutGrid,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -369,9 +370,18 @@ export default function TemplateEditorPage() {
     if (emails.length === 0) return;
     setSending(true);
     try {
+      const src = mode === "design" ? blocksToMjml(designBlocks, designSettings) : code;
+      let overrideHtml = "";
+      try {
+        const { html: fresh } = await renderRaw(src);
+        overrideHtml = fresh;
+      } catch {
+        // fall back to the last saved HTML if the current source won't render
+      }
       await api.post(`/api/v1/templates/${template.id}/send-test`, {
         emails,
-        subject: `${template.name} — test`,
+        subject: `${name || template.name} — test`,
+        ...(overrideHtml ? { html: overrideHtml } : {}),
       });
       setTestOpen(false);
       toast.success(`Test sent to ${emails.length} recipient${emails.length > 1 ? "s" : ""}`);
@@ -381,6 +391,25 @@ export default function TemplateEditorPage() {
       setSending(false);
     }
   };
+
+  const openPreview = React.useCallback(async () => {
+    try {
+      const src = mode === "design" ? blocksToMjml(designBlocks, designSettings) : code;
+      const input = sampleData ? applySampleValues(src) : src;
+      const { html } = await renderRaw(input);
+      if (!html) throw new Error("Nothing to preview yet");
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast.error("Popup blocked — allow popups for this site");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not render preview");
+    }
+  }, [mode, designBlocks, designSettings, code, sampleData, renderRaw]);
 
   if (loading) {
     return (
@@ -395,25 +424,25 @@ export default function TemplateEditorPage() {
 
   return (
     <div className="bg-background fixed inset-0 z-[60] flex flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         <Button variant="ghost" size="icon-sm" asChild aria-label="Close editor">
           <Link href="/templates">
             <X />
           </Link>
         </Button>
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <Input
             value={name}
             onChange={(e) => {
               setName(e.target.value);
               setDirty(true);
             }}
-            className="h-8 w-64 border-transparent bg-transparent font-medium shadow-none hover:border-border focus:border-input"
+            className="h-8 w-40 border-transparent bg-transparent font-medium shadow-none hover:border-border focus:border-input sm:w-64"
           />
           <span
             title={dirty ? "Unsaved changes" : "All changes saved"}
             className={cn(
-              "size-1.5 rounded-full transition-colors",
+              "size-1.5 shrink-0 rounded-full transition-colors",
               dirty ? "bg-primary" : "bg-transparent"
             )}
           />
@@ -421,7 +450,10 @@ export default function TemplateEditorPage() {
         <Badge variant="secondary" className="hidden sm:inline-flex">
           {template.category}
         </Badge>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void openPreview()}>
+            <ExternalLink /> Preview
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setTestOpen(true)}>
             <Send /> Test send
           </Button>

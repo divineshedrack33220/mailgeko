@@ -491,8 +491,8 @@ export function EmailBuilder({
   const contentWidth = parseInt(settings.contentWidth) || 600;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-3 border-b px-3 py-2">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 lg:gap-3">
         <Tabs
           value={mode}
           onValueChange={(v) => onModeChange(v as "design" | "code" | "html")}
@@ -533,9 +533,9 @@ export function EmailBuilder({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="bg-card flex w-[4.5rem] shrink-0 flex-col items-center gap-1 border-r py-3">
-          <span className="text-muted-foreground pb-1 text-[0.6rem] font-semibold uppercase">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+        <aside className="bg-card flex shrink-0 items-center gap-1 overflow-x-auto border-b px-2 py-2 lg:w-[4.5rem] lg:flex-col lg:border-b-0 lg:border-r lg:px-0 lg:py-3">
+          <span className="text-muted-foreground hidden pb-1 text-[0.6rem] font-semibold uppercase lg:block">
             Blocks
           </span>
           {paletteOrder.map((type) => {
@@ -546,7 +546,7 @@ export function EmailBuilder({
                 type="button"
                 onClick={() => addBlock(type)}
                 title={`Add ${blockLabels[type].toLowerCase()}`}
-                className="hover:bg-accent hover:text-primary text-muted-foreground flex size-11 flex-col items-center justify-center gap-1 rounded-md transition-colors"
+                className="hover:bg-accent hover:text-primary text-muted-foreground flex size-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md transition-colors"
               >
                 <Icon className="size-4" />
                 <span className="text-[0.55rem] leading-none font-medium">{blockLabels[type]}</span>
@@ -687,7 +687,7 @@ export function EmailBuilder({
           </div>
         </ScrollArea>
 
-        <aside className="bg-card flex w-72 shrink-0 flex-col border-l">
+        <aside className="bg-card flex w-full shrink-0 flex-col border-t lg:w-72 lg:border-t-0 lg:border-l">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <span className="flex items-center gap-1.5 text-xs font-medium">
               {selected ? (

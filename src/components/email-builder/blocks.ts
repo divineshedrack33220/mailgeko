@@ -386,7 +386,7 @@ const DEFAULT_PROPS: Record<BlockType, () => Block> = {
 const stripText = (innerHtml: string): string => {
   const div = document.createElement("div");
   div.innerHTML = innerHtml.replace(/<br\s*\/?>/gi, "\n");
-  return div.textContent ?? "";
+  return (div.textContent ?? "").trim();
 };
 
 export function parseMjml(src: string): {
