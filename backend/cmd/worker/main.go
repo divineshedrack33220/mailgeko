@@ -37,6 +37,8 @@ func main() {
 	queueClient := queue.NewClient(cfg.RedisAddr)
 
 	eng := engine.New(store.New(tiDB), sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueClient, cfg.BaseURL)
+	eng.WithTrackingSecret(cfg.TrackingSecret)
+	eng.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
 
 	var eventLog *analytics.Store
 	if cfg.PostgresDSN != "" {

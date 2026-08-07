@@ -276,11 +276,14 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 		WorkspaceID:      claims.GetWorkspaceID(),
 		Subject:          subject,
 		HTMLContent:      tpl.HTML,
-		FromName:         "Mailgeko",
-		FromEmail:        "onboarding@resend.dev",
 		TrackOpens:       true,
 		TrackClicks:      true,
 		AllowUnsubscribe: true,
+	}
+	if ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil {
+		c.FromName = ws.FromName
+		c.FromEmail = ws.FromEmail
+		c.ReplyTo = ws.ReplyTo
 	}
 	for _, email := range req.Emails {
 		email = strings.TrimSpace(email)

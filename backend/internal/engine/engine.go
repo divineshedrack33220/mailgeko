@@ -30,13 +30,15 @@ type EventInput struct {
 }
 
 type Engine struct {
-	store          *store.Store
-	sender         *sender.Client
-	queue          Queue
-	baseURL        string
-	trackingSecret string
-	embeds         *vector.Store
-	embedder       embed.Embedder
+	store           *store.Store
+	sender          *sender.Client
+	queue           Queue
+	baseURL         string
+	trackingSecret  string
+	defaultFromName string
+	defaultFromMail string
+	embeds          *vector.Store
+	embedder        embed.Embedder
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {
@@ -48,6 +50,27 @@ func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *E
 func (e *Engine) WithTrackingSecret(secret string) *Engine {
 	e.trackingSecret = secret
 	return e
+}
+
+// WithDefaultSender sets the from address used when no campaign or workspace
+// sender is configured (transactional email, send tests, and empty senders).
+func (e *Engine) WithDefaultSender(name, email string) *Engine {
+	e.defaultFromName = name
+	e.defaultFromMail = email
+	return e
+}
+
+func (e *Engine) defaultFrom(name string) string {
+	from := e.defaultFromMail
+	if from == "" {
+		from = "mailgeko@clawmark.online"
+	}
+	if name != "" {
+		from = name + " <" + from + ">"
+	} else if e.defaultFromName != "" {
+		from = e.defaultFromName + " <" + from + ">"
+	}
+	return from
 }
 
 // WithEmbedding enables pgvector contact search. Both the vector store and the
@@ -188,11 +211,7 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 
 	from := campaign.FromEmail
 	if from == "" {
-		from = "onboarding@resend.dev"
-	}
-	fromName := campaign.FromName
-	if fromName != "" {
-		from = fromName + " <" + from + ">"
+		from = e.defaultFrom(campaign.FromName)
 	}
 
 	headers := map[string]string{
@@ -377,10 +396,7 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 
 	from := c.FromEmail
 	if from == "" {
-		from = "onboarding@resend.dev"
-	}
-	if c.FromName != "" {
-		from = c.FromName + " <" + from + ">"
+		from = e.defaultFrom(c.FromName)
 	}
 
 	headers := map[string]string{}
@@ -419,10 +435,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 
 	from := ws.FromEmail
 	if from == "" {
-		from = "onboarding@resend.dev"
-	}
-	if ws.FromName != "" {
-		from = ws.FromName + " <" + from + ">"
+		from = e.defaultFrom(ws.FromName)
 	}
 
 	return e.sender.Send(ctx, sender.Message{
@@ -448,10 +461,7 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, body string) (*sender.SendResult, error) {
 	from := ws.FromEmail
 	if from == "" {
-		from = "onboarding@resend.dev"
-	}
-	if ws.FromName != "" {
-		from = ws.FromName + " <" + from + ">"
+		from = e.defaultFrom(ws.FromName)
 	}
 	return e.sender.Send(ctx, sender.Message{
 		From:    from,
@@ -471,7 +481,7 @@ func (e *Engine) SendEmailVerification(ctx context.Context, to, name, link strin
 		"Hi %s,<br/><br/>Please confirm your email address by clicking the button below.<br/><br/><a href=\"%s\" style=\"display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px\">Confirm my email</a><br/><br/>If you didn't create an account with Mailgeko, you can safely ignore this email.",
 		html.EscapeString(name), link)
 	return e.sender.Send(ctx, sender.Message{
-		From:    "Mailgeko <onboarding@resend.dev>",
+		From:    e.defaultFrom("Mailgeko"),
 		To:      to,
 		Subject: "Confirm your email address",
 		HTML:    renderTransactionalHTML(body, e.baseURL),
@@ -486,7 +496,7 @@ func (e *Engine) SendPasswordReset(ctx context.Context, to, name, link string) (
 		"Hi %s,<br/><br/>We received a request to reset your Mailgeko password. Click the button below to choose a new one.<br/><br/><a href=\"%s\" style=\"display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px\">Reset my password</a><br/><br/>This link expires in 30 minutes. If you didn't request a reset, you can safely ignore this email.",
 		html.EscapeString(name), link)
 	return e.sender.Send(ctx, sender.Message{
-		From:    "Mailgeko <onboarding@resend.dev>",
+		From:    e.defaultFrom("Mailgeko"),
 		To:      to,
 		Subject: "Reset your Mailgeko password",
 		HTML:    renderTransactionalHTML(body, e.baseURL),

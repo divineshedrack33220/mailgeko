@@ -60,6 +60,7 @@ func main() {
 	db := store.New(tiDB)
 	engine_ := engine.New(db, sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueAdapter, cfg.BaseURL)
 	engine_.WithTrackingSecret(cfg.TrackingSecret)
+	engine_.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
 
 	var analyticsStore httpapi.AnalyticsStore
 	var searcher httpapi.ContactSearcher
