@@ -161,7 +161,7 @@
 .loader {
   width: 30px;
   aspect-ratio: 1;
-  background: #554236;
+  background: var(--primary);
   display: grid;
   animation: l4-0 1s infinite linear;
 }
@@ -170,13 +170,13 @@
 .loader::after {
   content: "";
   grid-area: 1/1;
-  background: #f77825;
+  background: var(--primary-foreground);
   animation: inherit;
   animation-name: l4-1;
 }
 
 .loader::after {
-  background: #60b99a;
+  background: var(--chart-2);
   --s: 60deg;
 }
 
