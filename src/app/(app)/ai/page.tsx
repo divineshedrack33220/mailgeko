@@ -55,7 +55,7 @@ const tools: Tool[] = [
   {
     id: "subject",
     title: "Subject line generator",
-    description: "Turn a one-liner into 10 high-converting subjects.",
+    description: "Turn a one-liner into 6 subject line ideas.",
     icon: PenLine,
     color: "text-primary",
     bg: "bg-primary/10",
@@ -71,7 +71,7 @@ const tools: Tool[] = [
   {
     id: "spam",
     title: "Spam score & preview",
-    description: "Check deliverability and inbox placement risk.",
+    description: "Planned deliverability check — not available yet.",
     icon: ScanSearch,
     color: "text-amber-500",
     bg: "bg-warning/10",
@@ -79,7 +79,7 @@ const tools: Tool[] = [
   {
     id: "translate",
     title: "Translate & localize",
-    description: "Ship to 40+ languages without losing your voice.",
+    description: "Planned — translate copy into other languages.",
     icon: Languages,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
@@ -87,7 +87,7 @@ const tools: Tool[] = [
   {
     id: "segments",
     title: "Segment suggestions",
-    description: "Discover audiences hiding in your contact data.",
+    description: "Planned — suggest audiences from your contact data.",
     icon: Users,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
@@ -95,7 +95,7 @@ const tools: Tool[] = [
   {
     id: "timing",
     title: "Send-time optimizer",
-    description: "Find the perfect moment for every subscriber.",
+    description: "Planned — suggest the best send times.",
     icon: Clock,
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
@@ -246,8 +246,8 @@ export default function AiStudioPage() {
             </Badge>
             <h2 className="text-2xl font-semibold tracking-tight">Geko AI Studio</h2>
             <p className="text-muted-foreground mt-1 max-w-lg text-sm">
-              Write, optimize, translate and analyze — all in one place.
-              Your data never trains external models.
+              Get subject lines, write and rewrite campaign copy, and chat with the
+              assistant. Your data isn&apos;t used to train external models.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function AiStudioPage() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Subject line generator</CardTitle>
-                <CardDescription>Describe your campaign and get 6 proven formats.</CardDescription>
+                <CardDescription>Describe your campaign and get 6 subject line ideas.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <Textarea
@@ -328,9 +328,6 @@ export default function AiStudioPage() {
                           {i + 1}
                         </span>
                         <p className="min-w-0 flex-1 truncate text-sm">{subject}</p>
-                        <span className="text-muted-foreground hidden shrink-0 text-[0.65rem] font-medium lg:block">
-                          {["Curiosity", "Urgency", "Benefit", "Humor", "Recap", "Personal"][i]}
-                        </span>
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -348,10 +345,7 @@ export default function AiStudioPage() {
                         size="icon-sm"
                         aria-label="Thumbs up"
                         aria-pressed={feedback === "up"}
-                        onClick={() => {
-                          setFeedback((f) => (f === "up" ? null : "up"));
-                          toast.success("Thanks for the feedback");
-                        }}
+                        onClick={() => setFeedback((f) => (f === "up" ? null : "up"))}
                       >
                         <ThumbsUp className={feedback === "up" ? "text-primary" : ""} />
                       </Button>
@@ -360,10 +354,7 @@ export default function AiStudioPage() {
                         size="icon-sm"
                         aria-label="Thumbs down"
                         aria-pressed={feedback === "down"}
-                        onClick={() => {
-                          setFeedback((f) => (f === "down" ? null : "down"));
-                          toast.info("Got it — we'll tune the output");
-                        }}
+                        onClick={() => setFeedback((f) => (f === "down" ? null : "down"))}
                       >
                         <ThumbsDown className={feedback === "down" ? "text-primary" : ""} />
                       </Button>
@@ -380,9 +371,9 @@ export default function AiStudioPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {[
-                    "We analyze your past campaigns for what performs",
-                    "Subject lines adapt to your brand voice",
-                    "Every suggestion is yours — nothing is shared",
+                    "A language model drafts ideas from your brief and saved brand voice",
+                    "Subject lines adapt to your brand voice when one is set",
+                    "Your data isn't used to train external models",
                   ].map((step, i) => (
                     <div key={i} className="flex items-start gap-3">
                       <span className="bg-secondary text-secondary-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
@@ -646,7 +637,7 @@ function CopywriterTool({
       <Card>
         <CardHeader>
           <CardTitle>Paste your draft</CardTitle>
-          <CardDescription>We&apos;ll sharpen copy, fix flow, and match your brand voice.</CardDescription>
+          <CardDescription>Paste a draft or describe what to write — we&apos;ll improve it, matching your brand voice when set.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Textarea
@@ -670,7 +661,7 @@ function CopywriterTool({
       <Card>
         <CardHeader>
           <CardTitle>Improved version</CardTitle>
-          <CardDescription>Edits are tracked — review before you apply.</CardDescription>
+          <CardDescription>Review the output before you apply it to a campaign.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {output ? (
@@ -711,10 +702,11 @@ function ComingSoon({ tool }: { tool: Tool }) {
         <div>
           <h3 className="font-semibold">{tool.title}</h3>
           <p className="text-muted-foreground mt-1 max-w-sm text-sm">
-            {tool.description}. This tool is in preview — open the assistant to try it now.
+            {tool.description} Subject lines, copywriting, and the assistant are
+            available today.
           </p>
         </div>
-        <Badge variant="outline" className="mt-1">Preview</Badge>
+        <Badge variant="outline" className="mt-1">Not built yet</Badge>
       </CardContent>
     </Card>
   );

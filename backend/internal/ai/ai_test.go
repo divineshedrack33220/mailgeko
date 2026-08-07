@@ -42,6 +42,15 @@ func TestGenerateSubjectLinesRequiresTopic(t *testing.T) {
 	}
 }
 
+func TestUsingFallback(t *testing.T) {
+	if !NewClient("", "", "").UsingFallback() {
+		t.Fatal("client without an API key should report fallback")
+	}
+	if NewClient("https://example.com", "sk-test", "gpt-4o-mini").UsingFallback() {
+		t.Fatal("client with an API key should not report fallback")
+	}
+}
+
 func TestGenerateCampaignFallback(t *testing.T) {
 	c := NewClient("", "", "")
 	out, err := c.GenerateCampaign(context.Background(), "announce the new AI studio", "", "")

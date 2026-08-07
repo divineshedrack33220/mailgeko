@@ -20,6 +20,11 @@ func (s *Server) aiClient() *ai.Client {
 	return s.ai
 }
 
+// aiFallback reports whether the AI client is running without an API key.
+func (s *Server) aiFallback() bool {
+	return s.aiClient().UsingFallback()
+}
+
 func (s *Server) recordAIHistory(ctx context.Context, workspaceID, kind, prompt, result string) {
 	if workspaceID == "" || strings.TrimSpace(result) == "" {
 		return
@@ -57,7 +62,7 @@ func (s *Server) handleGenerateSubjects(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "subject", req.Topic, strings.Join(subjects, "\n"))
-	writeOK(w, map[string]any{"subjects": subjects})
+	writeOK(w, map[string]any{"subjects": subjects, "fallback": s.aiFallback()})
 }
 
 func (s *Server) handleGenerateCampaign(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +99,7 @@ func (s *Server) handleGenerateCampaign(w http.ResponseWriter, r *http.Request) 
 		label = req.Draft
 	}
 	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "campaign", label, out.Subject+"\n\n"+out.Body)
-	writeOK(w, map[string]any{"subject": out.Subject, "body": out.Body})
+	writeOK(w, map[string]any{"subject": out.Subject, "body": out.Body, "fallback": s.aiFallback()})
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +128,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "chat", req.Message, reply)
-	writeOK(w, map[string]any{"reply": reply})
+	writeOK(w, map[string]any{"reply": reply, "fallback": s.aiFallback()})
 }
 
 func (s *Server) handleListAIHistory(w http.ResponseWriter, r *http.Request) {

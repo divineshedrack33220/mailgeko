@@ -67,11 +67,9 @@ export default function NewCampaignPage() {
   const [fromEmail, setFromEmail] = React.useState("mailgeko@clawmark.online");
   const [replyTo, setReplyTo] = React.useState("");
 
-  const [scheduleMode, setScheduleMode] = React.useState<"now" | "later" | "recurring">("now");
+  const [scheduleMode, setScheduleMode] = React.useState<"now" | "later">("now");
   const [scheduleDate, setScheduleDate] = React.useState("");
   const [scheduleTime, setScheduleTime] = React.useState("10:00");
-  const [recurrence, setRecurrence] = React.useState("monthly");
-  const [timezoneAware, setTimezoneAware] = React.useState(true);
 
   const [trackOpens, setTrackOpens] = React.useState(true);
   const [trackClicks, setTrackClicks] = React.useState(true);
@@ -131,10 +129,8 @@ export default function NewCampaignPage() {
   const finish = async () => {
     setSending(true);
     let scheduleAt: string | undefined;
-    if (scheduleMode === "later" || scheduleMode === "recurring") {
-      if (scheduleDate) {
-        scheduleAt = new Date(`${scheduleDate}T${scheduleTime || "10:00"}`).toISOString();
-      }
+    if (scheduleMode === "later" && scheduleDate) {
+      scheduleAt = new Date(`${scheduleDate}T${scheduleTime || "10:00"}`).toISOString();
     }
     try {
       const res = await api.post<{ campaign: Campaign }>("/api/v1/campaigns", {
@@ -230,10 +226,6 @@ export default function NewCampaignPage() {
             onScheduleDateChange={setScheduleDate}
             scheduleTime={scheduleTime}
             onScheduleTimeChange={setScheduleTime}
-            recurrence={recurrence}
-            onRecurrenceChange={setRecurrence}
-            timezoneAware={timezoneAware}
-            onTimezoneAwareChange={setTimezoneAware}
           />
         )}
 
@@ -246,8 +238,6 @@ export default function NewCampaignPage() {
             scheduleMode={scheduleMode}
             scheduleDate={scheduleDate}
             scheduleTime={scheduleTime}
-            recurrence={recurrence}
-            timezoneAware={timezoneAware}
             trackOpens={trackOpens}
             trackClicks={trackClicks}
             allowUnsubscribe={allowUnsubscribe}
@@ -646,38 +636,29 @@ function ScheduleStep({
   onScheduleDateChange,
   scheduleTime,
   onScheduleTimeChange,
-  recurrence,
-  onRecurrenceChange,
-  timezoneAware,
-  onTimezoneAwareChange,
 }: {
-  mode: "now" | "later" | "recurring";
-  onModeChange: (v: "now" | "later" | "recurring") => void;
+  mode: "now" | "later";
+  onModeChange: (v: "now" | "later") => void;
   scheduleDate: string;
   onScheduleDateChange: (v: string) => void;
   scheduleTime: string;
   onScheduleTimeChange: (v: string) => void;
-  recurrence: string;
-  onRecurrenceChange: (v: string) => void;
-  timezoneAware: boolean;
-  onTimezoneAwareChange: (v: boolean) => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <StepHeading
         title="When should it go out?"
-        description="Send immediately, schedule for later, or set a recurring schedule."
+        description="Send immediately, or schedule for a specific date and time."
       />
 
       <RadioGroup
         value={mode}
-        onValueChange={(v) => onModeChange(v as "now" | "later" | "recurring")}
+        onValueChange={(v) => onModeChange(v as "now" | "later")}
         className="grid gap-3"
       >
         {[
           { value: "now", title: "Send now", description: "Queue the campaign for immediate delivery." },
           { value: "later", title: "Schedule for later", description: "Pick a specific date and time." },
-          { value: "recurring", title: "Recurring campaign", description: "Repeat on a daily, weekly, or monthly cadence." },
         ].map((option) => (
           <label
             key={option.value}
@@ -722,45 +703,6 @@ function ScheduleStep({
         </Card>
       )}
 
-      {mode === "recurring" && (
-        <Card className="gap-4 py-5">
-          <div className="grid gap-4 px-6 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="recurrence">Frequency</Label>
-              <Select value={recurrence} onValueChange={onRecurrenceChange}>
-                <SelectTrigger id="recurrence" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="rtime">Send time</Label>
-              <Input
-                id="rtime"
-                type="time"
-                value={scheduleTime}
-                onChange={(e) => onScheduleTimeChange(e.target.value)}
-              />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <div className="flex items-center justify-between rounded-xl border px-5 py-4">
-        <div>
-          <p className="text-sm font-medium">Timezone-aware sending</p>
-          <p className="text-muted-foreground text-xs">
-            Deliver at this time in each recipient&apos;s local timezone.
-          </p>
-        </div>
-        <Switch checked={timezoneAware} onCheckedChange={onTimezoneAwareChange} />
-      </div>
-
       {mode === "now" && (
         <div className="bg-muted/50 flex items-center gap-3 rounded-xl border px-5 py-4">
           <Clock className="text-muted-foreground size-4" />
@@ -782,8 +724,6 @@ function ReviewStep({
   scheduleMode,
   scheduleDate,
   scheduleTime,
-  recurrence,
-  timezoneAware,
   trackOpens,
   trackClicks,
   allowUnsubscribe,
@@ -799,8 +739,6 @@ function ReviewStep({
   scheduleMode: string;
   scheduleDate: string;
   scheduleTime: string;
-  recurrence: string;
-  timezoneAware: boolean;
   trackOpens: boolean;
   trackClicks: boolean;
   allowUnsubscribe: boolean;
@@ -812,9 +750,7 @@ function ReviewStep({
   const scheduleLabel =
     scheduleMode === "now"
       ? "Send immediately"
-      : scheduleMode === "later"
-        ? `${scheduleDate || "—"} at ${scheduleTime}`
-        : `Every ${recurrence} at ${scheduleTime}`;
+      : `${scheduleDate || "—"} at ${scheduleTime}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -832,7 +768,6 @@ function ReviewStep({
             { label: "Recipients", value: `${formatNumber(recipientCount)} contacts` },
             { label: "From", value: `${fromName} <${fromEmail}>` },
             { label: "Schedule", value: scheduleLabel },
-            { label: "Timezone-aware", value: timezoneAware ? "Yes" : "No" },
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between px-6 py-3">
               <dt className="text-muted-foreground text-sm">{row.label}</dt>
@@ -864,12 +799,13 @@ function ReviewStep({
         </div>
       </Card>
 
-      <div className="bg-success/8 border-success/20 flex items-start gap-3 rounded-xl border px-5 py-4">
-        <Check className="text-success mt-0.5 size-4 shrink-0" />
+      <div className="bg-muted/50 flex items-start gap-3 rounded-xl border px-5 py-4">
+        <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <div className="text-sm leading-relaxed">
-          <p className="font-medium">Ready to go</p>
+          <p className="font-medium">Before you send</p>
           <p className="text-muted-foreground text-xs">
-            Sender verified · list healthy · unsubscribe enabled. You&apos;re all set.
+            Mailgeko doesn&apos;t verify senders automatically. Use a From address
+            on a domain you control, and confirm it&apos;s set up to receive replies.
           </p>
         </div>
       </div>

@@ -174,10 +174,10 @@ export default function RegisterPage() {
 
         <Button type="submit" size="lg" disabled={loading || strength < 2} className="mt-2 w-full">
           {loading && <Loader2 className="animate-spin" />}
-          Create free account
+          Create account
         </Button>
         <p className="text-muted-foreground text-center text-xs">
-          Free plan includes 500 subscribers, forever. No credit card required.
+          Start on the Starter plan ($19/mo) with 2,000 contacts and 10,000 emails. Cancel anytime.
         </p>
       </form>
 

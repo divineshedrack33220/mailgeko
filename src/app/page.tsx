@@ -25,7 +25,7 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Mailgeko — Send with precision. Deliver on purpose.",
   description:
-    "The privacy-first, AI-powered email marketing platform. Campaigns, automations, and analytics — without selling your data.",
+    "Self-hostable, AI-powered email marketing. Campaigns, open/click tracking, and analytics — your data stays yours.",
 };
 
 export default function Home() {

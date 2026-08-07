@@ -44,7 +44,7 @@ const triggerOptions: {
   {
     id: "purchase",
     title: "Purchase made",
-    description: "When a contact completes a checkout or order.",
+    description: "Designed to start when a contact completes a checkout or order.",
     icon: ShoppingCart,
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
@@ -52,16 +52,15 @@ const triggerOptions: {
   {
     id: "abandoned_cart",
     title: "Cart abandoned",
-    description: "When a contact leaves items in their cart.",
+    description: "Designed to start when a contact leaves items in their cart.",
     icon: ShoppingCart,
     color: "text-amber-500",
     bg: "bg-warning/10",
-    accent: "High revenue",
   },
   {
     id: "birthday",
     title: "Birthday",
-    description: "On each contact's birthday — automate the love.",
+    description: "Designed to start on a contact's birthday.",
     icon: Cake,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
@@ -69,7 +68,7 @@ const triggerOptions: {
   {
     id: "custom",
     title: "Custom event",
-    description: "Start from a webhook, API call, or segment change.",
+    description: "Designed to start from a webhook, API call, or segment change.",
     icon: Code2,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
@@ -130,7 +129,8 @@ export default function NewAutomationPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight">Create a new automation</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Pick how the workflow starts. You can change this later.
+          Pick how the workflow should start. Execution is in preview — flows you
+          build here won&apos;t run yet.
         </p>
       </div>
 
@@ -202,7 +202,7 @@ export default function NewAutomationPage() {
           <Sparkles className="text-primary size-4" /> Start from a template
         </h2>
         <p className="text-muted-foreground mb-4 text-xs">
-          Battle-tested flows, preconfigured in seconds.
+          A starting point for your own design — each one creates a draft.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {automationTemplates.map((template) => (

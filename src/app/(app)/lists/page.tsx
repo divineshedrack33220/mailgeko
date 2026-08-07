@@ -74,8 +74,6 @@ const fields = [
   { value: "status", label: "Status" },
   { value: "lastEngagementAt", label: "Last engaged" },
   { value: "tags", label: "Tags" },
-  { value: "opens", label: "Opens (total)" },
-  { value: "clicks", label: "Clicks (total)" },
 ];
 
 const operators: Record<string, string[]> = {
@@ -87,8 +85,6 @@ const operators: Record<string, string[]> = {
   status: ["is", "is not"],
   lastEngagementAt: ["is after", "is before", "within"],
   tags: ["contains", "does not contain"],
-  opens: ["is greater than", "is less than", "is"],
-  clicks: ["is greater than", "is less than", "is"],
 };
 
 export default function ListsPage() {

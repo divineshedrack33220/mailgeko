@@ -2,10 +2,7 @@
 
 import * as React from "react";
 import {
-  Camera,
   Mail,
-  MapPin,
-  Globe,
   Building2,
   Check,
   Upload,
@@ -16,12 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -38,8 +32,6 @@ export default function ProfileSettingsPage() {
   const [fromName, setFromName] = React.useState("");
   const [fromEmail, setFromEmail] = React.useState("");
   const [replyTo, setReplyTo] = React.useState("");
-  const [trackOpens, setTrackOpens] = React.useState(true);
-  const [trackClicks, setTrackClicks] = React.useState(true);
   const [workspaceSaving, setWorkspaceSaving] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [sendingSaving, setSendingSaving] = React.useState(false);
@@ -200,14 +192,6 @@ export default function ProfileSettingsPage() {
               >
                 {uploadingAvatar ? <Loader2 className="animate-spin" /> : <Upload />} Upload
               </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Remove photo"
-                onClick={() => toast.info("Removing photos is not supported yet")}
-              >
-                <Camera />
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -225,28 +209,6 @@ export default function ProfileSettingsPage() {
             <p className="text-muted-foreground text-xs">
               Used for logins and notifications. Your login email can be changed in Security.
             </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="timezone">Timezone</Label>
-            <Select defaultValue="utc1">
-              <SelectTrigger id="timezone" className="w-full sm:w-72">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="utc1">UTC+1 · Central European Time</SelectItem>
-                <SelectItem value="utc0">UTC · London</SelectItem>
-                <SelectItem value="utc-5">UTC-5 · Eastern Time</SelectItem>
-                <SelectItem value="utc-8">UTC-8 · Pacific Time</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="bio">Bio</Label>
-            <Textarea
-              id="bio"
-              placeholder="A short bio shown to your team…"
-              className="min-h-20 sm:w-[30rem]"
-            />
           </div>
           <Separator />
           <div className="flex justify-end">
@@ -295,35 +257,16 @@ export default function ProfileSettingsPage() {
               >
                 {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload />} Upload logo
               </Button>
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info("Removing logos is not supported yet")}>
-                Remove
-              </Button>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="workspace-name">Workspace name</Label>
-              <Input
-                id="workspace-name"
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                placeholder="Your workspace name"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="workspace-slug">Workspace URL</Label>
-              <div className="relative">
-                <Globe className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                <Input id="workspace-slug" defaultValue="acme.mailgeko.dev" className="pl-9 font-mono text-sm" />
-              </div>
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="address">Address</Label>
-            <div className="relative">
-              <MapPin className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input id="address" defaultValue="100 Market St, Suite 300, San Francisco, CA" className="pl-9" />
-            </div>
+            <Label htmlFor="workspace-name">Workspace name</Label>
+            <Input
+              id="workspace-name"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              placeholder="Your workspace name"
+            />
           </div>
           <Separator />
           <div className="flex justify-end">
@@ -354,24 +297,6 @@ export default function ProfileSettingsPage() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="reply-email">Default reply-to</Label>
             <Input id="reply-email" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} className="sm:w-72" placeholder="support@yourdomain.com" />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Always track opens</p>
-              <p className="text-muted-foreground text-xs">
-                Adds an invisible pixel to measure engagement.
-              </p>
-            </div>
-            <Switch checked={trackOpens} onCheckedChange={setTrackOpens} />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Always track clicks</p>
-              <p className="text-muted-foreground text-xs">
-                Wraps links to record click-throughs.
-              </p>
-            </div>
-            <Switch checked={trackClicks} onCheckedChange={setTrackClicks} />
           </div>
           <Separator />
           <div className="flex justify-end">

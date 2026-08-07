@@ -304,7 +304,11 @@ export default function AutomationBuilderPage() {
     try {
       await api.patch(`/api/v1/automations/${automation.id}`, buildPayload(next));
       setStatus(next);
-      toast.success(next === "active" ? "Automation activated" : "Automation paused");
+      toast.success(
+        next === "active"
+          ? "Saved as active — execution is in preview, so it won't run yet"
+          : "Saved as paused"
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update automation");
     } finally {
@@ -339,7 +343,7 @@ export default function AutomationBuilderPage() {
           className="h-8 w-72 border-transparent bg-transparent font-medium shadow-none hover:border-border focus:border-input"
         />
         <Badge variant={status === "active" ? "success" : status === "paused" ? "warning" : "secondary"} className="hidden sm:inline-flex">
-          {status === "active" ? "Running" : status === "paused" ? "Paused" : "Draft"}
+          {status === "active" ? "Active" : status === "paused" ? "Paused" : "Draft"}
         </Badge>
         <div className="ml-auto flex items-center gap-2">
           {status !== "active" ? (
@@ -788,38 +792,93 @@ function TriggerConfig({ automation }: { automation: Automation }) {
         </div>
         <Switch defaultChecked />
       </div>
+      <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Execution is in preview — Mailgeko isn&apos;t listening for these events yet.
+          This sets up the design for when running arrives.
+        </p>
+      </div>
     </div>
   );
 }
 
 function EmailStepConfig() {
+  const [campaigns, setCampaigns] = React.useState<{ id: string; name: string }[]>([]);
+  const [lists, setLists] = React.useState<{ id: string; name: string }[]>([]);
+  const [campaign, setCampaign] = React.useState("");
+  const [list, setList] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [campaignsRes, listsRes] = await Promise.all([
+          api.get<{ campaigns: { id: string; name: string }[] }>("/api/v1/campaigns"),
+          api.get<{ lists: { id: string; name: string }[] }>("/api/v1/lists"),
+        ]);
+        if (!mounted) return;
+        const c = campaignsRes.campaigns ?? [];
+        const l = listsRes.lists ?? [];
+        setCampaigns(c);
+        setLists(l);
+        setCampaign(c[0]?.id ?? "");
+        setList(l[0]?.id ?? "");
+      } catch (err) {
+        if (!mounted) return;
+        toast.error(err instanceof Error ? err.message : "Could not load campaigns");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Campaign or template</Label>
-        <Select defaultValue="cmp-002">
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cmp-002">Welcome to Mailgeko 🦎</SelectItem>
-            <SelectItem value="cmp-004">Product tour highlights</SelectItem>
-            <SelectItem value="cmp-003">Your cart is waiting</SelectItem>
-          </SelectContent>
-        </Select>
+        {loading ? (
+          <div className="text-muted-foreground text-xs">Loading campaigns…</div>
+        ) : campaigns.length === 0 ? (
+          <div className="text-muted-foreground text-xs">
+            No campaigns yet — create one in Campaigns first.
+          </div>
+        ) : (
+          <Select value={campaign} onValueChange={setCampaign}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {campaigns.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="flex flex-col gap-2">
         <Label>Send to</Label>
-        <Select defaultValue="list-001">
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="list-001">All Subscribers</SelectItem>
-            <SelectItem value="list-002">Product Updates</SelectItem>
-            <SelectItem value="list-003">Newsletter</SelectItem>
-          </SelectContent>
-        </Select>
+        {loading ? (
+          <div className="text-muted-foreground text-xs">Loading lists…</div>
+        ) : lists.length === 0 ? (
+          <div className="text-muted-foreground text-xs">
+            No lists yet — create one in Contacts first.
+          </div>
+        ) : (
+          <Select value={list} onValueChange={setList}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {lists.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
         <p className="text-muted-foreground text-xs leading-relaxed">
@@ -863,6 +922,33 @@ function DelayConfig() {
 }
 
 function ConditionConfig() {
+  const [campaigns, setCampaigns] = React.useState<{ id: string; name: string }[]>([]);
+  const [campaign, setCampaign] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await api.get<{ campaigns: { id: string; name: string }[] }>(
+          "/api/v1/campaigns"
+        );
+        if (!mounted) return;
+        const c = res.campaigns ?? [];
+        setCampaigns(c);
+        setCampaign(c[0]?.id ?? "");
+      } catch (err) {
+        if (!mounted) return;
+        toast.error(err instanceof Error ? err.message : "Could not load campaigns");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -874,7 +960,6 @@ function ConditionConfig() {
           <SelectContent>
             <SelectItem value="opened">Has opened an email</SelectItem>
             <SelectItem value="clicked">Has clicked a link</SelectItem>
-            <SelectItem value="purchased">Has made a purchase</SelectItem>
             <SelectItem value="tag">Matches a tag</SelectItem>
             <SelectItem value="segment">Is in a segment</SelectItem>
           </SelectContent>
@@ -882,15 +967,24 @@ function ConditionConfig() {
       </div>
       <div className="flex flex-col gap-2">
         <Label>With campaign</Label>
-        <Select defaultValue="cmp-002">
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cmp-002">Welcome to Mailgeko 🦎</SelectItem>
-            <SelectItem value="cmp-004">Product tour highlights</SelectItem>
-          </SelectContent>
-        </Select>
+        {loading ? (
+          <div className="text-muted-foreground text-xs">Loading campaigns…</div>
+        ) : campaigns.length === 0 ? (
+          <div className="text-muted-foreground text-xs">
+            No campaigns yet — create one in Campaigns first.
+          </div>
+        ) : (
+          <Select value={campaign} onValueChange={setCampaign}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {campaigns.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="bg-warning/10 border-warning/25 rounded-lg border px-3 py-2.5">
         <p className="text-warning text-xs font-medium">Two branches follow this step</p>

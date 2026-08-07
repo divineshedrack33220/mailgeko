@@ -21,6 +21,7 @@ import {
   UserMinus,
   ArrowRight,
   Loader2,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";import { Card } from "@/components/ui/card";
@@ -54,7 +55,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { formatNumber, timeAgo } from "@/lib/format";
+import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
 import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
 import type { Automation, AutomationStatus, AutomationStepType } from "@/lib/types";
@@ -124,7 +125,11 @@ export default function AutomationsPage() {
     const next: AutomationStatus = automation.status === "active" ? "paused" : "active";
     try {
       await api.patch(`/api/v1/automations/${automation.id}`, payloadFor(automation, next));
-      toast.success(next === "active" ? "Automation activated" : "Automation paused");
+      toast.success(
+        next === "active"
+          ? "Saved as active — execution is in preview, so it won't run yet"
+          : "Saved as paused"
+      );
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update automation");
@@ -183,7 +188,7 @@ export default function AutomationsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Automations"
-        description="Visual workflows that send the right message at the right moment."
+        description="Design visual workflows. Execution is in preview — flows you build here won't run yet."
         icon={Workflow}
         actions={
           <>
@@ -198,6 +203,15 @@ export default function AutomationsPage() {
           </>
         }
       />
+
+      <div className="border-info/30 bg-info/10 text-info-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <p className="text-sm leading-relaxed">
+          <span className="font-medium">Execution preview.</span> Automations are a
+          design tool today — the flows you build here are saved, but they won&apos;t
+          send or act on their own yet. Running automations is next on the roadmap.
+        </p>
+      </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -228,7 +242,7 @@ export default function AutomationsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           title={automations.length === 0 ? "No automations yet" : "No automations found"}
-          description="Build a workflow that runs on its own — like a welcome series or abandoned-cart recovery."
+          description="Design a workflow here — a welcome series or winback flow. Execution is in preview, so it won't run on its own yet."
           actionLabel={automations.length === 0 ? "New automation" : undefined}
           actionHref={automations.length === 0 ? "/automations/new" : undefined}
           icon={Workflow}
@@ -341,10 +355,7 @@ export default function AutomationsPage() {
 
               <div className="flex items-center justify-between px-5">
                 <div>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {automation.activeCount != null ? formatNumber(automation.activeCount) : "—"}
-                  </p>
-                  <p className="text-muted-foreground text-xs">in flow this week</p>
+                  <p className="text-muted-foreground text-xs">Execution in preview — not running</p>
                 </div>
                 <div className="text-right">
                   <AutomationStatusBadge status={automation.status} />
@@ -363,7 +374,8 @@ export default function AutomationsPage() {
           <DialogHeader>
             <DialogTitle>Start from a template</DialogTitle>
             <DialogDescription>
-              Battle-tested flows, preconfigured in seconds. Pick one to create a draft.
+              A starting point for your own design — each template creates a draft
+              you can edit in the builder.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
@@ -397,7 +409,7 @@ export default function AutomationsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this automation?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.name} and all of its scheduled runs will be removed.
+              {deleteTarget?.name} will be removed from your workspace.
               This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -40,6 +41,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatNumber } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -81,6 +90,9 @@ export default function TemplatesPage() {
   const [onlyFavorites, setOnlyFavorites] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "list">("grid");
   const [deleteTarget, setDeleteTarget] = React.useState<Template | null>(null);
+  const [aiOpen, setAiOpen] = React.useState(false);
+  const [aiPrompt, setAiPrompt] = React.useState("");
+  const [aiGenerating, setAiGenerating] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -163,6 +175,53 @@ export default function TemplatesPage() {
     }
   };
 
+  const generateWithAI = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Describe the template you want first");
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const draft = await api.post<{
+        name: string;
+        category: TemplateCategory;
+        mjml: string;
+        html: string;
+        variables: string[];
+        subject: string;
+      }>("/api/v1/templates/generate", { prompt: aiPrompt.trim(), brandVoice: "" });
+      const thumbnail =
+        draft.category === "Welcome"
+          ? "welcome"
+          : draft.category === "Promotional" || draft.category === "Announcement"
+            ? "promo"
+            : draft.category === "Transactional"
+              ? "transactional"
+              : draft.category === "Abandoned Cart"
+                ? "cart"
+                : "newsletter";
+      await api.post("/api/v1/templates", {
+        name: draft.name,
+        description: draft.subject ?? "",
+        category: draft.category,
+        thumbnail,
+        mjml: draft.mjml,
+        html: draft.html,
+        variables: draft.variables,
+        tags: ["ai"],
+        isFavorite: false,
+      });
+      toast.success(`"${draft.name}" generated`);
+      setAiOpen(false);
+      setAiPrompt("");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate template");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -171,7 +230,7 @@ export default function TemplatesPage() {
         icon={FileText}
         actions={
           <>
-            <Button variant="outline" onClick={() => toast.info("Geko can draft a template from a prompt")}>
+            <Button variant="outline" onClick={() => setAiOpen(true)}>
               <Sparkles /> Generate with AI
             </Button>
             <Button asChild>
@@ -376,6 +435,33 @@ export default function TemplatesPage() {
           </div>
         </Card>
       )}
+
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generate a template with AI</DialogTitle>
+            <DialogDescription>
+              Describe what the email should say and who it&apos;s for. Geko drafts
+              the template, then saves it to your library for editing.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="e.g. A short welcome email for new SaaS trial signups, friendly and direct, with a CTA to set up their first campaign."
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            className="min-h-28"
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAiOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={generateWithAI} disabled={aiGenerating}>
+              {aiGenerating ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              {aiGenerating ? "Generating…" : "Generate template"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

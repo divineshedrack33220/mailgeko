@@ -23,22 +23,22 @@ export default function AuthLayout({
         <div className="relative z-10 max-w-md">
           <Badge variant="success" className="mb-5">
             <span className="size-1.5 animate-pulse rounded-full bg-current" />
-            Trusted by 42,000+ growing teams
+            Self-hosted · Your data stays yours
           </Badge>
           <blockquote className="text-2xl leading-snug font-medium tracking-tight text-balance">
-            “Mailgeko replaced three tools. We own our data, our deliverability
-            is above 98%, and the AI writes our subject lines in seconds.”
+            “Your contacts, your campaigns, your analytics — on infrastructure you
+            control, with open/click tracking and AI writing built in.”
           </blockquote>
           <div className="mt-6 flex items-center gap-3">
             <Avatar className="size-10">
               <AvatarFallback className="bg-primary/20 text-primary font-semibold">
-                MJ
+                MG
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-medium">Maya Johnson</p>
+              <p className="text-sm font-medium">Mailgeko</p>
               <p className="text-muted-foreground text-xs">
-                Head of Growth, Northwind
+                Self-hostable email marketing
               </p>
             </div>
           </div>

@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,7 +12,6 @@ import {
   Hand,
   Lock,
   Mail,
-  Phone,
   Radio,
   Send,
   ShieldCheck,
@@ -52,17 +50,16 @@ const TICKER = [
   "PRIVATE BY DEFAULT",
   "DELIVERED ON PURPOSE",
   "OWN YOUR AUDIENCE",
-  "NO BLACKLISTS",
-  "AUTOMATE EVERYTHING",
+  "SELF-HOSTED",
   "QUICK ON ITS FEET",
   "CLINGS TO THE INBOX",
 ];
 
 const STATS = [
-  { count: 2400, suffix: "+", label: "Million emails delivered", accent: true },
-  { count: 42500, suffix: "", label: "Teams onboarded" },
-  { count: 99, suffix: "", label: "Average deliverability" },
-  { count: 24, suffix: "/7", label: "Human support, always" },
+  { count: 1, suffix: "", label: "Docker image to deploy", accent: true },
+  { count: 100, suffix: "%", label: "Self-hosted, your data", accent: false },
+  { count: 3, suffix: "", label: "Simple pricing tiers", accent: false },
+  { count: 0, suffix: "", label: "Ads · no data selling", accent: false },
 ];
 
 const PLATFORMS = [
@@ -75,9 +72,9 @@ const PLATFORMS = [
     body: "A visual drag-and-drop editor, reusable templates, and granular audience targeting. Design once, send everywhere — no code required.",
     meta: [
       ["Setup", "5 MIN"],
-      ["Scale", "UNLIMITED"],
-      ["Integrations", "40+"],
-      ["A/B test", "BUILT IN"],
+      ["Send", "SCHEDULED"],
+      ["Templates", "REUSABLE"],
+      ["Testing", "SEND TEST"],
     ],
   },
   {
@@ -86,12 +83,12 @@ const PLATFORMS = [
     intensity: "ZERO CODE",
     title: "JOURNEY BUILDER",
     icon: Workflow,
-    body: "Visual automation flows for welcome series, abandoned carts, and win-back campaigns. Trigger on real behavior, not guesswork.",
+    body: "Design visual flows for welcome series, abandoned carts, and win-backs. The builder is live today; execution is rolling out in preview.",
     meta: [
-      ["Triggers", "12+ EVENTS"],
-      ["Steps", "UNLIMITED"],
-      ["Wait / Split", "YEP"],
-      ["Personalize", "100%"],
+      ["Builder", "LIVE"],
+      ["Execution", "PREVIEW"],
+      ["Triggers", "5 EVENTS"],
+      ["Steps", "EMAIL · DELAY"],
     ],
   },
   {
@@ -100,12 +97,12 @@ const PLATFORMS = [
     intensity: "LIVE METRICS",
     title: "REAL-TIME REPORTS",
     icon: BarChart3,
-    body: "Opens, clicks, and revenue attribution streaming live — plus AI suggestions that tell you what to improve next.",
+    body: "Opens, clicks, devices, and countries — tracked per recipient and streamed to your dashboards in real time.",
     meta: [
       ["Latency", "< 1s"],
-      ["Revenue", "ATTRIBUTED"],
+      ["Metrics", "OPENS · CLICKS"],
       ["Reports", "AUTO"],
-      ["Export", "CSV / API"],
+      ["Export", "CONTACT CSV"],
     ],
   },
 ];
@@ -113,70 +110,70 @@ const PLATFORMS = [
 const FEATURES = [
   {
     num: "/ 01",
-    badge: "10× FASTER",
+    badge: "REAL",
     name: "AI WRITER",
     icon: Sparkles,
     role: "Copywriting Engine",
-    creds: "12 YRS · GPT",
+    creds: "SUBJECTS · COPY",
     hover: "HOVER →",
     profileTag: "AI Copy Engine",
     title: "Credentials",
     points: [
       "Subject lines that earn opens",
-      "Brand-voice matching, learned",
-      "Previews, plain-text, alt text",
+      "Brand-voice matching when configured",
+      "Full campaign copy from a prompt",
     ],
     signature: "GHOST WRITER",
-    sigNote: "Draft a full campaign from a single prompt.",
+    sigNote: "Draft a campaign or subject lines from a single prompt.",
   },
   {
     num: "/ 02",
-    badge: "0.3s QUERIES",
+    badge: "REAL",
     name: "SEGMENTATION",
     icon: Filter,
     role: "Audience Engine",
-    creds: "RFM · TAGS",
+    creds: "TAGS · FIELDS",
     hover: "HOVER →",
     profileTag: "Audience Engine",
     title: "Credentials",
     points: [
-      "RFM, tags, custom fields",
-      "Live audience previews",
-      "Save segments, reuse anywhere",
+      "Tags, custom fields, engagement age",
+      "Match all / match any rules",
+      "Save segments, reuse in campaigns",
     ],
     signature: "AUDIENCE ENGINE",
-    sigNote: "Target the right inbox every single time.",
+    sigNote: "Target the right audience from your own contact data.",
   },
   {
     num: "/ 03",
-    badge: "99.2% INBOX",
+    badge: "RESEND",
     name: "DELIVERABILITY",
     icon: ShieldCheck,
     role: "Inbox First",
-    creds: "SPF · DKIM · DMARC",
+    creds: "RESEND · TRACKING",
     hover: "HOVER →",
-    profileTag: "Deliverability",
+    profileTag: "Delivery",
     title: "Credentials",
     points: [
-      "SPF, DKIM, DMARC auto-setup",
-      "Warmup included on every plan",
-      "Blacklist monitoring, always on",
+      "Resend-powered delivery",
+      "Open / click / unsubscribe tracking",
+      "Bounce & complaint webhooks",
     ],
-    signature: "INBOX FIRST",
-    sigNote: "Inbox placement that sticks — and keeps sticking.",
+    signature: "DELIVERY, TRACKED",
+    sigNote: "Deliverability is handled by Resend; every send is tracked.",
   },
   {
     num: "/ 04",
-    badge: "GDPR NATIVE",
+    badge: "SELF-HOSTED",
     name: "DATA PRIVACY",
     icon: Lock,
     role: "Own Your Data",
-    creds: "EU HOSTED",
+    creds: "YOUR INFRA",
     hover: "HOVER →",
     profileTag: "Privacy",
     title: "Credentials",
     points: [
-      "EU-hosted infrastructure",
+      "Self-host anywhere you like",
       "No ad-network tracking",
       "Export or delete anytime",
     ],
@@ -187,112 +184,126 @@ const FEATURES = [
 
 const STORIES = [
   {
-    tag: "CASE / 01",
-    badge: "+31% REVENUE",
-    name: "HALO SKINCARE",
-    time: "E-COMMERCE",
+    tag: "PLATFORM / 01",
+    badge: "SELF-HOSTED",
+    name: "ONE IMAGE",
+    time: "DEPLOY",
     quote:
-      "The automated welcome flow Mailgeko set up in an afternoon recovered more revenue in a quarter than our old tool did all year.",
+      "The whole platform — web app, API, and worker — ships as a single Docker image you can run anywhere.",
     stats: [
-      ["+31", "% revenue"],
-      ["2.1", "× ROI"],
-      ["6", "weeks"],
+      ["1", "image"],
+      ["0", "vendor lock-in"],
+      ["100", "% portable"],
     ],
   },
   {
-    tag: "CASE / 02",
-    badge: "+27 PTS OPEN",
-    name: "NORTHWIND CAFÉ",
-    time: "NEWSLETTER",
+    tag: "PLATFORM / 02",
+    badge: "PRIVACY",
+    name: "YOUR DATA",
+    time: "OWNERSHIP",
     quote:
-      "Open rates jumped from 34% to 61% after we let Mailgeko tune subject lines. Our readers actually look forward to Tuesday now.",
+      "Your contacts, campaigns, and analytics live on infrastructure you control. Nothing is sold, shared, or ad-targeted.",
     stats: [
-      ["61", "% opens"],
-      ["+27", "points"],
-      ["90", "sends"],
+      ["0", "ads"],
+      ["0", "data sold"],
+      ["1", "owner: you"],
     ],
   },
   {
-    tag: "CASE / 03",
-    badge: "1 IN 5 WON BACK",
-    name: "VELA CO.",
-    time: "SAAS",
+    tag: "PLATFORM / 03",
+    badge: "TRACKING",
+    name: "OPEN · CLICK",
+    time: "ANALYTICS",
     quote:
-      "The win-back journey pulls lapsed users back before they disappear. One in five returns — and Mailgeko proves it in the revenue report.",
+      "Every send is tracked per recipient — opens, clicks, devices, and countries — without guesswork.",
     stats: [
-      ["1:5", "win-backs"],
-      ["-38", "% churn"],
-      ["100", "automated"],
+      ["1:1", "per recipient"],
+      ["LIVE", "events"],
+      ["CSV", "export"],
     ],
   },
   {
-    tag: "CASE / 04",
-    badge: "45 ACCOUNTS",
-    name: "BLUEPRINT AGENCY",
-    time: "AGENCY",
+    tag: "PLATFORM / 04",
+    badge: "AI",
+    name: "AI STUDIO",
+    time: "WRITING",
     quote:
-      "Forty-five client accounts under one roof. Workspace permissions, white-label reports, and no per-client fees to juggle.",
+      "Subject lines, campaign copy, and templates from a single prompt — tuned to your brand voice when you set one.",
     stats: [
-      ["45", "accounts"],
-      ["0", "per-client fees"],
-      ["4.9", "client rating"],
+      ["SUBJECT", "lines"],
+      ["COPY", "drafts"],
+      ["VOICE", "brand-matched"],
     ],
   },
   {
-    tag: "CASE / 05",
-    badge: "1M SUBSCRIBERS",
-    name: "KITE STUDIOS",
-    time: "CREATORS",
+    tag: "PLATFORM / 05",
+    badge: "SECURITY",
+    name: "AUTH & 2FA",
+    time: "TRUST",
     quote:
-      "We hit a million subscribers without a single blacklist hit. Mailgeko's deliverability setup is just, frankly, unfair.",
+      "Password, Google, and GitHub sign-in, plus two-factor authentication, session management, and scoped API keys.",
     stats: [
-      ["1M", "subscribers"],
-      ["0", "blacklist hits"],
-      ["99.4", "% delivered"],
+      ["2FA", "enabled"],
+      ["SSO", "OAuth"],
+      ["KEYS", "scoped"],
     ],
   },
   {
-    tag: "CASE / 06",
-    badge: "99.4% DELIVERED",
-    name: "ARBOR COFFEE",
-    time: "RETAIL",
+    tag: "PLATFORM / 06",
+    badge: "BILLING",
+    name: "SIMPLE PLANS",
+    time: "PRICING",
     quote:
-      "Switched from a big-name platform and our inbox rate went up overnight. The team migrated 18k contacts in an afternoon.",
+      "Three clear tiers with hard contact and email limits. No hidden fees, no fake free tier, cancel anytime.",
     stats: [
-      ["99.4", "% inbox"],
-      ["18k", "contacts"],
-      ["1", "afternoon"],
+      ["3", "plans"],
+      ["$19", "starts"],
+      ["CLEAR", "limits"],
     ],
   },
 ];
 
 const PRICING_TIERS = [
   {
-    name: "FREE",
-    tag: "FOREVER",
-    price: "$0",
-    period: "",
+    name: "STARTER",
+    tag: "GET GOING",
+    price: "$19",
+    period: "/mo",
     highlight: false,
-    blurb: "Everything you need to launch.",
+    blurb: "For individuals sending their first campaigns.",
     features: [
-      "1,000 contacts free forever",
+      "1 user included",
+      "2,000 contacts",
       "10,000 emails / month",
-      "Campaign studio + templates",
-      "Community support",
+      "Basic reports + email support",
     ],
   },
   {
-    name: "PRO",
+    name: "GROWTH",
     tag: "MOST POPULAR",
-    price: "$19",
+    price: "$49",
     period: "/mo",
     highlight: true,
     blurb: "For teams ready to scale fast.",
     features: [
-      "10,000 contacts included",
-      "Unlimited email sends",
-      "Full AI writer + journey builder",
-      "Priority human support 24/7",
+      "3 users included",
+      "10,000 contacts",
+      "50,000 emails / month",
+      "Advanced reports + automations",
+    ],
+  },
+  {
+    name: "SCALE",
+    tag: "FULL POWER",
+    price: "$129",
+    period: "/mo",
+    highlight: false,
+    blurb: "For high-volume senders.",
+    features: [
+      "10 users included",
+      "50,000 contacts",
+      "250,000 emails / month",
+      "AI Studio suite + dedicated manager",
     ],
   },
 ];
@@ -300,15 +311,29 @@ const PRICING_TIERS = [
 const FOOTER_COLS = [
   {
     title: "Platform",
-    links: ["Campaign Studio", "Automation", "Analytics", "Deliverability", "Pricing"],
+    links: [
+      { label: "Campaigns", href: "#lg-platform" },
+      { label: "Analytics", href: "#lg-platform" },
+      { label: "Templates", href: "#lg-features" },
+      { label: "Pricing", href: "#lg-start" },
+    ],
   },
   {
     title: "Product",
-    links: ["AI Writer", "Segments", "Templates", "Integrations", "API"],
+    links: [
+      { label: "AI Writer", href: "#lg-features" },
+      { label: "Segments", href: "#lg-features" },
+      { label: "Automation (preview)", href: "#lg-platform" },
+      { label: "API", href: "#lg-features" },
+    ],
   },
   {
     title: "Company",
-    links: ["About", "Customers", "Security", "Privacy", "Status"],
+    links: [
+      { label: "Security", href: "/security" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+    ],
   },
 ];
 
@@ -706,7 +731,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
               href="/register"
               className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase rounded-full px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
             >
-              Start Free
+              Get Started
             </Link>
           </div>
         </div>
@@ -778,15 +803,15 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   </div>
                 ))}
                 <div className="bg-[var(--lg-accent)] flex h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-[var(--lg-bg)]">
-                  <span className="lg-font-display text-[1.1rem] text-[var(--lg-primary-foreground)]">42K</span>
+                  <span className="lg-font-display text-[1.1rem] text-[var(--lg-primary-foreground)]">✓</span>
                 </div>
               </div>
               <div>
                 <div className="lg-font-mono text-[11px] tracking-[0.2em] text-[var(--lg-hero-muted)] uppercase">
-                  Trusted By
+                  Self-hosted
                 </div>
                 <div className="lg-font-heading text-[0.95rem] tracking-wider text-[var(--lg-hero-fg)]">
-                  42,000+ growing teams
+                  Your data stays yours
                 </div>
               </div>
             </div>
@@ -848,8 +873,8 @@ export function LandingPage({ fonts }: LandingPageProps) {
             <div className="flex flex-col justify-end lg:col-span-6 lg:col-start-7">
               <p className="mb-6 text-lg leading-relaxed text-[var(--lg-fg-dim)]">
                 Mailgeko is engineered around one objective — measurable, aggressive growth. Choose
-                your flow. We bring the tools, the automation, and the sticky deliverability that
-                refuses to let your emails land in spam.
+                your flow. We bring the tools, the templates, and the tracking that show exactly how
+                your emails perform.
               </p>
               <div className="flex flex-wrap gap-3">
                 {["All Tools", "Campaigns", "Automation", "Analytics"].map((p) => (
@@ -1005,18 +1030,18 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <span className="lg-gecko-hop inline-flex">
                     <GeckoMark className="size-5 text-[var(--lg-accent)]" eyeColor="#0a0a0a" />
                   </span>
-                  03 — Forged With Mailgeko
+                  03 — What ships in the box
                 </span>
               </div>
               <h2 className="lg-font-display text-4xl leading-[0.95] md:text-5xl lg:text-6xl">
-                Real teams.<br />
-                <span className="text-[var(--lg-accent)]">Relentless</span> growth.
+                Honest tools.<br />
+                <span className="text-[var(--lg-accent)]">Real</span> features.
               </h2>
             </div>
             <div className="flex flex-col justify-end lg:col-span-4 lg:col-start-9">
               <p className="mb-5 text-base leading-relaxed text-[var(--lg-fg-dim)]">
-                Every result below was earned in production — measured, attributed, and delivered to
-                the inbox. Drag the carousel to read their journey.
+                A look at what Mailgeko actually ships today — no invented numbers, no phantom
+                features. Drag the carousel to browse.
               </p>
               <div className="lg-font-mono flex items-center gap-3 text-[10px] tracking-[0.2em] text-[var(--lg-muted)] uppercase">
                 <Hand className="size-4 text-[var(--lg-accent)]" />
@@ -1054,9 +1079,10 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 <div className="lg-font-mono mb-2 text-[10px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
                   {"// Simple pricing"}
                 </div>
-                <h3 className="lg-font-display mb-1.5 text-2xl">START FREE. SCALE WHEN READY.</h3>
+                <h3 className="lg-font-display mb-1.5 text-2xl">SIMPLE, HONEST PRICING.</h3>
                 <p className="mb-6 text-sm text-[var(--lg-fg-dim)]">
-                  14-day pro trial, 1,000 contacts free forever. No credit card required.
+                  Three tiers with clear contact and email limits. Self-host it yourself, or let us
+                  run it — cancel anytime.
                 </p>
 
                 <div className="space-y-3">
@@ -1112,11 +1138,11 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   href="/register"
                   className="lg-pulse-btn bg-[var(--lg-accent)] mt-6 flex w-full items-center justify-center gap-4 rounded-full py-4 font-display text-xl tracking-wider text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
                 >
-                  <span>START FREE</span>
+                  <span>GET STARTED</span>
                   <Send className="size-5" />
                 </Link>
                 <p className="lg-font-mono mt-3 text-center text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase">
-                  No charge · No credit card · Setup in 5 minutes
+                  Self-hosted · Cancel anytime · No hidden fees
                 </p>
               </div>
             </div>
@@ -1127,10 +1153,10 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <div className="lg-font-mono mb-2 text-[10px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
                     / Pricing
                   </div>
-                  <h4 className="lg-font-display mb-3 text-2xl">FREE TIER FOREVER</h4>
+                  <h4 className="lg-font-display mb-3 text-2xl">WHAT YOU PAY IS WHAT YOU GET</h4>
                   <p className="mb-4 text-sm leading-relaxed text-[var(--lg-fg-dim)]">
-                    Up to 1,000 contacts and 10,000 emails a month. Upgrade only when you&apos;re
-                    ready to scale.
+                    Every plan has a hard contact and email limit — no surprise overages. Start on
+                    Starter for $19/mo, upgrade when you outgrow it.
                   </p>
                   <div className="lg-font-mono flex items-center gap-3 text-[11px] text-[var(--lg-silver)]">
                     <TrendingUp className="size-4 text-[var(--lg-accent)]" />
@@ -1142,19 +1168,19 @@ export function LandingPage({ fonts }: LandingPageProps) {
                   <div className="lg-font-mono mb-2 text-[10px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
                     / Support
                   </div>
-                  <h4 className="lg-font-display mb-3 text-2xl">HUMANS ON DUTY</h4>
+                  <h4 className="lg-font-display mb-3 text-2xl">REAL CHANNELS</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between border-b border-[var(--lg-border-light)] pb-2">
-                      <span className="text-[var(--lg-fg-dim)]">Live chat</span>
-                      <span className="lg-font-mono text-[var(--lg-silver)]">24/7</span>
+                      <span className="text-[var(--lg-fg-dim)]">Email</span>
+                      <span className="lg-font-mono text-[var(--lg-silver)]">hello@mailgeko.dev</span>
                     </div>
                     <div className="flex justify-between border-b border-[var(--lg-border-light)] pb-2">
-                      <span className="text-[var(--lg-fg-dim)]">Email response</span>
-                      <span className="lg-font-mono text-[var(--lg-silver)]">&lt; 4 HRS</span>
+                      <span className="text-[var(--lg-fg-dim)]">Issues & docs</span>
+                      <span className="lg-font-mono text-[var(--lg-silver)]">GITHUB</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[var(--lg-fg-dim)]">Onboarding</span>
-                      <span className="lg-font-mono text-[var(--lg-silver)]">FREE COACH</span>
+                      <span className="lg-font-mono text-[var(--lg-silver)]">SELF-SERVE</span>
                     </div>
                   </div>
                 </div>
@@ -1171,13 +1197,6 @@ export function LandingPage({ fonts }: LandingPageProps) {
                     >
                       <Mail className="size-4 text-[var(--lg-accent)]" />
                       <span className="lg-font-mono">hello@mailgeko.dev</span>
-                    </a>
-                    <a
-                      href="#lg-start"
-                      className="flex items-center gap-3 transition-colors hover:text-[var(--lg-accent)]"
-                    >
-                      <Phone className="size-4 text-[var(--lg-accent)]" />
-                      <span className="lg-font-mono">+1 (555) 010-2025</span>
                     </a>
                   </div>
                 </div>
@@ -1204,12 +1223,12 @@ export function LandingPage({ fonts }: LandingPageProps) {
                     MAIL<span className="text-[var(--lg-accent)]">GEKO</span>
                   </div>
                   <div className="lg-font-mono mt-0.5 text-[10px] tracking-[0.3em] text-[var(--lg-muted)]">
-                    EST. 2025 · EU HOSTED
+                    EST. 2025 · SELF-HOSTED
                   </div>
                 </div>
               </div>
               <p className="mb-6 max-w-md text-sm leading-relaxed text-[var(--lg-fg-dim)]">
-                The privacy-first, AI-powered email marketing platform. Campaigns, automation, and
+                The privacy-first, AI-powered email marketing platform. Campaigns, templates, and
                 analytics — without selling your data.
               </p>
               <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2">
@@ -1226,9 +1245,11 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 {[Mail, Zap, Radio, Users].map((Icon, i) => (
                   <a
                     key={i}
-                    href="#lg-start"
+                    href="https://github.com/divineshedrack33220/mailgeko"
+                    target="_blank"
+                    rel="noreferrer"
                     className="border-[var(--lg-border-light)] hover:bg-[var(--lg-accent)] hover:text-[var(--lg-primary-foreground)] flex h-10 w-10 items-center justify-center border transition-all hover:border-[var(--lg-accent)]"
-                    aria-label="Mailgeko social"
+                    aria-label="Mailgeko on GitHub"
                   >
                     <Icon className="size-4" />
                   </a>
@@ -1243,12 +1264,12 @@ export function LandingPage({ fonts }: LandingPageProps) {
                 </h5>
                 <ul className="space-y-2 text-sm">
                   {col.links.map((l) => (
-                    <li key={l}>
+                    <li key={l.label}>
                       <a
-                        href="#lg-start"
+                        href={l.href}
                         className="lg-link-underline text-[var(--lg-fg-dim)] transition-colors hover:text-[var(--lg-fg)]"
                       >
-                        {l}
+                        {l.label}
                       </a>
                     </li>
                   ))}
@@ -1258,45 +1279,34 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
             <div className="md:col-span-3">
               <h5 className="lg-font-mono mb-4 text-[10px] tracking-[0.2em] text-[var(--lg-accent)] uppercase">
-                Newsletter
+                Open source
               </h5>
               <p className="mb-4 text-xs leading-relaxed text-[var(--lg-fg-dim)]">
-                Weekly growth notes, product updates, and deliverability tips. No spam — ever.
+                Mailgeko is self-hostable. Read the docs, file an issue, or check the roadmap on
+                GitHub.
               </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  toast.success("Subscribed", { description: "You're on the list. Welcome aboard." });
-                  e.currentTarget.reset();
-                }}
-                className="flex border border-[var(--lg-border-light)] transition-colors focus-within:border-[var(--lg-accent)]"
+              <a
+                href="https://github.com/divineshedrack33220/mailgeko"
+                target="_blank"
+                rel="noreferrer"
+                className="lg-link-underline lg-font-heading flex items-center justify-between border border-[var(--lg-border-light)] px-4 py-3 text-xs tracking-[0.15em] uppercase transition-colors hover:border-[var(--lg-accent)] hover:text-[var(--lg-accent)]"
               >
-                <input
-                  type="email"
-                  placeholder="email@address.com"
-                  className="flex-1 bg-transparent px-3 py-2.5 text-sm text-[var(--lg-fg)] outline-none placeholder:text-[var(--lg-muted)]"
-                />
-                <button
-                  type="submit"
-                  className="bg-[var(--lg-accent)] px-4 text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
-                  aria-label="Subscribe"
-                >
-                  <ArrowRight className="size-4" />
-                </button>
-              </form>
+                <span>View on GitHub</span>
+                <ArrowRight className="size-4" />
+              </a>
             </div>
           </div>
 
           <div className="lg-font-mono relative flex flex-col justify-between gap-4 border-t border-[var(--lg-border)] pt-6 text-[11px] tracking-[0.15em] text-[var(--lg-muted)] uppercase md:flex-row">
             <div>© 2026 MAILGEKO</div>
             <div className="flex gap-6">
-              <a href="#lg-start" className="transition-colors hover:text-[var(--lg-accent)]">
+              <a href="/privacy" className="transition-colors hover:text-[var(--lg-accent)]">
                 Privacy
               </a>
-              <a href="#lg-start" className="transition-colors hover:text-[var(--lg-accent)]">
+              <a href="/terms" className="transition-colors hover:text-[var(--lg-accent)]">
                 Terms
               </a>
-              <a href="#lg-start" className="transition-colors hover:text-[var(--lg-accent)]">
+              <a href="/security" className="transition-colors hover:text-[var(--lg-accent)]">
                 Security
               </a>
             </div>
@@ -1315,17 +1325,17 @@ export function LandingPage({ fonts }: LandingPageProps) {
       >
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-2.5 lg:px-10">
           <div className="lg-font-display text-lg tracking-wide text-[var(--lg-fg)] lg:text-xl">
-            START FREE. <span className="text-[var(--lg-accent)]">SCALE WHEN READY.</span>
+            SIMPLE PLANS. <span className="text-[var(--lg-accent)]">REAL FEATURES.</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="lg-font-mono hidden text-[10px] tracking-[0.15em] text-[var(--lg-muted)] uppercase md:inline">
-              1,000 contacts free forever
+              Self-hosted · Cancel anytime
             </span>
             <Link
               href="/register"
               className="bg-[var(--lg-accent)] px-5 py-2.5 font-display text-[10px] tracking-widest text-[var(--lg-primary-foreground)] transition-colors hover:bg-[var(--lg-accent-bright)]"
             >
-              START FREE
+              GET STARTED
             </Link>
           </div>
         </div>

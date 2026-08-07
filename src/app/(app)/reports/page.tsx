@@ -148,6 +148,57 @@ export default function ReportsPage() {
   );
   const hasHeatmap = peakCell.value > 0;
 
+  const exportCsv = () => {
+    const esc = (v: string | number) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows: (string | number)[][] = [
+      ["Mailgeko report", rangeLabel, new Date().toISOString()],
+      [],
+      ["Overview"],
+      ["Sent", totals?.sent ?? 0],
+      ["Delivered", totals?.delivered ?? 0],
+      ["Unique opens", totals?.uniqueOpens ?? 0],
+      ["Unique clicks", totals?.uniqueClicks ?? 0],
+      ["Bounced", totals?.bounced ?? 0],
+      ["Complaints", totals?.complained ?? 0],
+      ["Unsubscribes", totals?.unsubscribed ?? 0],
+      ["Deliverability", rates?.deliverability ?? 0],
+      ["Open rate", rates?.openRate ?? 0],
+      ["Click rate", rates?.clickRate ?? 0],
+      ["Bounce rate", rates?.bounceRate ?? 0],
+      ["Unsubscribe rate", rates?.unsubscribeRate ?? 0],
+      [],
+      ["Top clicked links"],
+      ["URL", "Clicks"],
+      ...links.map((l) => [l.url, l.clicks]),
+      [],
+      ["Devices"],
+      ["Device", "Count"],
+      ...devices.map((d) => [d.name, d.count]),
+      [],
+      ["Countries"],
+      ["Code", "Country", "Opens"],
+      ...countries.map((c) => [c.code, c.country, c.opens]),
+      [],
+      ["Campaigns"],
+      ["Name", "Open rate"],
+      ...bestCampaigns.map((c) => [c.name, formatPercent(c.openRate)]),
+    ];
+    const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mailgeko-report-${range}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Report downloaded as CSV");
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -169,7 +220,7 @@ export default function ReportsPage() {
               <SelectItem value="12m">Last 12 months</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon-sm" aria-label="Export report" onClick={() => toast.success("Report exported")}>
+          <Button variant="outline" size="icon-sm" aria-label="Export report as CSV" onClick={exportCsv}>
             <ExternalLink />
           </Button>
         </div>

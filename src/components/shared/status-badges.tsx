@@ -87,10 +87,8 @@ export function AutomationStatusBadge({
   status: AutomationStatus;
   className?: string;
 }) {
-  const live = status === "active";
   return (
-    <Badge variant={automationStatusStyles[status]} className={cn(className, "gap-1.5")}>
-      {live && <span className="bg-success size-1.5 animate-pulse rounded-full" />}
+    <Badge variant={automationStatusStyles[status]} className={className}>
       {automationStatusLabels[status]}
     </Badge>
   );

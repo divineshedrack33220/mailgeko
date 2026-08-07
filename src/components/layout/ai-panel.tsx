@@ -64,6 +64,7 @@ export function AiPanel() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [offline, setOffline] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const firstName = user?.name?.trim().split(/\s+/)[0];
@@ -102,7 +103,10 @@ export function AiPanel() {
     setInput("");
     setLoading(true);
     try {
-      const res = await api.post<{ reply: string }>("/api/v1/ai/chat", { message: trimmed });
+      const res = await api.post<{ reply: string; fallback?: boolean }>("/api/v1/ai/chat", {
+        message: trimmed,
+      });
+      if (res.fallback) setOffline(true);
       setMessages((prev) => [
         ...prev,
         { id: messageId("a"), role: "assistant", content: res.reply, time: "now" },
@@ -139,6 +143,11 @@ export function AiPanel() {
             <span className="text-sm font-semibold">Geko — AI Studio</span>
             <span className="text-muted-foreground text-xs">Your email marketing copilot</span>
           </div>
+          {offline && (
+            <span className="ml-auto rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[0.65rem] font-medium text-warning">
+              Offline mode
+            </span>
+          )}
         </div>
 
         <ScrollArea className="min-h-0 flex-1 px-5 py-4" ref={scrollRef}>
@@ -233,6 +242,12 @@ export function AiPanel() {
               <Send />
             </Button>
           </div>
+          {offline && (
+            <p className="text-muted-foreground mt-2 text-center text-[0.7rem]">
+              No AI model is configured on this server, so replies are template-based.
+              Ask an admin to set OPENAI_API_KEY for model-generated answers.
+            </p>
+          )}
           <p className="text-muted-foreground mt-2 text-center text-[0.7rem]">
             Geko can make mistakes. Verify important details before sending.
           </p>

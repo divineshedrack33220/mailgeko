@@ -18,7 +18,7 @@ export const automationTemplates: AutomationTemplate[] = [
   {
     id: "abandoned-cart",
     title: "Abandoned cart",
-    description: "3 emails · recover lost sales",
+    description: "3 emails · design a cart recovery flow",
     icon: ShoppingCart,
   },
   {
@@ -30,7 +30,7 @@ export const automationTemplates: AutomationTemplate[] = [
   {
     id: "re-order",
     title: "Re-order reminder",
-    description: "2 emails · remind of a purchase cycle",
+    description: "2 emails · prompt contacts to re-order",
     icon: MousePointerClick,
   },
 ];

@@ -19,6 +19,9 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useUiStore } from "@/stores/ui-store";
+import { api } from "@/lib/api";
+import type { Campaign, Contact } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   CommandDialog,
   CommandEmpty,
@@ -55,6 +58,29 @@ export function CommandMenu() {
   const router = useRouter();
   const open = useUiStore((s) => s.commandOpen);
   const setOpen = useUiStore((s) => s.setCommandOpen);
+  const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+  const [contacts, setContacts] = React.useState<Contact[]>([]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [campaignsRes, contactsRes] = await Promise.all([
+          api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns"),
+          api.get<{ contacts: Contact[] }>("/api/v1/contacts?limit=500"),
+        ]);
+        if (cancelled) return;
+        setCampaigns(campaignsRes.campaigns ?? []);
+        setContacts(contactsRes.contacts ?? []);
+      } catch {
+        // best-effort; navigation items still work
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const run = React.useCallback(
     (href: string) => {
@@ -107,22 +133,46 @@ export function CommandMenu() {
           ))}
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Search">
-          <CommandItem className="cursor-pointer" onSelect={() => run("/contacts?q=sarah")}>
-            <Search className="size-4" />
-            <span className="flex flex-col">
-              <span>Sarah Johnson</span>
-              <span className="text-muted-foreground text-xs">sarah.johnson@acme.co</span>
-            </span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer" onSelect={() => run("/campaigns/cmp-001")}>
-            <Send className="size-4" />
-            <span className="flex flex-col">
-              <span>July Product Digest</span>
-              <span className="text-muted-foreground text-xs">Sent campaign</span>
-            </span>
-          </CommandItem>
-        </CommandGroup>
+        {(campaigns.length > 0 || contacts.length > 0) && (
+          <>
+            <CommandGroup heading="Campaigns">
+              {campaigns.slice(0, 5).map((campaign) => (
+                <CommandItem
+                  key={campaign.id}
+                  value={`${campaign.name} ${campaign.subject}`}
+                  onSelect={() => run(`/campaigns/${campaign.id}`)}
+                  className="cursor-pointer"
+                >
+                  <Send className="size-4" />
+                  <span className="flex flex-col">
+                    <span>{campaign.name}</span>
+                    <span className="text-muted-foreground text-xs">{campaign.subject}</span>
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {contacts.length > 0 && (
+              <CommandGroup heading="Contacts">
+                {contacts.slice(0, 5).map((contact) => (
+                  <CommandItem
+                    key={contact.id}
+                    value={`${contact.firstName ?? ""} ${contact.lastName ?? ""} ${contact.email}`}
+                    onSelect={() => run(`/contacts?q=${encodeURIComponent(contact.email)}`)}
+                    className="cursor-pointer"
+                  >
+                    <Search className="size-4" />
+                    <span className="flex flex-col">
+                      <span>
+                        {cn(contact.firstName ?? "", contact.lastName ?? "").trim() || "Contact"}
+                      </span>
+                      <span className="text-muted-foreground text-xs">{contact.email}</span>
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </>
+        )}
       </CommandList>
     </CommandDialog>
   );

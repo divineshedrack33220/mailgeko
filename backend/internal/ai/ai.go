@@ -37,6 +37,13 @@ func NewClient(baseURL, apiKey, model string) *Client {
 	}
 }
 
+// UsingFallback reports whether the client is running without an API key and
+// therefore produces deterministic, template-based output instead of calling a
+// real model. Handlers expose this so UIs can tell users when AI is offline.
+func (c *Client) UsingFallback() bool {
+	return c.apiKey == ""
+}
+
 // GenerateSubjectLines returns up to count subject line suggestions for the
 // given topic. audience and tone are optional and influence the suggestions.
 func (c *Client) GenerateSubjectLines(ctx context.Context, topic, audience, tone string, count int) ([]string, error) {

@@ -27,9 +27,9 @@ func conditionMatches(cond store.Condition, c *store.Contact) bool {
 		return compareString(cond, c.Status)
 	case "email":
 		return compareString(cond, c.Email)
-	case "first_name":
+	case "first_name", "firstName":
 		return compareString(cond, c.FirstName)
-	case "last_name":
+	case "last_name", "lastName":
 		return compareString(cond, c.LastName)
 	case "company":
 		return compareString(cond, c.Company)
@@ -43,9 +43,6 @@ func conditionMatches(cond store.Condition, c *store.Contact) bool {
 		return anyTagMatches(cond, c.Tags)
 	case "lastEngagementAt":
 		return compareTime(cond, c.LastEngagementAt)
-	case "opens", "clicks":
-		_ = cond
-		return false
 	default:
 		if strings.HasPrefix(cond.Field, "custom.") {
 			key := strings.TrimPrefix(cond.Field, "custom.")

@@ -12,14 +12,13 @@ import {
   Sparkles,
   TrendingUp,
   Clock,
-  Workflow,
 } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { Button } from "@/components/ui/button";
-import { CampaignStatusBadge, AutomationStatusBadge } from "@/components/shared/status-badges";
+import { CampaignStatusBadge } from "@/components/shared/status-badges";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,7 +27,7 @@ import { formatDateTime, formatNumber, formatPercent, greetingForTime } from "@/
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
-import type { Automation, Campaign, CampaignStats } from "@/lib/types";
+import type { Campaign, CampaignStats } from "@/lib/types";
 
 const EMPTY_STATS: CampaignStats = {
   recipients: 0,
@@ -78,7 +77,6 @@ export default function DashboardPage() {
   const [overview, setOverview] = React.useState<OverviewResponse | null>(null);
   const [devices, setDevices] = React.useState<{ name: string; count: number }[]>([]);
   const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
-  const [automations, setAutomations] = React.useState<Automation[]>([]);
 
   const loadOverview = React.useCallback(async () => {
     try {
@@ -98,12 +96,8 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         await loadOverview();
-        const [campRes, autoRes] = await Promise.all([
-          api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns"),
-          api.get<{ automations: Automation[] }>("/api/v1/automations"),
-        ]);
+        const campRes = await api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns");
         setCampaigns(campRes.campaigns ?? []);
-        setAutomations(autoRes.automations ?? []);
       } catch (err) {
         console.error("Failed to load dashboard data", err);
       } finally {
@@ -132,7 +126,6 @@ export default function DashboardPage() {
     .slice(0, 4);
 
   const scheduledCampaigns = campaigns.filter((c) => c.status === "scheduled");
-  const activeAutomations = automations.filter((a) => a.status === "active");
 
   return (
     <div className="flex flex-col gap-6">
@@ -429,14 +422,14 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Upcoming & scheduled</CardTitle>
-          <CardDescription>Automations and campaigns in the pipeline</CardDescription>
+          <CardDescription>Campaigns that are scheduled to send</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-6">
               <Skeleton className="h-16 w-full" />
             </div>
-          ) : scheduledCampaigns.length === 0 && activeAutomations.length === 0 ? (
+          ) : scheduledCampaigns.length === 0 ? (
             <div className="px-6 py-8 text-center">
               <p className="text-muted-foreground text-sm">Nothing scheduled right now.</p>
             </div>
@@ -460,24 +453,6 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <CampaignStatusBadge status={campaign.status} />
-                </Link>
-              ))}
-              {activeAutomations.map((automation) => (
-                <Link
-                  key={automation.id}
-                  href={`/automations/${automation.id}`}
-                  className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
-                >
-                  <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-                    <Workflow className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">Automation: {automation.name}</p>
-                    <p className="text-muted-foreground text-xs">
-                      Trigger: {automation.trigger?.label ?? ""}
-                    </p>
-                  </div>
-                  <AutomationStatusBadge status={automation.status} />
                 </Link>
               ))}
             </div>

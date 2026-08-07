@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronRight, LifeBuoy, MessageCircleQuestion } from "lucide-react";
+import { ChevronRight, LifeBuoy, Sparkles, Bug } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -12,6 +11,7 @@ import { useUiStore } from "@/stores/ui-store";
 
 export function SupportFab() {
   const aiOpen = useUiStore((s) => s.aiOpen);
+  const setAiOpen = useUiStore((s) => s.setAiOpen);
   if (aiOpen) return null;
 
   return (
@@ -40,26 +40,28 @@ export function SupportFab() {
               <p className="text-sm font-semibold">Need a hand?</p>
             </div>
             <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Check the docs or open a support ticket.
+              Ask the AI assistant, or report an issue on GitHub.
             </p>
           </div>
           <div className="border-t p-1.5">
-            <Link
-              href="/settings"
-              className="hover:bg-muted flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
+            <button
+              onClick={() => setAiOpen(true)}
+              className="hover:bg-muted flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
             >
-              <MessageCircleQuestion className="text-muted-foreground size-4" />
-              Check the docs
+              <Sparkles className="text-muted-foreground size-4" />
+              Open AI assistant
               <ChevronRight className="text-muted-foreground ml-auto size-4" />
-            </Link>
-            <Link
-              href="/settings"
-              className="hover:bg-muted flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
+            </button>
+            <a
+              href="https://github.com/divineshedrack33220/mailgeko/issues"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
             >
-              <LifeBuoy className="text-muted-foreground size-4" />
-              Contact support
+              <Bug className="text-muted-foreground size-4" />
+              Report an issue
               <ChevronRight className="text-muted-foreground ml-auto size-4" />
-            </Link>
+            </a>
           </div>
         </PopoverContent>
       </Popover>
