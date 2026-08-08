@@ -129,8 +129,9 @@ export default function NewAutomationPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight">Create a new automation</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Pick how the workflow should start. Execution is in preview — flows you
-          build here won&apos;t run yet.
+          Execution preview. Automations are a design tool today — the flows you
+          build here are saved, but they won&apos;t send or act on their own yet.
+          Running automations is next on the roadmap.
         </p>
       </div>
 

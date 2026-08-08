@@ -188,7 +188,7 @@ export default function AutomationsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Automations"
-        description="Design visual workflows. Execution is in preview — flows you build here won't run yet."
+        description="Automations are a design tool today — the flows you build here are saved, but they won't send or act on their own yet. Running automations is next on the roadmap."
         icon={Workflow}
         actions={
           <>
@@ -242,7 +242,7 @@ export default function AutomationsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           title={automations.length === 0 ? "No automations yet" : "No automations found"}
-          description="Design a workflow here — a welcome series or winback flow. Execution is in preview, so it won't run on its own yet."
+          description="Design a workflow here — a welcome series or winback flow. Automations are a design tool today: the flows you build here are saved, but they won't send or act on their own yet."
           actionLabel={automations.length === 0 ? "New automation" : undefined}
           actionHref={automations.length === 0 ? "/automations/new" : undefined}
           icon={Workflow}

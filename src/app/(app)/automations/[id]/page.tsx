@@ -794,8 +794,9 @@ function TriggerConfig({ automation }: { automation: Automation }) {
       </div>
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Execution is in preview — Mailgeko isn&apos;t listening for these events yet.
-          This sets up the design for when running arrives.
+          <span className="font-medium">Execution preview.</span> Automations are a
+          design tool today — the flows you build here are saved, but they won&apos;t
+          send or act on their own yet. Running automations is next on the roadmap.
         </p>
       </div>
     </div>
