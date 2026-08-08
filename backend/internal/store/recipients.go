@@ -90,6 +90,23 @@ func (s *Store) firstOccurrence(ctx context.Context, campaignID, contactID, colu
 	return n == 1, err
 }
 
+// RecipientEngaged reports whether a contact opened or clicked the given
+// campaign. Automation condition steps rely on this.
+func (s *Store) RecipientEngaged(ctx context.Context, campaignID, contactID, kind string) (bool, error) {
+	column := "opened_at"
+	if kind == "clicked" {
+		column = "clicked_at"
+	}
+	var at *time.Time
+	err := s.db.GetContext(ctx, &at,
+		`SELECT `+column+` FROM campaign_recipients WHERE campaign_id = ? AND contact_id = ?`,
+		campaignID, contactID)
+	if err != nil {
+		return false, err
+	}
+	return at != nil, nil
+}
+
 func (s *Store) MarkRecipientDelivered(ctx context.Context, campaignID, contactID string) error {
 	_, err := s.firstOccurrence(ctx, campaignID, contactID, "delivered_at")
 	return err

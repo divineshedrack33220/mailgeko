@@ -60,6 +60,7 @@ func main() {
 	srv := queue.NewServer(cfg.RedisAddr)
 	srv.HandleCampaignSend(eng.StartCampaign)
 	srv.HandleCampaignRecipient(eng.SendToRecipient)
+	srv.HandleAutomationRun(eng.RunAutomationStep)
 	srv.HandleRecordEvent(func(ctx context.Context, p queue.RecordEventPayload) error {
 		if eventLog != nil {
 			at := time.Now().UTC()

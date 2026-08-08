@@ -8,9 +8,11 @@ import (
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
 
-// CampaignEnqueuer pushes a campaign into the send queue.
+// CampaignEnqueuer pushes work into the send queue: both scheduled campaigns
+// and due automation runs.
 type CampaignEnqueuer interface {
 	EnqueueCampaignSend(ctx context.Context, campaignID string) error
+	EnqueueAutomationRun(ctx context.Context, runID string) error
 }
 
 // Scheduler periodically releases campaigns whose send time has arrived into
@@ -38,6 +40,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 			return
 		case now := <-t.C:
 			s.releaseDue(ctx, now)
+			s.releaseDueAutomationRuns(ctx, now)
 		}
 	}
 }
@@ -62,5 +65,32 @@ func (s *Scheduler) releaseDue(ctx context.Context, now time.Time) {
 			continue
 		}
 		log.Printf("scheduler: released campaign %s (%q)", c.ID, c.Name)
+	}
+}
+
+// releaseDueAutomationRuns hands due automation runs to the worker. Each run
+// is claimed atomically with a lease so a crashed worker's run is retried
+// once the lease expires.
+func (s *Scheduler) releaseDueAutomationRuns(ctx context.Context, now time.Time) {
+	const lease = 5 * time.Minute
+	due, err := s.db.ListDueAutomationRuns(ctx, now, 200)
+	if err != nil {
+		log.Printf("scheduler: list due automation runs: %v", err)
+		return
+	}
+	for _, run := range due {
+		claimed, err := s.db.ClaimAutomationRun(ctx, run.ID, now, lease)
+		if err != nil {
+			log.Printf("scheduler: claim automation run %s: %v", run.ID, err)
+			continue
+		}
+		if !claimed {
+			continue
+		}
+		if err := s.queue.EnqueueAutomationRun(ctx, run.ID); err != nil {
+			log.Printf("scheduler: enqueue automation run %s: %v", run.ID, err)
+			continue
+		}
+		log.Printf("scheduler: released automation run %s", run.ID)
 	}
 }

@@ -142,6 +142,8 @@ export interface Automation {
   status: AutomationStatus;
   contacts?: number;
   activeCount?: number;
+  completedCount?: number;
+  failedCount?: number;
   createdAt: string;
   updatedAt: string;
 }

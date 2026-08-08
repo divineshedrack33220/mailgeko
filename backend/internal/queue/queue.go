@@ -14,6 +14,7 @@ const (
 	TaskImportCSV         = "import:csv"
 	TaskEmbedContact      = "embed:contact"
 	TaskEmbedWorkspace    = "embed:workspace"
+	TaskAutomationRun     = "automation:run"
 )
 
 type CampaignSendPayload struct {
@@ -54,6 +55,10 @@ type EmbedContactPayload struct {
 
 type EmbedWorkspacePayload struct {
 	WorkspaceID string `json:"workspace_id"`
+}
+
+type AutomationRunPayload struct {
+	RunID string `json:"run_id"`
 }
 
 type Client struct {
@@ -115,5 +120,14 @@ func (c *Client) EnqueueEmbedWorkspace(ctx context.Context, p EmbedWorkspacePayl
 		return err
 	}
 	_, err = c.EnqueueContext(ctx, asynq.NewTask(TaskEmbedWorkspace, payload), asynq.Queue("low"))
+	return err
+}
+
+func (c *Client) EnqueueAutomationRun(ctx context.Context, runID string) error {
+	payload, err := json.Marshal(AutomationRunPayload{RunID: runID})
+	if err != nil {
+		return err
+	}
+	_, err = c.EnqueueContext(ctx, asynq.NewTask(TaskAutomationRun, payload), asynq.Queue("default"))
 	return err
 }

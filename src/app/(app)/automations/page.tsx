@@ -82,6 +82,9 @@ export default function AutomationsPage() {
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [creating, setCreating] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Automation | null>(null);
+  const [runTarget, setRunTarget] = React.useState<Automation | null>(null);
+  const [running, setRunning] = React.useState(false);
+  const canRun = role === "owner" || role === "admin";
 
   const load = React.useCallback(async () => {
     try {
@@ -131,7 +134,7 @@ export default function AutomationsPage() {
       await api.patch(`/api/v1/automations/${automation.id}`, payloadFor(automation, next));
       toast.success(
         next === "active"
-          ? "Saved as active — execution is in preview, so it won't run yet"
+          ? "Automation is live — new subscribers will be enrolled automatically"
           : "Saved as paused"
       );
       await load();
@@ -157,6 +160,25 @@ export default function AutomationsPage() {
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete automation");
+    }
+  };
+
+  const runNow = async (automation: Automation) => {
+    setRunning(true);
+    try {
+      const res = await api.post<{ enrolled: number }>(
+        `/api/v1/automations/${automation.id}/run`,
+        {}
+      );
+      toast.success(
+        `"${automation.name}" started for ${res.enrolled} contact${res.enrolled === 1 ? "" : "s"}`
+      );
+      setRunTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start automation");
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -192,7 +214,7 @@ export default function AutomationsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Automations"
-        description="Automations are a design tool today — the flows you build here are saved, but they won't send or act on their own yet. Running automations is next on the roadmap."
+        description="Build email flows that run automatically — active welcome automations enroll new subscribers, and you can launch any flow manually with Run now."
         icon={Workflow}
         actions={
           <>
@@ -215,9 +237,11 @@ export default function AutomationsPage() {
       <div className="border-info/30 bg-info/10 text-info-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3">
         <Info className="mt-0.5 size-4 shrink-0" />
         <p className="text-sm leading-relaxed">
-          <span className="font-medium">Execution preview.</span> Automations are a
-          design tool today — the flows you build here are saved, but they won&apos;t
-          send or act on their own yet. Running automations is next on the roadmap.
+          <span className="font-medium">How it runs.</span> Welcome automations
+          start automatically when a contact is created or imported. Use
+          &quot;Run now&quot; on an active automation to start every contact in your
+          workspace immediately. Steps (emails, waits, conditions, tags,
+          webhooks) execute one at a time from the queue.
         </p>
       </div>
 
@@ -250,7 +274,7 @@ export default function AutomationsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           title={automations.length === 0 ? "No automations yet" : "No automations found"}
-          description="Design a workflow here — a welcome series or winback flow. Automations are a design tool today: the flows you build here are saved, but they won't send or act on their own yet."
+          description="Build a welcome series or winback flow. Active welcome automations enroll new subscribers automatically, and Run now starts a flow for your whole workspace."
           actionLabel={automations.length === 0 ? "New automation" : undefined}
           actionHref={automations.length === 0 ? "/automations/new" : undefined}
           icon={Workflow}
@@ -297,6 +321,14 @@ export default function AutomationsPage() {
                           <Pencil /> Edit workflow
                         </Link>
                       </DropdownMenuItem>
+                      {manage && automation.status === "active" && canRun && (
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          onClick={() => setRunTarget(automation)}
+                        >
+                          <Play /> Run now
+                        </DropdownMenuItem>
+                      )}
                       {manage && (
                         <DropdownMenuItem
                           className="cursor-pointer"
@@ -369,7 +401,11 @@ export default function AutomationsPage() {
 
               <div className="flex items-center justify-between px-5">
                 <div>
-                  <p className="text-muted-foreground text-xs">Execution in preview — not running</p>
+                  <p className="text-muted-foreground text-xs">
+                    {automation.status === "active"
+                      ? `${automation.contacts ?? 0} in flow · ${automation.completedCount ?? 0} completed`
+                      : "Not running"}
+                  </p>
                 </div>
                 <div className="text-right">
                   <AutomationStatusBadge status={automation.status} />
@@ -434,6 +470,29 @@ export default function AutomationsPage() {
               onClick={() => deleteTarget && deleteAutomation(deleteTarget)}
             >
               <Trash2 /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!runTarget} onOpenChange={(open) => !open && setRunTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run &quot;{runTarget?.name}&quot; now?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every contact in your workspace will be enrolled in this flow and
+              the first step will run immediately (or after the trigger delay).
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary hover:bg-primary/90"
+              disabled={running}
+              onClick={() => runTarget && runNow(runTarget)}
+            >
+              {running ? <Loader2 className="animate-spin" /> : <Play />} Run now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

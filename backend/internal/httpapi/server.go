@@ -192,6 +192,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/automations/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateAutomation)))
 	mux.Handle("DELETE /api/v1/automations/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteAutomation)))
 	mux.Handle("POST /api/v1/automations/{id}/duplicate", s.withAuth(http.HandlerFunc(s.handleDuplicateAutomation)))
+	mux.Handle("POST /api/v1/automations/{id}/run", s.withAuth(http.HandlerFunc(s.handleRunAutomation)))
 
 	// Analytics.
 	mux.Handle("GET /api/v1/analytics/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleCampaignAnalytics)))

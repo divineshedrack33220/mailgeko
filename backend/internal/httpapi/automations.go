@@ -48,6 +48,17 @@ func automationResponse(a *store.Automation) map[string]any {
 	}
 }
 
+func automationResponseWithStats(a *store.Automation, stats *store.AutomationRunStats) map[string]any {
+	out := automationResponse(a)
+	if stats != nil {
+		out["contacts"] = stats.Active
+		out["activeCount"] = stats.Active
+		out["completedCount"] = stats.Completed
+		out["failedCount"] = stats.Failed
+	}
+	return out
+}
+
 func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	automations, err := s.db.ListAutomations(r.Context(), claims.GetWorkspaceID())
@@ -55,9 +66,14 @@ func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not list automations")
 		return
 	}
+	stats, err := s.db.AutomationRunStatsByWorkspace(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not list automations")
+		return
+	}
 	out := make([]map[string]any, 0, len(automations))
 	for _, a := range automations {
-		out = append(out, automationResponse(a))
+		out = append(out, automationResponseWithStats(a, stats[a.ID]))
 	}
 	writeOK(w, map[string]any{"automations": out})
 }
@@ -111,7 +127,41 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load automation")
 		return
 	}
-	writeOK(w, map[string]any{"automation": automationResponse(a)})
+	stats, _ := s.db.AutomationRunStats(r.Context(), a.ID)
+	writeOK(w, map[string]any{"automation": automationResponseWithStats(a, stats)})
+}
+
+// handleRunAutomation manually enrolls every contact in the workspace into
+// the automation flow ("Run now"). Requires an active automation and an
+// owner/admin (it sends email).
+func (s *Server) handleRunAutomation(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
+	automation, err := s.db.GetAutomation(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "automation not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load automation")
+		return
+	}
+	if automation.Status != "active" {
+		writeError(w, http.StatusUnprocessableEntity, "not_active", "activate the automation before running it")
+		return
+	}
+	if s.engine == nil {
+		writeError(w, http.StatusInternalServerError, "internal", "execution is unavailable")
+		return
+	}
+	enrolled, err := s.engine.EnrollAutomation(r.Context(), automation.WorkspaceID, automation.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not start automation")
+		return
+	}
+	writeOK(w, map[string]any{"enrolled": enrolled})
 }
 
 func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) {

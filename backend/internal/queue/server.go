@@ -93,6 +93,16 @@ func (s *Server) HandleEmbedWorkspace(handler func(ctx context.Context, p EmbedW
 	})
 }
 
+func (s *Server) HandleAutomationRun(handler func(ctx context.Context, runID string) error) {
+	s.mux.HandleFunc(TaskAutomationRun, func(ctx context.Context, t *asynq.Task) error {
+		var p AutomationRunPayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return err
+		}
+		return handler(ctx, p.RunID)
+	})
+}
+
 func (s *Server) Start() error {
 	return s.Run(s.mux)
 }

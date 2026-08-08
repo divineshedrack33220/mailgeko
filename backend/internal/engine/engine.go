@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -40,10 +41,17 @@ type Engine struct {
 	allowedFromDomains []string
 	embeds             *vector.Store
 	embedder           embed.Embedder
+	httpClient         *http.Client
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {
-	return &Engine{store: db, sender: sender, queue: queue, baseURL: baseURL}
+	return &Engine{
+		store:      db,
+		sender:     sender,
+		queue:      queue,
+		baseURL:    baseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
 // WithTrackingSecret enables signed tracking links so engagement events can't

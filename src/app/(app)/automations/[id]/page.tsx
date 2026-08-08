@@ -123,6 +123,7 @@ interface CanvasNode {
   type: "trigger" | AutomationStepType;
   label: string;
   detail?: string;
+  config?: Record<string, unknown>;
   x: number;
   y: number;
 }
@@ -143,6 +144,7 @@ export default function AutomationBuilderPage() {
   const [saving, setSaving] = React.useState(false);
   const [name, setName] = React.useState("");
   const [status, setStatus] = React.useState<AutomationStatus>("draft");
+  const [triggerDelay, setTriggerDelay] = React.useState(0);
   const [selected, setSelected] = React.useState<string | null>("trigger");
   const [zoom, setZoom] = React.useState(1);
   const [saved, setSaved] = React.useState(false);
@@ -161,6 +163,7 @@ export default function AutomationBuilderPage() {
         setAutomation(res.automation);
         setName(res.automation.name);
         setStatus(res.automation.status);
+        setTriggerDelay(res.automation.trigger?.delay ?? 0);
         setNodes([
           {
             id: "trigger",
@@ -174,6 +177,7 @@ export default function AutomationBuilderPage() {
             id: step.id,
             type: step.type as CanvasNode["type"],
             label: step.label,
+            config: step.config ?? {},
             x: 0,
             y: (index + 1) * 130,
           })),
@@ -204,7 +208,7 @@ export default function AutomationBuilderPage() {
       const maxY = Math.max(...prev.map((n) => n.y));
       return [
         ...prev,
-        { id, type, label: `New: ${meta.label.toLowerCase()}`, x: 0, y: maxY + 130 },
+        { id, type, label: `New: ${meta.label.toLowerCase()}`, config: {}, x: 0, y: maxY + 130 },
       ];
     });
     setSelected(id);
@@ -221,6 +225,7 @@ export default function AutomationBuilderPage() {
         id,
         type,
         label: `New: ${meta.label.toLowerCase()}`,
+        config: {},
         x: 0,
         y: index * 130,
       });
@@ -276,6 +281,10 @@ export default function AutomationBuilderPage() {
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, label } : n)));
   };
 
+  const updateNodeConfig = (id: string, config: Record<string, unknown>) => {
+    setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, config } : n)));
+  };
+
   const buildPayload = (nextStatus: AutomationStatus) => ({
     name: name.trim(),
     description: automation?.description ?? "",
@@ -283,11 +292,16 @@ export default function AutomationBuilderPage() {
       type: automation?.trigger?.type ?? "welcome",
       label: automation?.trigger?.label ?? "New subscriber",
       conditions: automation?.trigger?.conditions ?? [],
-      delay: automation?.trigger?.delay ?? 0,
+      delay: triggerDelay,
     },
     steps: nodes
       .filter((n) => n.type !== "trigger")
-      .map((n): AutomationStep => ({ id: n.id, type: n.type as AutomationStepType, label: n.label, config: {} })),
+      .map((n): AutomationStep => ({
+        id: n.id,
+        type: n.type as AutomationStepType,
+        label: n.label,
+        config: n.config ?? {},
+      })),
     status: nextStatus,
   });
 
@@ -315,7 +329,7 @@ export default function AutomationBuilderPage() {
       setStatus(next);
       toast.success(
         next === "active"
-          ? "Saved as active — execution is in preview, so it won't run yet"
+          ? "Automation is live — new subscribers will be enrolled automatically"
           : "Saved as paused"
       );
     } catch (err) {
@@ -467,6 +481,9 @@ export default function AutomationBuilderPage() {
           node={selectedNode}
           automation={automation}
           onLabelChange={updateNodeLabel}
+          onConfigChange={updateNodeConfig}
+          onTriggerDelayChange={setTriggerDelay}
+          triggerDelay={triggerDelay}
           onRemove={selectedNode ? () => removeNode(selectedNode.id) : undefined}
         />
       </div>
@@ -691,11 +708,17 @@ function NodeInspector({
   node,
   automation,
   onLabelChange,
+  onConfigChange,
+  onTriggerDelayChange,
+  triggerDelay,
   onRemove,
 }: {
   node?: CanvasNode;
   automation: Automation;
   onLabelChange: (id: string, label: string) => void;
+  onConfigChange: (id: string, config: Record<string, unknown>) => void;
+  onTriggerDelayChange: (hours: number) => void;
+  triggerDelay: number;
   onRemove?: () => void;
 }) {
   const isTrigger = node?.type === "trigger";
@@ -731,17 +754,37 @@ function NodeInspector({
             </div>
 
             {isTrigger ? (
-              <TriggerConfig automation={automation} />
+              <TriggerConfig
+                automation={automation}
+                delay={triggerDelay}
+                onDelayChange={onTriggerDelayChange}
+              />
             ) : node.type === "send-email" ? (
-              <EmailStepConfig />
+              <EmailStepConfig
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             ) : node.type === "delay" ? (
-              <DelayConfig />
+              <DelayConfig
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             ) : node.type === "condition" ? (
-              <ConditionConfig />
+              <ConditionConfig
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             ) : node.type === "add-tag" || node.type === "remove-tag" ? (
-              <TagConfig action={node.type === "add-tag" ? "Add" : "Remove"} />
+              <TagConfig
+                action={node.type === "add-tag" ? "Add" : "Remove"}
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             ) : node.type === "webhook" ? (
-              <WebhookConfig />
+              <WebhookConfig
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             ) : (
               <UnsubscribeConfig />
             )}
@@ -752,7 +795,25 @@ function NodeInspector({
   );
 }
 
-function TriggerConfig({ automation }: { automation: Automation }) {
+function TriggerConfig({
+  automation,
+  delay,
+  onDelayChange,
+}: {
+  automation: Automation;
+  delay: number;
+  onDelayChange: (hours: number) => void;
+}) {
+  const [duration, setDuration] = React.useState(delay);
+  const [unit, setUnit] = React.useState("hours");
+
+  const update = (d: number, u: string) => {
+    setDuration(d);
+    setUnit(u);
+    const hours = u === "minutes" ? d / 60 : u === "days" ? d * 24 : d;
+    onDelayChange(Number.isFinite(hours) ? hours : 0);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -773,8 +834,13 @@ function TriggerConfig({ automation }: { automation: Automation }) {
       <div className="flex flex-col gap-2">
         <Label>Wait before starting</Label>
         <div className="grid grid-cols-2 gap-2">
-          <Input type="number" defaultValue={automation.trigger?.delay ?? 0} min={0} />
-          <Select defaultValue="hours">
+          <Input
+            type="number"
+            min={0}
+            value={duration}
+            onChange={(e) => update(Number(e.target.value), unit)}
+          />
+          <Select value={unit} onValueChange={(u) => update(duration, u)}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -803,37 +869,39 @@ function TriggerConfig({ automation }: { automation: Automation }) {
       </div>
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
         <p className="text-muted-foreground text-xs leading-relaxed">
-          <span className="font-medium">Execution preview.</span> Automations are a
-          design tool today — the flows you build here are saved, but they won&apos;t
-          send or act on their own yet. Running automations is next on the roadmap.
+          <span className="font-medium">Welcome trigger.</span> Contacts are
+          enrolled automatically when they are created or imported. Custom
+          automations start from the &quot;Run now&quot; button.
         </p>
       </div>
     </div>
   );
 }
 
-function EmailStepConfig() {
+function EmailStepConfig({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
   const [campaigns, setCampaigns] = React.useState<{ id: string; name: string }[]>([]);
-  const [lists, setLists] = React.useState<{ id: string; name: string }[]>([]);
-  const [campaign, setCampaign] = React.useState("");
-  const [list, setList] = React.useState("");
   const [loading, setLoading] = React.useState(true);
+  const campaignId = (value.campaignId as string) ?? "";
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [campaignsRes, listsRes] = await Promise.all([
-          api.get<{ campaigns: { id: string; name: string }[] }>("/api/v1/campaigns"),
-          api.get<{ lists: { id: string; name: string }[] }>("/api/v1/lists"),
-        ]);
+        const res = await api.get<{ campaigns: { id: string; name: string }[] }>(
+          "/api/v1/campaigns"
+        );
         if (!mounted) return;
-        const c = campaignsRes.campaigns ?? [];
-        const l = listsRes.lists ?? [];
+        const c = res.campaigns ?? [];
         setCampaigns(c);
-        setLists(l);
-        setCampaign(c[0]?.id ?? "");
-        setList(l[0]?.id ?? "");
+        if (!campaignId && c.length > 0) {
+          onChange({ campaignId: c[0].id });
+        }
       } catch (err) {
         if (!mounted) return;
         toast.error(err instanceof Error ? err.message : "Could not load campaigns");
@@ -844,6 +912,7 @@ function EmailStepConfig() {
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -857,7 +926,7 @@ function EmailStepConfig() {
             No campaigns yet — create one in Campaigns first.
           </div>
         ) : (
-          <Select value={campaign} onValueChange={setCampaign}>
+          <Select value={campaignId} onValueChange={(v) => onChange({ campaignId: v })}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -869,45 +938,38 @@ function EmailStepConfig() {
           </Select>
         )}
       </div>
-      <div className="flex flex-col gap-2">
-        <Label>Send to</Label>
-        {loading ? (
-          <div className="text-muted-foreground text-xs">Loading lists…</div>
-        ) : lists.length === 0 ? (
-          <div className="text-muted-foreground text-xs">
-            No lists yet — create one in Contacts first.
-          </div>
-        ) : (
-          <Select value={list} onValueChange={setList}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {lists.map((l) => (
-                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
         <p className="text-muted-foreground text-xs leading-relaxed">
-          The email will render each contact&apos;s variables ({"{{first_name}}"},{" "}
-          {"{{company}}"}…) automatically.
+          Sent to the contact running this flow. Variables ({"{{first_name}}"},{" "}
+          {"{{company}}"}…) and tracking are applied automatically.
         </p>
       </div>
     </div>
   );
 }
 
-function DelayConfig() {
+function DelayConfig({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const duration = (value.duration as number) ?? 1;
+  const unit = (value.unit as string) ?? "days";
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Duration</Label>
         <div className="grid grid-cols-2 gap-2">
-          <Input type="number" defaultValue={1} min={1} />
-          <Select defaultValue="days">
+          <Input
+            type="number"
+            min={1}
+            value={duration}
+            onChange={(e) => onChange({ duration: Number(e.target.value) || 1, unit })}
+          />
+          <Select value={unit} onValueChange={(u) => onChange({ duration, unit: u })}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -920,33 +982,41 @@ function DelayConfig() {
           </Select>
         </div>
       </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">Only on business days</p>
-          <p className="text-muted-foreground text-xs">Skip weekends for this step</p>
-        </div>
-        <Switch />
-      </div>
     </div>
   );
 }
 
-function ConditionConfig() {
+function ConditionConfig({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const condition = (value.condition as string) ?? "opened";
+  const campaignId = (value.campaignId as string) ?? "";
+  const tag = (value.tag as string) ?? "";
+  const segmentId = (value.segmentId as string) ?? "";
   const [campaigns, setCampaigns] = React.useState<{ id: string; name: string }[]>([]);
-  const [campaign, setCampaign] = React.useState("");
+  const [segments, setSegments] = React.useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await api.get<{ campaigns: { id: string; name: string }[] }>(
-          "/api/v1/campaigns"
-        );
+        const [campaignsRes, segmentsRes] = await Promise.all([
+          api.get<{ campaigns: { id: string; name: string }[] }>("/api/v1/campaigns"),
+          api.get<{ segments: { id: string; name: string }[] }>("/api/v1/segments"),
+        ]);
         if (!mounted) return;
-        const c = res.campaigns ?? [];
+        const c = campaignsRes.campaigns ?? [];
+        const s = segmentsRes.segments ?? [];
         setCampaigns(c);
-        setCampaign(c[0]?.id ?? "");
+        setSegments(s);
+        if (!campaignId && c.length > 0) {
+          onChange({ ...value, condition, campaignId: c[0].id });
+        }
       } catch (err) {
         if (!mounted) return;
         toast.error(err instanceof Error ? err.message : "Could not load campaigns");
@@ -957,58 +1027,110 @@ function ConditionConfig() {
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>If the contact</Label>
-        <Select defaultValue="opened">
+        <Select value={condition} onValueChange={(v) => onChange({ ...value, condition: v })}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="opened">Has opened an email</SelectItem>
             <SelectItem value="clicked">Has clicked a link</SelectItem>
-            <SelectItem value="tag">Matches a tag</SelectItem>
+            <SelectItem value="tag">Has a tag</SelectItem>
             <SelectItem value="segment">Is in a segment</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label>With campaign</Label>
-        {loading ? (
-          <div className="text-muted-foreground text-xs">Loading campaigns…</div>
-        ) : campaigns.length === 0 ? (
-          <div className="text-muted-foreground text-xs">
-            No campaigns yet — create one in Campaigns first.
-          </div>
-        ) : (
-          <Select value={campaign} onValueChange={setCampaign}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {campaigns.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-      <div className="bg-warning/10 border-warning/25 rounded-lg border px-3 py-2.5">
-        <p className="text-warning text-xs font-medium">Two branches follow this step</p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Contacts matching the rule go down the &quot;Yes&quot; path, everyone else takes
-          the &quot;No&quot; path.
+
+      {(condition === "opened" || condition === "clicked") && (
+        <div className="flex flex-col gap-2">
+          <Label>With campaign</Label>
+          {loading ? (
+            <div className="text-muted-foreground text-xs">Loading campaigns…</div>
+          ) : campaigns.length === 0 ? (
+            <div className="text-muted-foreground text-xs">
+              No campaigns yet — create one in Campaigns first.
+            </div>
+          ) : (
+            <Select
+              value={campaignId}
+              onValueChange={(v) => onChange({ ...value, campaignId: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {condition === "tag" && (
+        <div className="flex flex-col gap-2">
+          <Label>Tag</Label>
+          <Input
+            value={tag}
+            onChange={(e) => onChange({ ...value, tag: e.target.value })}
+            placeholder="e.g. re-engaged"
+          />
+        </div>
+      )}
+
+      {condition === "segment" && (
+        <div className="flex flex-col gap-2">
+          <Label>Segment</Label>
+          {loading ? (
+            <div className="text-muted-foreground text-xs">Loading segments…</div>
+          ) : segments.length === 0 ? (
+            <div className="text-muted-foreground text-xs">
+              No segments yet — create one in Contacts first.
+            </div>
+          ) : (
+            <Select
+              value={segmentId}
+              onValueChange={(v) => onChange({ ...value, segmentId: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {segments.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          If the rule doesn&apos;t match, the flow ends here for this contact.
         </p>
       </div>
     </div>
   );
 }
 
-function TagConfig({ action }: { action: "Add" | "Remove" }) {
-  const [value, setValue] = React.useState("");
+function TagConfig({
+  action,
+  value,
+  onChange,
+}: {
+  action: "Add" | "Remove";
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const tag = (value.tag as string) ?? "";
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [tags, setTags] = React.useState<{ tag: string; count: number }[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -1032,8 +1154,8 @@ function TagConfig({ action }: { action: "Add" | "Remove" }) {
         <Label>{action} tag</Label>
         <div className="flex gap-2">
           <Input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            value={tag}
+            onChange={(e) => onChange({ tag: e.target.value })}
             placeholder="e.g. re-engaged"
             className="flex-1"
           />
@@ -1072,7 +1194,7 @@ function TagConfig({ action }: { action: "Add" | "Remove" }) {
                   key={t.tag}
                   type="button"
                   onClick={() => {
-                    setValue(t.tag);
+                    onChange({ tag: t.tag });
                     setPickerOpen(false);
                   }}
                   className="flex cursor-pointer items-center justify-between rounded-lg border-2 px-3 py-2 text-left transition-all hover:border-primary/40"
@@ -1094,16 +1216,30 @@ function TagConfig({ action }: { action: "Add" | "Remove" }) {
   );
 }
 
-function WebhookConfig() {
+function WebhookConfig({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const url = (value.url as string) ?? "";
+  const method = (value.method as string) ?? "post";
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Endpoint URL</Label>
-        <Input placeholder="https://your-app.com/hooks/email-opened" className="font-mono text-xs" />
+        <Input
+          value={url}
+          onChange={(e) => onChange({ ...value, url: e.target.value })}
+          placeholder="https://your-app.com/hooks/email-opened"
+          className="font-mono text-xs"
+        />
       </div>
       <div className="flex flex-col gap-2">
         <Label>Method</Label>
-        <Select defaultValue="post">
+        <Select value={method} onValueChange={(m) => onChange({ ...value, method: m })}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -1113,12 +1249,11 @@ function WebhookConfig() {
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">Retry on failure</p>
-          <p className="text-muted-foreground text-xs">3 attempts with backoff</p>
-        </div>
-        <Switch defaultChecked />
+      <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Receives the contact&apos;s details as JSON. Best-effort: failures
+          don&apos;t stop the flow.
+        </p>
       </div>
     </div>
   );

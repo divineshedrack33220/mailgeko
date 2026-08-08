@@ -139,9 +139,8 @@ export default function NewAutomationPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight">Create a new automation</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Execution preview. Automations are a design tool today — the flows you
-          build here are saved, but they won&apos;t send or act on their own yet.
-          Running automations is next on the roadmap.
+          Active welcome automations start when a contact is created or
+          imported. Every flow can also be launched manually with Run now.
         </p>
       </div>
 
