@@ -212,6 +212,11 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusInternalServerError, "internal", "could not remove member")
 			return
 		}
+		if s.session != nil {
+			if err := s.session.RevokeAll(r.Context(), id, s.cfg.TokenTTL); err != nil {
+				log.Printf("httpapi: could not revoke sessions for removed member %s: %v", id, err)
+			}
+		}
 		writeOK(w, map[string]bool{"ok": true})
 		return
 	}

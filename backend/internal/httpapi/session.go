@@ -88,6 +88,32 @@ func (s *SessionStore) Revoke(ctx context.Context, userID, tokenID string, ttl t
 	return s.Blacklist(ctx, tokenID, ttl)
 }
 
+// RevokeAll signs out every device of a user by blacklisting each of their
+// live session tokens.
+func (s *SessionStore) RevokeAll(ctx context.Context, userID string, ttl time.Duration) error {
+	keys, err := s.rdb.Keys(ctx, "session:"+userID+":*").Result()
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		raw, err := s.rdb.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+		var meta SessionInfo
+		if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+			continue
+		}
+		if err := s.rdb.Del(ctx, key).Err(); err != nil {
+			return err
+		}
+		if err := s.Blacklist(ctx, meta.TokenID, ttl); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *SessionStore) RevokeAllExcept(ctx context.Context, userID, keepTokenID string, ttl time.Duration) error {
 	keys, err := s.rdb.Keys(ctx, "session:"+userID+":*").Result()
 	if err != nil {
