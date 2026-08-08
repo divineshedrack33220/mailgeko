@@ -9,6 +9,7 @@ export function getPageTitle(pathname: string): string {
     templates: segments.length > 2 ? "Template" : "Templates",
     reports: "Reports",
     ai: "AI Studio",
+    notifications: "Notifications",
     settings: "Settings",
   };
   return map[segments[0]] ?? "Dashboard";

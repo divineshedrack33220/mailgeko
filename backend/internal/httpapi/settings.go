@@ -177,6 +177,12 @@ func (s *Server) handleUpdateWorkspaceMember(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusInternalServerError, "internal", "could not update member role")
 			return
 		}
+		if workspace, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil {
+			s.notifyUser(r.Context(), workspace.ID, id, "role-changed",
+				"Your role was updated",
+				"Your role in \""+workspace.Name+"\" was changed to "+label+".",
+				"/settings/team")
+		}
 		writeOK(w, map[string]any{"member": map[string]any{"id": id, "role": label}})
 		return
 	}
@@ -208,6 +214,10 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusUnprocessableEntity, "validation", "the workspace owner cannot be removed")
 			return
 		}
+		memberName := ""
+		if member, err := s.db.UserByID(r.Context(), id); err == nil {
+			memberName = member.Name
+		}
 		if err := s.db.DeleteWorkspaceMember(r.Context(), claims.GetWorkspaceID(), id); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", "could not remove member")
 			return
@@ -216,6 +226,16 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 			if err := s.session.RevokeAll(r.Context(), id, s.cfg.TokenTTL); err != nil {
 				log.Printf("httpapi: could not revoke sessions for removed member %s: %v", id, err)
 			}
+		}
+		if workspace, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil {
+			display := memberName
+			if display == "" {
+				display = "A member"
+			}
+			s.notifyWorkspaceOwner(r.Context(), workspace.ID, "member-removed",
+				"Member removed",
+				display+" was removed from \""+workspace.Name+"\".",
+				"/settings/team")
 		}
 		writeOK(w, map[string]bool{"ok": true})
 		return
@@ -437,6 +457,16 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load user")
 		return
+	}
+	if workspace, err := s.db.GetWorkspace(r.Context(), inv.WorkspaceID); err == nil {
+		display := user.Name
+		if display == "" {
+			display = user.Email
+		}
+		s.notifyWorkspaceOwner(r.Context(), workspace.ID, "member-joined",
+			"New team member",
+			display+" joined \""+workspace.Name+"\".",
+			"/settings/team")
 	}
 	s.issueSessionToken(r.Context(), w, user, inv.WorkspaceID, r, s.cfg.TokenTTL, http.StatusOK)
 }

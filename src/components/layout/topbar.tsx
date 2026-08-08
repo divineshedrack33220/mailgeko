@@ -188,6 +188,22 @@ function NotificationsMenu() {
     run();
   }, [open, load]);
 
+  React.useEffect(() => {
+    const refreshUnread = async () => {
+      try {
+        const res = await api.get<{ notifications: AppNotification[]; unread: number }>(
+          "/api/v1/notifications"
+        );
+        setNotifications(res.notifications ?? []);
+        setUnread(res.unread ?? 0);
+      } catch {
+        // keep the current badge on transient errors
+      }
+    };
+    const interval = window.setInterval(refreshUnread, 60000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const markRead = async (n: AppNotification) => {
     if (!n.read) {
       void api.post(`/api/v1/notifications/${n.id}/read`).catch(() => {});
@@ -298,6 +314,7 @@ function NotificationsMenu() {
               onSelect={(e) => {
                 e.preventDefault();
                 setOpen(false);
+                router.push("/notifications");
               }}
             >
               View all notifications

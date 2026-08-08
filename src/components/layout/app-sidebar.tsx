@@ -19,6 +19,7 @@ import {
   ChevronsUpDown,
   Check,
   Loader2,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -88,7 +89,10 @@ const sections: NavSection[] = [
   },
   {
     label: "Account",
-    items: [{ title: "Settings", href: "/settings", icon: Settings }],
+    items: [
+      { title: "Notifications", href: "/notifications", icon: Bell },
+      { title: "Settings", href: "/settings", icon: Settings },
+    ],
   },
 ];
 

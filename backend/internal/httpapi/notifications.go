@@ -1,10 +1,13 @@
 package httpapi
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
 
@@ -23,6 +26,33 @@ func notificationResponse(n store.Notification) map[string]any {
 		"readAt":    readAt,
 		"createdAt": n.CreatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+// notifyUser records an in-app notification for a single member.
+func (s *Server) notifyUser(ctx context.Context, workspaceID, userID, typ, title, body, link string) {
+	if userID == "" {
+		return
+	}
+	if err := s.db.CreateNotification(ctx, &store.Notification{
+		ID:          uuid.NewString(),
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Type:        typ,
+		Title:       title,
+		Body:        body,
+		Link:        link,
+	}); err != nil {
+		log.Printf("httpapi: could not create notification: %v", err)
+	}
+}
+
+// notifyWorkspaceOwner records an in-app notification for the workspace owner.
+func (s *Server) notifyWorkspaceOwner(ctx context.Context, workspaceID, typ, title, body, link string) {
+	userID, err := s.db.WorkspaceOwnerUserID(ctx, workspaceID)
+	if err != nil || userID == "" {
+		return
+	}
+	s.notifyUser(ctx, workspaceID, userID, typ, title, body, link)
 }
 
 func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request) {
