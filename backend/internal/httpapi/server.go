@@ -241,6 +241,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleGetWorkspace)))
 	mux.Handle("PATCH /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspace)))
+	mux.Handle("GET /api/v1/workspaces", s.withAuth(http.HandlerFunc(s.handleListWorkspaces)))
+	mux.Handle("POST /api/v1/workspace/switch", s.withAuth(http.HandlerFunc(s.handleSwitchWorkspace)))
 	mux.Handle("GET /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleGetBrandVoice)))
 	mux.Handle("PUT /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleUpdateBrandVoice)))
 

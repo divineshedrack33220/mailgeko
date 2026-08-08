@@ -17,7 +17,10 @@ import {
   ChevronDown,
   CreditCard,
   ChevronsUpDown,
+  Check,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatNumber, initials } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -286,6 +289,14 @@ export function AppSidebar() {
   );
 }
 
+interface WorkspaceOption {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  role?: string;
+  active?: boolean;
+}
+
 function WorkspaceSwitcher({
   collapsed,
   workspaceName,
@@ -298,10 +309,37 @@ function WorkspaceSwitcher({
   planName: string;
 }) {
   const router = useRouter();
-  const { role } = useAuthStore();
+  const { role, switchWorkspace } = useAuthStore();
+  const [workspaces, setWorkspaces] = React.useState<WorkspaceOption[]>([]);
+  const [switching, setSwitching] = React.useState<string | null>(null);
   const displayName = workspaceName || "Your workspace";
   const [first, ...rest] = displayName.trim().split(/\s+/);
   const avatarText = workspaceName ? initials(first, rest[0]) : "WS";
+
+  React.useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ workspaces?: WorkspaceOption[] }>("/api/v1/workspaces")
+      .then((res) => {
+        if (!cancelled) setWorkspaces(res.workspaces ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onSwitch = async (ws: WorkspaceOption) => {
+    if (ws.active || switching) return;
+    setSwitching(ws.id);
+    try {
+      await switchWorkspace(ws.id);
+      window.location.href = "/dashboard";
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not switch workspace");
+      setSwitching(null);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -337,7 +375,7 @@ function WorkspaceSwitcher({
           </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
+      <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>
           <span className="block text-sm font-semibold">{displayName}</span>
           <span className="text-muted-foreground block text-xs">
@@ -346,6 +384,47 @@ function WorkspaceSwitcher({
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {workspaces.length > 1 && (
+          <>
+            <div className="scrollbar-thin max-h-60 overflow-y-auto py-1">
+              {workspaces.map((ws) => {
+                const [wFirst, ...wRest] = ws.name.trim().split(/\s+/);
+                const wsActive = ws.active;
+                return (
+                  <button
+                    key={ws.id}
+                    onClick={() => onSwitch(ws)}
+                    disabled={wsActive || switching !== null}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors disabled:cursor-default",
+                      wsActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-6 shrink-0 items-center justify-center rounded text-[0.65rem] font-bold">
+                      {ws.name ? initials(wFirst, wRest[0]) : "WS"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{ws.name}</span>
+                      {ws.role && (
+                        <span className="text-muted-foreground block text-xs">
+                          {roleLabel(ws.role)}
+                        </span>
+                      )}
+                    </span>
+                    {switching === ws.id ? (
+                      <Loader2 className="size-4 shrink-0 animate-spin" />
+                    ) : wsActive ? (
+                      <Check className="size-4 shrink-0" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem
           className="cursor-pointer"
           onClick={() => router.push("/settings/billing")}

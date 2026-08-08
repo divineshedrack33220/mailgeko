@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,6 +22,80 @@ func (s *Server) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]any{"workspace": workspaceResponse(ws)})
+}
+
+// handleListWorkspaces returns every workspace the caller belongs to, marking
+// the one their session is currently bound to.
+func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	workspaces, err := s.db.ListWorkspacesForUser(r.Context(), claims.GetUserID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not list workspaces")
+		return
+	}
+	out := make([]map[string]any, 0, len(workspaces))
+	for _, ws := range workspaces {
+		out = append(out, map[string]any{
+			"id":      ws.ID,
+			"name":    ws.Name,
+			"logoUrl": ws.LogoURL,
+			"role":    ws.Role,
+			"active":  ws.ID == claims.GetWorkspaceID(),
+		})
+	}
+	writeOK(w, map[string]any{"workspaces": out})
+}
+
+// handleSwitchWorkspace re-binds the caller's session to another workspace
+// they belong to, issuing a fresh token scoped to it.
+func (s *Server) handleSwitchWorkspace(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return
+	}
+	var req struct {
+		WorkspaceID string `json:"workspaceId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	req.WorkspaceID = strings.TrimSpace(req.WorkspaceID)
+	if req.WorkspaceID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "workspaceId is required")
+		return
+	}
+
+	role, err := s.db.WorkspaceMemberByUserID(r.Context(), req.WorkspaceID, claims.GetUserID())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusForbidden, "forbidden", "you are not a member of this workspace")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not verify membership")
+		return
+	}
+
+	if req.WorkspaceID == claims.GetWorkspaceID() {
+		writeOK(w, map[string]any{"workspaceID": req.WorkspaceID, "role": role})
+		return
+	}
+
+	user, err := s.db.UserByID(r.Context(), claims.GetUserID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load user")
+		return
+	}
+
+	// Invalidate the old token so it can't be reused against the old workspace.
+	if s.session != nil {
+		if err := s.session.Revoke(r.Context(), user.ID, claims.GetTokenID(), s.cfg.TokenTTL); err != nil {
+			log.Printf("httpapi: could not revoke session on workspace switch: %v", err)
+		}
+	}
+
+	s.issueSessionToken(r.Context(), w, user, req.WorkspaceID, r, s.cfg.TokenTTL, http.StatusOK)
 }
 
 func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {

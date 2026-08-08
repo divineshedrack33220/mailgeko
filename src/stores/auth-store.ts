@@ -21,6 +21,13 @@ interface AuthResponse {
   role?: string;
 }
 
+interface SwitchWorkspaceResponse {
+  token?: string;
+  user?: AuthUser;
+  workspaceID: string;
+  role?: string;
+}
+
 interface AuthState {
   user: AuthUser | null;
   workspaceID: string | null;
@@ -31,11 +38,12 @@ interface AuthState {
   verifyTwoFactor: (pendingToken: string, code: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   acceptInvite: (token: string) => Promise<void>;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   workspaceID: null,
   role: null,
@@ -115,6 +123,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     setToken(res.token);
     set({
       user: res.user,
+      workspaceID: res.workspaceID,
+      role: res.role ?? null,
+      isAuthenticated: true,
+    });
+  },
+
+  switchWorkspace: async (workspaceId) => {
+    const res = await api.post<SwitchWorkspaceResponse>("/api/v1/workspace/switch", {
+      workspaceId,
+    });
+    if (res.token) setToken(res.token);
+    set({
+      user: res.user ?? get().user,
       workspaceID: res.workspaceID,
       role: res.role ?? null,
       isAuthenticated: true,

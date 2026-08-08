@@ -175,6 +175,37 @@ func (s *Store) WorkspaceIDForUser(ctx context.Context, userID string) (string, 
 	return workspaceID, err
 }
 
+// WorkspaceMembership is a workspace a user belongs to, plus their role in it.
+type WorkspaceMembership struct {
+	ID      string `db:"id"`
+	Name    string `db:"name"`
+	LogoURL string `db:"logo_url"`
+	Role    string `db:"role"`
+}
+
+func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]WorkspaceMembership, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT w.id, w.name, COALESCE(w.logo_url, '') AS logo_url, wm.role
+		FROM workspace_members wm
+		JOIN workspaces w ON w.id = wm.workspace_id
+		WHERE wm.user_id = ?
+		ORDER BY wm.role = 'owner' DESC, w.created_at ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []WorkspaceMembership
+	for rows.Next() {
+		var m WorkspaceMembership
+		if err := rows.Scan(&m.ID, &m.Name, &m.LogoURL, &m.Role); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetWorkspace(ctx context.Context, workspaceID string) (*Workspace, error) {
 	var w Workspace
 	err := s.db.GetContext(ctx, &w,
