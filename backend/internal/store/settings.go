@@ -18,12 +18,14 @@ type Member struct {
 }
 
 type Invitation struct {
-	ID          string    `db:"id"`
-	WorkspaceID string    `db:"workspace_id"`
-	Email       string    `db:"email"`
-	Role        string    `db:"role"`
-	Status      string    `db:"status"`
-	CreatedAt   time.Time `db:"created_at"`
+	ID          string          `db:"id"`
+	WorkspaceID string          `db:"workspace_id"`
+	Email       string          `db:"email"`
+	Role        string          `db:"role"`
+	Status      string          `db:"status"`
+	TokenHash   sql.NullString  `db:"token_hash"`
+	ExpiresAt   sql.NullTime    `db:"expires_at"`
+	CreatedAt   time.Time       `db:"created_at"`
 }
 
 type APIKey struct {
@@ -64,7 +66,7 @@ func (s *Store) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([
 
 func (s *Store) ListInvitations(ctx context.Context, workspaceID string) ([]Invitation, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, workspace_id, email, role, status, created_at
+		SELECT id, workspace_id, email, role, status, token_hash, expires_at, created_at
 		FROM invitations
 		WHERE workspace_id = ? AND status = 'pending'
 		ORDER BY created_at ASC`, workspaceID)
@@ -76,7 +78,7 @@ func (s *Store) ListInvitations(ctx context.Context, workspaceID string) ([]Invi
 	var out []Invitation
 	for rows.Next() {
 		var inv Invitation
-		if err := rows.Scan(&inv.ID, &inv.WorkspaceID, &inv.Email, &inv.Role, &inv.Status, &inv.CreatedAt); err != nil {
+		if err := rows.Scan(&inv.ID, &inv.WorkspaceID, &inv.Email, &inv.Role, &inv.Status, &inv.TokenHash, &inv.ExpiresAt, &inv.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, inv)
@@ -86,16 +88,27 @@ func (s *Store) ListInvitations(ctx context.Context, workspaceID string) ([]Invi
 
 func (s *Store) CreateInvitation(ctx context.Context, inv *Invitation) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO invitations (id, workspace_id, email, role, status) VALUES (?, ?, ?, ?, ?)`,
-		inv.ID, inv.WorkspaceID, inv.Email, inv.Role, inv.Status)
+		`INSERT INTO invitations (id, workspace_id, email, role, status, token_hash, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		inv.ID, inv.WorkspaceID, inv.Email, inv.Role, inv.Status, inv.TokenHash, inv.ExpiresAt)
 	return err
 }
 
 func (s *Store) InvitationByEmail(ctx context.Context, workspaceID, email string) (*Invitation, error) {
 	var inv Invitation
 	err := s.db.GetContext(ctx, &inv,
-		`SELECT id, workspace_id, email, role, status, created_at
+		`SELECT id, workspace_id, email, role, status, token_hash, expires_at, created_at
 		 FROM invitations WHERE workspace_id = ? AND email = ?`, workspaceID, email)
+	if err != nil {
+		return nil, err
+	}
+	return &inv, nil
+}
+
+func (s *Store) InvitationByTokenHash(ctx context.Context, tokenHash string) (*Invitation, error) {
+	var inv Invitation
+	err := s.db.GetContext(ctx, &inv,
+		`SELECT id, workspace_id, email, role, status, token_hash, expires_at, created_at
+		 FROM invitations WHERE token_hash = ? AND status = 'pending'`, tokenHash)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +119,13 @@ func (s *Store) UpdateInvitationRole(ctx context.Context, workspaceID, id, role 
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE invitations SET role = ? WHERE workspace_id = ? AND id = ?`,
 		role, workspaceID, id)
+	return err
+}
+
+func (s *Store) UpdateInvitationToken(ctx context.Context, workspaceID, id, tokenHash string, expiresAt sql.NullTime) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE invitations SET token_hash = ?, expires_at = ? WHERE workspace_id = ? AND id = ?`,
+		tokenHash, expiresAt, workspaceID, id)
 	return err
 }
 

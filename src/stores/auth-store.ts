@@ -28,6 +28,7 @@ interface AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<string | null>;
   verifyTwoFactor: (pendingToken: string, code: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  acceptInvite: (token: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
 }
@@ -94,6 +95,16 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   register: async (name, email, password) => {
     const res = await api.post<AuthResponse>("/api/v1/auth/register", { name, email, password });
+    setToken(res.token);
+    set({
+      user: res.user,
+      workspaceID: res.workspaceID,
+      isAuthenticated: true,
+    });
+  },
+
+  acceptInvite: async (token) => {
+    const res = await api.post<AuthResponse>("/api/v1/invitations/accept", { token });
     setToken(res.token);
     set({
       user: res.user,

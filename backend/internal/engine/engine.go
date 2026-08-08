@@ -489,14 +489,14 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 
 // SendMemberEmail sends a short transactional email (invite reminder or
 // check-in) to a member of the workspace, from the workspace sender defaults.
-func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, body string) (*sender.SendResult, error) {
+func (e *Engine) SendMemberEmail(ctx context.Context, ws *store.Workspace, to, subject, htmlBody, textBody string) (*sender.SendResult, error) {
 	from := e.resolveFrom(ws.FromName, ws.FromEmail)
 	return e.sender.Send(ctx, sender.Message{
 		From:    from,
 		To:      to,
 		Subject: subject,
-		HTML:    renderTransactionalHTML(body, e.baseURL),
-		Text:    body,
+		HTML:    renderTransactionalHTML(htmlBody, e.baseURL),
+		Text:    textBody,
 		ReplyTo: ws.ReplyTo,
 		Headers: map[string]string{"X-Mailgeko-Workspace": ws.ID},
 		Tags:    []sender.Tag{{Name: "type", Value: "member"}},

@@ -26,6 +26,7 @@ var mysqlMigrations = []string{
 	"migrations/0011_ai_studio.sql",
 	"migrations/0012_two_factor.sql",
 	"migrations/0013_api_key_lookup.sql",
+	"migrations/0014_invitations_tokens.sql",
 }
 
 // postgresMigrations are the Postgres / pgvector migrations, in order.

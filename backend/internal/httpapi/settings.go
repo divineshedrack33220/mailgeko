@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -29,6 +32,14 @@ func normalizeRole(role string) (string, string, bool) {
 	role = strings.ToLower(strings.TrimSpace(role))
 	label, ok := validRoles[role]
 	return role, label, ok
+}
+
+func normalizeAssignableRole(role string) (string, string, bool) {
+	role, label, ok := normalizeRole(role)
+	if !ok || role == "owner" {
+		return "", "", false
+	}
+	return role, label, true
 }
 
 func (s *Server) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
@@ -95,9 +106,9 @@ func (s *Server) handleInviteWorkspaceMember(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusUnprocessableEntity, "validation", "a valid email is required")
 		return
 	}
-	role, _, ok := normalizeRole(req.Role)
+	role, _, ok := normalizeAssignableRole(req.Role)
 	if !ok {
-		writeError(w, http.StatusUnprocessableEntity, "validation", "invalid role")
+		writeError(w, http.StatusUnprocessableEntity, "validation", "only admin, manager, or viewer roles can be assigned")
 		return
 	}
 
@@ -106,12 +117,16 @@ func (s *Server) handleInviteWorkspaceMember(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	token, tokenHash := newInviteToken()
+	now := time.Now()
 	inv := &store.Invitation{
 		ID:          newID(),
 		WorkspaceID: claims.GetWorkspaceID(),
 		Email:       req.Email,
 		Role:        role,
 		Status:      "pending",
+		TokenHash:   sql.NullString{String: tokenHash, Valid: true},
+		ExpiresAt:   sql.NullTime{Time: now.Add(inviteTTL), Valid: true},
 	}
 	if err := s.db.CreateInvitation(r.Context(), inv); err != nil {
 		var mysqlErr *mysql.MySQLError
@@ -120,6 +135,12 @@ func (s *Server) handleInviteWorkspaceMember(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal", "could not create invitation")
+		return
+	}
+
+	link := s.inviteLink(token)
+	if err := s.sendMemberEmail(r, req.Email, "invite", link); err != nil {
+		writeMemberEmailError(w, err)
 		return
 	}
 
@@ -141,9 +162,9 @@ func (s *Server) handleUpdateWorkspaceMember(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
-	role, label, ok := normalizeRole(req.Role)
+	role, label, ok := normalizeAssignableRole(req.Role)
 	if !ok {
-		writeError(w, http.StatusUnprocessableEntity, "validation", "invalid role")
+		writeError(w, http.StatusUnprocessableEntity, "validation", "only admin, manager, or viewer roles can be assigned")
 		return
 	}
 
@@ -219,7 +240,23 @@ func (s *Server) handleResendInvitation(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "internal", "could not resend invitation")
 		return
 	}
-	s.sendMemberEmail(w, r, inv.Email, "invite")
+	if inv.Status != "pending" {
+		writeError(w, http.StatusConflict, "not_pending", "this invitation is no longer pending")
+		return
+	}
+	token, tokenHash := newInviteToken()
+	now := time.Now()
+	inv.TokenHash = sql.NullString{String: tokenHash, Valid: true}
+	inv.ExpiresAt = sql.NullTime{Time: now.Add(inviteTTL), Valid: true}
+	if err := s.db.UpdateInvitationToken(r.Context(), claims.GetWorkspaceID(), inv.ID, tokenHash, inv.ExpiresAt); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not refresh invitation")
+		return
+	}
+	if err := s.sendMemberEmail(r, inv.Email, "invite", s.inviteLink(token)); err != nil {
+		writeMemberEmailError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"ok": true, "email": inv.Email})
 }
 
 func (s *Server) handleSendMemberReminder(w http.ResponseWriter, r *http.Request) {
@@ -248,32 +285,155 @@ func (s *Server) handleSendMemberReminder(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusNotFound, "not_found", "member not found")
 		return
 	}
-	s.sendMemberEmail(w, r, member.Email, "reminder")
-}
-
-func (s *Server) sendMemberEmail(w http.ResponseWriter, r *http.Request, to, kind string) {
-	claims := claimsFrom(r)
-	ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not send email")
+	if err := s.sendMemberEmail(r, member.Email, "reminder", ""); err != nil {
+		writeMemberEmailError(w, err)
 		return
 	}
-	if s.engine == nil {
+	writeOK(w, map[string]any{"ok": true, "email": member.Email})
+}
+
+// writeMemberEmailError maps a failed member-email send to an HTTP response.
+func writeMemberEmailError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errEmailNotConfigured) {
 		writeError(w, http.StatusBadGateway, "not_configured", "email sending is not configured")
 		return
 	}
-	subject := fmt.Sprintf("You're invited to %s on Mailgeko", ws.Name)
-	body := fmt.Sprintf("You've been invited to join %s on Mailgeko.\n\nClick the button below to sign in and get started.", ws.Name)
-	if kind == "reminder" {
-		subject = fmt.Sprintf("Quick check-in from %s on Mailgeko", ws.Name)
-		body = fmt.Sprintf("Just a reminder that %s uses Mailgeko for email marketing. Sign in to stay on top of your campaigns.", ws.Name)
-	}
-	result, err := s.engine.SendMemberEmail(r.Context(), ws, to, subject, body)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "send_failed", "could not send email: "+err.Error())
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusInternalServerError, "internal", "could not send email")
 		return
 	}
-	writeOK(w, map[string]any{"messageId": result.MessageID, "email": to})
+	writeError(w, http.StatusBadGateway, "send_failed", "could not send email: "+err.Error())
+}
+
+// inviteTTL is how long an invitation link stays redeemable.
+const inviteTTL = 7 * 24 * time.Hour
+
+// newInviteToken returns a random URL-safe token and its SHA-256 hex hash.
+// Only the hash is stored so a leaked database cannot be used to forge links.
+func newInviteToken() (token, tokenHash string) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		panic("httpapi: could not generate invite token: " + err.Error())
+	}
+	token = hex.EncodeToString(buf)
+	sum := sha256.Sum256([]byte(token))
+	return token, hex.EncodeToString(sum[:])
+}
+
+func (s *Server) inviteLink(token string) string {
+	return s.cfg.BaseURL + "/invite?token=" + url.QueryEscape(token)
+}
+
+func inviteEmailBody(workspaceName, link string) string {
+	name := html.EscapeString(workspaceName)
+	return fmt.Sprintf(
+		"<p>You've been invited to join <strong>%s</strong> on Mailgeko.</p>"+
+			"<p style=\"margin:20px 0\"><a href=\"%s\" style=\"display:inline-block;background:#007e4f;color:#ffffff;text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px\">Accept invitation</a></p>"+
+			"<p style=\"color:#6b7280;font-size:13px\">If the button doesn't work, paste this link into your browser:<br/>%s</p>",
+		name, link, link)
+}
+
+func inviteEmailText(workspaceName, link string) string {
+	return fmt.Sprintf(
+		"You've been invited to join %s on Mailgeko.\n\nAccept the invitation here:\n%s\n\nThe link expires in 7 days.",
+		workspaceName, link)
+}
+
+func (s *Server) sendMemberEmail(r *http.Request, to, kind, link string) error {
+	claims := claimsFrom(r)
+	ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		return err
+	}
+	if s.engine == nil {
+		return errEmailNotConfigured
+	}
+	var subject, htmlBody, textBody string
+	if kind == "invite" {
+		subject = fmt.Sprintf("You're invited to %s on Mailgeko", ws.Name)
+		htmlBody = inviteEmailBody(ws.Name, link)
+		textBody = inviteEmailText(ws.Name, link)
+	} else {
+		subject = fmt.Sprintf("Quick check-in from %s on Mailgeko", ws.Name)
+		htmlBody = fmt.Sprintf("<p>Just a reminder that %s uses Mailgeko for email marketing. Sign in to stay on top of your campaigns.</p>", html.EscapeString(ws.Name))
+		textBody = fmt.Sprintf("Just a reminder that %s uses Mailgeko for email marketing. Sign in to stay on top of your campaigns.", ws.Name)
+	}
+	_, err = s.engine.SendMemberEmail(r.Context(), ws, to, subject, htmlBody, textBody)
+	return err
+}
+
+var errEmailNotConfigured = errors.New("email sending is not configured")
+
+// handleAcceptInvitation redeems an invitation link for the signed-in user.
+// It binds their session to the invited workspace so the app reflects the
+// workspace they just joined.
+func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return
+	}
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "invitation token is required")
+		return
+	}
+
+	sum := sha256.Sum256([]byte(req.Token))
+	inv, err := s.db.InvitationByTokenHash(r.Context(), hex.EncodeToString(sum[:]))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "invitation not found or already used")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not look up invitation")
+		return
+	}
+	if inv.ExpiresAt.Valid && inv.ExpiresAt.Time.Before(time.Now()) {
+		writeError(w, http.StatusGone, "expired", "this invitation has expired")
+		return
+	}
+	if !strings.EqualFold(claims.GetEmail(), inv.Email) {
+		writeError(w, http.StatusForbidden, "email_mismatch", "this invitation was sent to a different email address")
+		return
+	}
+
+	if _, err := s.db.GetWorkspace(r.Context(), inv.WorkspaceID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load workspace")
+		return
+	}
+
+	if _, err := s.db.WorkspaceMemberByUserID(r.Context(), inv.WorkspaceID, claims.GetUserID()); err != nil {
+		if err != sql.ErrNoRows {
+			writeError(w, http.StatusInternalServerError, "internal", "could not verify membership")
+			return
+		}
+		if err := s.db.AddWorkspaceMember(r.Context(), inv.WorkspaceID, claims.GetUserID(), inv.Role); err != nil {
+			var mysqlErr *mysql.MySQLError
+			if !(errors.As(err, &mysqlErr) && mysqlErr.Number == 1062) {
+				writeError(w, http.StatusInternalServerError, "internal", "could not join workspace")
+				return
+			}
+		}
+	}
+
+	if err := s.db.DeleteInvitation(r.Context(), inv.WorkspaceID, inv.ID); err != nil {
+		log.Printf("httpapi: could not clear accepted invitation %s: %v", inv.ID, err)
+	}
+
+	user, err := s.db.UserByID(r.Context(), claims.GetUserID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load user")
+		return
+	}
+	s.issueSessionToken(r.Context(), w, user, inv.WorkspaceID, r, s.cfg.TokenTTL, http.StatusOK)
 }
 
 func invitationResponse(inv *store.Invitation) map[string]any {

@@ -309,7 +309,7 @@ export default function TeamSettingsPage() {
                   ) : (
                     <span className="w-28" />
                   )}
-                  {member.role !== "Owner" && (
+                  {!isMe(member) && member.role !== "Owner" && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${member.name}`}>
