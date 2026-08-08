@@ -52,6 +52,8 @@ import {
 import { cn } from "@/lib/utils";
 import { timeAgo, formatNumber } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Template, TemplateCategory } from "@/lib/types";
 import { EmptyState } from "@/components/shared/empty-state";
 
@@ -83,6 +85,8 @@ const categories: Array<"all" | TemplateCategory> = [
 ];
 
 export default function TemplatesPage() {
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
   const [templates, setTemplates] = React.useState<Template[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
@@ -230,14 +234,18 @@ export default function TemplatesPage() {
         icon={FileText}
         actions={
           <>
-            <Button variant="outline" onClick={() => setAiOpen(true)}>
-              <Sparkles /> Generate with AI
-            </Button>
-            <Button asChild>
-              <Link href="/templates/new">
-                <Plus /> New template
-              </Link>
-            </Button>
+            {manage && (
+              <Button variant="outline" onClick={() => setAiOpen(true)}>
+                <Sparkles /> Generate with AI
+              </Button>
+            )}
+            {manage && (
+              <Button asChild>
+                <Link href="/templates/new">
+                  <Plus /> New template
+                </Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -330,19 +338,21 @@ export default function TemplatesPage() {
                   <Badge className="absolute top-2.5 left-2.5 bg-background/80 text-foreground backdrop-blur">
                     {template.category}
                   </Badge>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toggleFavorite(template.id);
-                    }}
-                    className={cn(
-                      "absolute top-2 right-2 flex size-7 cursor-pointer items-center justify-center rounded-full bg-background/80 backdrop-blur transition-all",
-                      template.isFavorite ? "text-warning" : "text-muted-foreground opacity-0 group-hover:opacity-100"
-                    )}
-                    aria-label={template.isFavorite ? "Remove from favorites" : "Add to favorites"}
-                  >
-                    <Star className={cn("size-4", template.isFavorite && "fill-current")} />
-                  </button>
+                  {manage && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleFavorite(template.id);
+                      }}
+                      className={cn(
+                        "absolute top-2 right-2 flex size-7 cursor-pointer items-center justify-center rounded-full bg-background/80 backdrop-blur transition-all",
+                        template.isFavorite ? "text-warning" : "text-muted-foreground opacity-0 group-hover:opacity-100"
+                      )}
+                      aria-label={template.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <Star className={cn("size-4", template.isFavorite && "fill-current")} />
+                    </button>
+                  )}
                   <span className="bg-primary text-primary-foreground absolute right-2.5 bottom-2.5 rounded-md px-2 py-1 text-[0.65rem] font-medium opacity-0 transition-opacity group-hover:opacity-100">
                     Open editor
                   </span>
@@ -373,20 +383,26 @@ export default function TemplatesPage() {
                         <FileText /> Edit
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="cursor-pointer"
-                      onClick={() => duplicateTemplate(template)}
-                    >
-                      <Copy /> Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="cursor-pointer"
-                      variant="destructive"
-                      onClick={() => setDeleteTarget(template)}
-                    >
-                      <Trash2 /> Delete
-                    </DropdownMenuItem>
+                    {manage && (
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={() => duplicateTemplate(template)}
+                      >
+                        <Copy /> Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    {manage && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          variant="destructive"
+                          onClick={() => setDeleteTarget(template)}
+                        >
+                          <Trash2 /> Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

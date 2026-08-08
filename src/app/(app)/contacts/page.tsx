@@ -67,6 +67,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { cn } from "@/lib/utils";
 import { formatNumber, initials, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Contact, ContactStatus } from "@/lib/types";
 
 const statusOptions: Array<{ value: "all" | ContactStatus; label: string }> = [
@@ -78,6 +80,8 @@ const statusOptions: Array<{ value: "all" | ContactStatus; label: string }> = [
 ];
 
 export default function ContactsPage() {
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
@@ -323,14 +327,18 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={exportCsv}>
               <Download /> Export
             </Button>
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <Upload /> Import
-            </Button>
-            <Button asChild>
-              <Link href="/contacts/new">
-                <Plus /> Add contact
-              </Link>
-            </Button>
+            {manage && (
+              <>
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  <Upload /> Import
+                </Button>
+                <Button asChild>
+                  <Link href="/contacts/new">
+                    <Plus /> Add contact
+                  </Link>
+                </Button>
+              </>
+            )}
           </>
         }
       />
@@ -389,23 +397,29 @@ export default function ContactsPage() {
               {selected.length} selected
             </span>
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={openBulkTag}>
-                <Tag /> Tag
-              </Button>
-              <Button variant="outline" size="sm" onClick={openBulkList}>
-                <Mail /> Add to list
-              </Button>
+              {manage && (
+                <>
+                  <Button variant="outline" size="sm" onClick={openBulkTag}>
+                    <Tag /> Tag
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={openBulkList}>
+                    <Mail /> Add to list
+                  </Button>
+                </>
+              )}
               <Button variant="outline" size="sm" onClick={exportCsv}>
                 <Download /> Export
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setBulkDeleteOpen(true)}
-              >
-                <Trash2 /> Delete
-              </Button>
+              {manage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 /> Delete
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -421,11 +435,13 @@ export default function ContactsPage() {
             title={contacts.length === 0 ? "No contacts yet" : "No contacts match your filters"}
             description={
               contacts.length === 0
-                ? "Add your first contact or import an audience to get started."
+                ? manage
+                  ? "Add your first contact or import an audience to get started."
+                  : "Your workspace has no contacts yet."
                 : "Try adjusting your search, status, or tag filters."
             }
-            actionLabel={contacts.length === 0 ? "Add contact" : undefined}
-            actionHref={contacts.length === 0 ? "/contacts/new" : undefined}
+            actionLabel={contacts.length === 0 && manage ? "Add contact" : undefined}
+            actionHref={contacts.length === 0 && manage ? "/contacts/new" : undefined}
           />
         ) : (
           <Table>
@@ -544,20 +560,24 @@ export default function ContactsPage() {
                                 <Users /> View profile
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onClick={() => openManageTags(contact)}
-                            >
-                              <Tag /> Manage tags
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              variant="destructive"
-                              onClick={() => setDeleteTarget(contact)}
-                            >
-                              <Trash2 /> Delete
-                            </DropdownMenuItem>
+                            {manage && (
+                              <>
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => openManageTags(contact)}
+                                >
+                                  <Tag /> Manage tags
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  variant="destructive"
+                                  onClick={() => setDeleteTarget(contact)}
+                                >
+                                  <Trash2 /> Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

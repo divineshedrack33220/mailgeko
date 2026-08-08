@@ -62,11 +62,23 @@ import { ContactStatusBadge } from "@/components/shared/status-badges";
 import { Separator } from "@/components/ui/separator";
 import { initials, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage, canSend } from "@/lib/permissions";
 import type { Contact, ContactList } from "@/lib/types";
 
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
+  const send = canSend(role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/contacts");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
+
   const [contact, setContact] = React.useState<Contact | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [deleting, setDeleting] = React.useState(false);
@@ -273,9 +285,11 @@ export default function ContactDetailPage() {
             <Button variant="outline" size="sm" onClick={openAddToList}>
               <MailPlus /> Add to list
             </Button>
-            <Button size="sm" onClick={openMail}>
-              <Mail /> Send email
-            </Button>
+            {send && (
+              <Button size="sm" onClick={openMail}>
+                <Mail /> Send email
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon-sm" aria-label="Contact actions">

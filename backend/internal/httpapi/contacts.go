@@ -139,6 +139,9 @@ func (s *Server) handleListContacts(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateContact(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req contactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -194,6 +197,9 @@ type oneToOneEmailRequest struct {
 
 func (s *Server) handleSendOneToOne(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	contact, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -238,6 +244,9 @@ func (s *Server) handleSendOneToOne(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateContact(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	existing, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), id)
 	if err != nil {
@@ -271,6 +280,9 @@ func (s *Server) handleUpdateContact(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteContact(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteContact(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete contact")
 		return
@@ -290,6 +302,9 @@ func (s *Server) handleListTags(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req struct {
 		ContactIDs []string `json:"contactIds"`
 		Tags       []string `json:"tags"`

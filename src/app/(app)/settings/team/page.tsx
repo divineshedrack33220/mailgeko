@@ -228,9 +228,9 @@ export default function TeamSettingsPage() {
                   <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
                     <p className="text-muted-foreground text-xs leading-relaxed">
                       <span className="font-medium text-foreground">Manager</span> can create
-                      and send campaigns. <span className="font-medium text-foreground">Viewer</span>{" "}
+                      and edit campaigns. <span className="font-medium text-foreground">Viewer</span>{" "}
                       can only read. <span className="font-medium text-foreground">Admin</span> has
-                      full access including billing.
+                      full access including sending and billing.
                     </p>
                   </div>
                 </div>

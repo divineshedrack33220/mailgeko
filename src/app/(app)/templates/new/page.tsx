@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Template, TemplateCategory } from "@/lib/types";
 
 const initialMjml = `<mjml>
@@ -44,6 +46,14 @@ const categories: TemplateCategory[] = [
 
 export default function NewTemplatePage() {
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/dashboard");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
+
   const [saving, setSaving] = React.useState(false);
   const [aiPrompt, setAiPrompt] = React.useState("");
   const [aiCategory, setAiCategory] = React.useState<TemplateCategory>("Newsletter");

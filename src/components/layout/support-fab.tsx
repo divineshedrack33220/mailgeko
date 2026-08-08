@@ -8,10 +8,14 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/ui-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole } from "@/lib/permissions";
 
 export function SupportFab() {
   const aiOpen = useUiStore((s) => s.aiOpen);
   const setAiOpen = useUiStore((s) => s.setAiOpen);
+  const role = useAuthStore((s) => s.role);
+  const showAi = isAdminRole(role);
   if (aiOpen) return null;
 
   return (
@@ -44,14 +48,16 @@ export function SupportFab() {
             </p>
           </div>
           <div className="border-t p-1.5">
-            <button
-              onClick={() => setAiOpen(true)}
-              className="hover:bg-muted flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
-            >
-              <Sparkles className="text-muted-foreground size-4" />
-              Open AI assistant
-              <ChevronRight className="text-muted-foreground ml-auto size-4" />
-            </button>
+            {showAi && (
+              <button
+                onClick={() => setAiOpen(true)}
+                className="hover:bg-muted flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors"
+              >
+                <Sparkles className="text-muted-foreground size-4" />
+                Open AI assistant
+                <ChevronRight className="text-muted-foreground ml-auto size-4" />
+              </button>
+            )}
             <a
               href="https://github.com/divineshedrack33220/mailgeko/issues"
               target="_blank"

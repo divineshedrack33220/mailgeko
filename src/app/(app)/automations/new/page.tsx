@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { AutomationStep } from "@/lib/types";
 
 const triggerOptions: {
@@ -77,6 +79,14 @@ const triggerOptions: {
 
 export default function NewAutomationPage() {
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/dashboard");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
+
   const [name, setName] = React.useState("");
   const [selected, setSelected] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);

@@ -57,6 +57,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { formatNumber, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { ContactList, Segment, SegmentCondition } from "@/lib/types";
 
 let conditionSeq = 0;
@@ -88,6 +90,8 @@ const operators: Record<string, string[]> = {
 };
 
 export default function ListsPage() {
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
   const [lists, setLists] = React.useState<ContactList[]>([]);
   const [segments, setSegments] = React.useState<Segment[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -285,12 +289,16 @@ export default function ListsPage() {
         icon={ListFilter}
         actions={
           <>
-            <Button variant="outline" onClick={() => openSegmentBuilder()}>
-              <Filter /> New segment
-            </Button>
-            <Button onClick={() => setListOpen(true)}>
-              <Plus /> New list
-            </Button>
+            {manage && (
+              <Button variant="outline" onClick={() => openSegmentBuilder()}>
+                <Filter /> New segment
+              </Button>
+            )}
+            {manage && (
+              <Button onClick={() => setListOpen(true)}>
+                <Plus /> New list
+              </Button>
+            )}
           </>
         }
       />
@@ -334,17 +342,21 @@ export default function ListsPage() {
                               <Users /> View contacts
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateList(list)}>
-                            <Copy /> Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            variant="destructive"
-                            onClick={() => setDeleteListTarget(list)}
-                          >
-                            <Trash2 /> Delete
-                          </DropdownMenuItem>
+                          {manage && (
+                            <>
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateList(list)}>
+                                <Copy /> Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                variant="destructive"
+                                onClick={() => setDeleteListTarget(list)}
+                              >
+                                <Trash2 /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -369,15 +381,17 @@ export default function ListsPage() {
                 </Card>
               ))}
 
-              <button
-                onClick={() => setListOpen(true)}
-                className="border-border hover:border-primary/40 hover:bg-muted/40 flex min-h-[190px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-colors"
-              >
-                <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
-                  <Plus className="size-5" />
-                </span>
-                <span className="text-sm font-medium">Create a new list</span>
-              </button>
+              {manage && (
+                <button
+                  onClick={() => setListOpen(true)}
+                  className="border-border hover:border-primary/40 hover:bg-muted/40 flex min-h-[190px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-colors"
+                >
+                  <span className="bg-secondary text-secondary-foreground flex size-10 items-center justify-center rounded-xl">
+                    <Plus className="size-5" />
+                  </span>
+                  <span className="text-sm font-medium">Create a new list</span>
+                </button>
+              )}
             </div>
           )}
         </TabsContent>
@@ -397,29 +411,31 @@ export default function ListsPage() {
                       <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl">
                         <Filter className="size-5" />
                       </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" aria-label="Segment actions">
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => openSegmentBuilder(segment)}>
-                            <Pencil /> Edit rules
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateSegment(segment)}>
-                            <Copy /> Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            variant="destructive"
-                            onClick={() => setDeleteSegmentTarget(segment)}
-                          >
-                            <Trash2 /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {manage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="Segment actions">
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem className="cursor-pointer" onClick={() => openSegmentBuilder(segment)}>
+                              <Pencil /> Edit rules
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="cursor-pointer" onClick={() => duplicateSegment(segment)}>
+                              <Copy /> Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              variant="destructive"
+                              onClick={() => setDeleteSegmentTarget(segment)}
+                            >
+                              <Trash2 /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                     <div className="mt-2">
                       <CardTitle className="text-[0.95rem]">{segment.name}</CardTitle>

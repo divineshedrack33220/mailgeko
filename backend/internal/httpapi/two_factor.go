@@ -247,8 +247,19 @@ func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, u
 		"token":       token,
 		"user":        userResponse(user),
 		"workspaceID": workspaceID,
+		"role":        s.roleForWorkspace(ctx, workspaceID, user.ID),
 	})
 	return true
+}
+
+// roleForWorkspace returns the caller's role within the given workspace, or an
+// empty string if the membership cannot be resolved.
+func (s *Server) roleForWorkspace(ctx context.Context, workspaceID, userID string) string {
+	role, err := s.db.WorkspaceMemberByUserID(ctx, workspaceID, userID)
+	if err != nil {
+		return ""
+	}
+	return role
 }
 
 // recordSession stores the issued token as an active session record.

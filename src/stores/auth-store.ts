@@ -18,11 +18,13 @@ interface AuthResponse {
   token: string;
   user: AuthUser;
   workspaceID: string;
+  role?: string;
 }
 
 interface AuthState {
   user: AuthUser | null;
   workspaceID: string | null;
+  role: string | null;
   isAuthenticated: boolean;
   boot: () => Promise<void>;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<string | null>;
@@ -36,18 +38,20 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   workspaceID: null,
+  role: null,
   isAuthenticated: false,
 
   boot: async () => {
     if (!getToken()) {
-      set({ user: null, workspaceID: null, isAuthenticated: false });
+      set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
       return;
     }
     try {
-      const res = await api.get<{ user: AuthUser; workspaceID: string }>("/api/v1/me");
+      const res = await api.get<{ user: AuthUser; workspaceID: string; role?: string }>("/api/v1/me");
       set({
         user: res.user,
         workspaceID: res.workspaceID,
+        role: res.role ?? null,
         isAuthenticated: true,
       });
     } catch (err) {
@@ -56,7 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // server error must not log the user out.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setToken(null);
-        set({ user: null, workspaceID: null, isAuthenticated: false });
+        set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
         return;
       }
       set({ isAuthenticated: false });
@@ -75,6 +79,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: res.user,
       workspaceID: res.workspaceID,
+      role: res.role ?? null,
       isAuthenticated: true,
     });
     return null;
@@ -89,6 +94,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: res.user,
       workspaceID: res.workspaceID,
+      role: res.role ?? null,
       isAuthenticated: true,
     });
   },
@@ -99,6 +105,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: res.user,
       workspaceID: res.workspaceID,
+      role: res.role ?? null,
       isAuthenticated: true,
     });
   },
@@ -109,6 +116,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: res.user,
       workspaceID: res.workspaceID,
+      role: res.role ?? null,
       isAuthenticated: true,
     });
   },
@@ -120,7 +128,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // token is cleared regardless
     }
     setToken(null);
-    set({ user: null, workspaceID: null, isAuthenticated: false });
+    set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
   },
 
   setUser: (user) => set({ user }),

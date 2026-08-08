@@ -58,6 +58,8 @@ import {
 import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
 import { automationTemplates, stepsForTemplate } from "@/lib/automation-templates";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Automation, AutomationStatus, AutomationStepType } from "@/lib/types";
 
 const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: string }>> = {
@@ -72,6 +74,8 @@ const stepIcons: Record<AutomationStepType, React.ComponentType<{ className?: st
 
 export default function AutomationsPage() {
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
   const [automations, setAutomations] = React.useState<Automation[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState("all");
@@ -192,14 +196,18 @@ export default function AutomationsPage() {
         icon={Workflow}
         actions={
           <>
-            <Button variant="outline" onClick={() => setTemplateOpen(true)}>
-              <Zap /> Templates
-            </Button>
-            <Button asChild>
-              <Link href="/automations/new">
-                <Plus /> New automation
-              </Link>
-            </Button>
+            {manage && (
+              <Button variant="outline" onClick={() => setTemplateOpen(true)}>
+                <Zap /> Templates
+              </Button>
+            )}
+            {manage && (
+              <Button asChild>
+                <Link href="/automations/new">
+                  <Plus /> New automation
+                </Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -256,7 +264,7 @@ export default function AutomationsPage() {
                   <Workflow className="size-5" />
                 </span>
                 <div className="flex items-center gap-1">
-                  {automation.status === "active" && (
+                  {manage && automation.status === "active" && (
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -266,7 +274,7 @@ export default function AutomationsPage() {
                       <Pause />
                     </Button>
                   )}
-                  {automation.status !== "active" && (
+                  {manage && automation.status !== "active" && (
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -289,20 +297,26 @@ export default function AutomationsPage() {
                           <Pencil /> Edit workflow
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="cursor-pointer"
-                        onClick={() => duplicateAutomation(automation)}
-                      >
-                        <Copy /> Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="cursor-pointer"
-                        variant="destructive"
-                        onClick={() => setDeleteTarget(automation)}
-                      >
-                        <Trash2 /> Delete
-                      </DropdownMenuItem>
+                      {manage && (
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          onClick={() => duplicateAutomation(automation)}
+                        >
+                          <Copy /> Duplicate
+                        </DropdownMenuItem>
+                      )}
+                      {manage && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            variant="destructive"
+                            onClick={() => setDeleteTarget(automation)}
+                          >
+                            <Trash2 /> Delete
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

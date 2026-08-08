@@ -64,6 +64,9 @@ func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req automationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -113,6 +116,9 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	existing, err := s.db.GetAutomation(r.Context(), claims.GetWorkspaceID(), id)
 	if err != nil {
@@ -149,6 +155,9 @@ func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleDeleteAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteAutomation(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete automation")
 		return
@@ -158,6 +167,9 @@ func (s *Server) handleDeleteAutomation(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleDuplicateAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	src, err := s.db.GetAutomation(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {

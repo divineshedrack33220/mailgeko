@@ -27,6 +27,7 @@ import { formatDateTime, formatNumber, formatPercent, greetingForTime } from "@/
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
+import { canManage, isAdminRole } from "@/lib/permissions";
 import type { Campaign, CampaignStats } from "@/lib/types";
 
 const EMPTY_STATS: CampaignStats = {
@@ -71,6 +72,8 @@ interface OverviewResponse {
 export default function DashboardPage() {
   const setAiOpen = useUiStore((s) => s.setAiOpen);
   const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
   const [range, setRange] = React.useState("7d");
   const [metric, setMetric] = React.useState<"opens" | "clicks">("opens");
   const [loading, setLoading] = React.useState(true);
@@ -147,11 +150,13 @@ export default function DashboardPage() {
               <SelectItem value="90d">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Button asChild>
-            <Link href="/campaigns/new">
-              <Plus /> New campaign
-            </Link>
-          </Button>
+          {manage && (
+            <Button asChild>
+              <Link href="/campaigns/new">
+                <Plus /> New campaign
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -293,8 +298,8 @@ export default function DashboardPage() {
               <EmptyState
                 title="No campaigns yet"
                 description="Create your first campaign to start engaging your audience."
-                actionLabel="New campaign"
-                actionHref="/campaigns/new"
+                actionLabel={manage ? "New campaign" : undefined}
+                actionHref={manage ? "/campaigns/new" : undefined}
                 icon={Send}
                 className="border-0"
               />
@@ -369,14 +374,16 @@ export default function DashboardPage() {
                     in the last {range.replace("d", " days")}. Send a follow-up to
                     anyone who opened but didn&apos;t click to recover attention.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4 w-full"
-                    onClick={() => setAiOpen(true)}
-                  >
-                    <Sparkles /> Ask Geko
-                  </Button>
+                  {isAdminRole(role) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 w-full"
+                      onClick={() => setAiOpen(true)}
+                    >
+                      <Sparkles /> Ask Geko
+                    </Button>
+                  )}
                 </>
               )}
             </CardContent>

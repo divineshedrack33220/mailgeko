@@ -4,18 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, User, Users, KeyRound, Bell, ShieldCheck, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole } from "@/lib/permissions";
+import { RequireAdmin } from "@/components/layout/require-admin";
 
 const tabs = [
   { title: "Profile", href: "/settings", icon: User },
-  { title: "Team", href: "/settings/team", icon: Users },
-  { title: "API keys", href: "/settings/api-keys", icon: KeyRound },
+  { title: "Team", href: "/settings/team", icon: Users, adminOnly: true },
+  { title: "API keys", href: "/settings/api-keys", icon: KeyRound, adminOnly: true },
   { title: "Notifications", href: "/settings/notifications", icon: Bell },
   { title: "Security", href: "/settings/security", icon: ShieldCheck },
-  { title: "Billing", href: "/settings/billing", icon: CreditCard },
+  { title: "Billing", href: "/settings/billing", icon: CreditCard, adminOnly: true },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const role = useAuthStore((s) => s.role);
+  const admin = isAdminRole(role);
+  const visibleTabs = tabs.filter((tab) => !tab.adminOnly || admin);
+  const adminRoute = tabs.some((tab) => tab.adminOnly && pathname === tab.href);
+  const content = adminRoute ? <RequireAdmin>{children}</RequireAdmin> : children;
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,7 +38,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <nav className="flex w-full shrink-0 gap-1 overflow-x-auto lg:w-48 lg:flex-col lg:gap-0.5">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const active = pathname === tab.href;
             return (
               <Link
@@ -49,7 +57,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             );
           })}
         </nav>
-        <div className="min-w-0 flex-1">{children}</div>
+        <div className="min-w-0 flex-1">{content}</div>
       </div>
     </div>
   );

@@ -59,6 +59,8 @@ import { CampaignStatusBadge } from "@/components/shared/status-badges";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatPercent, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage, canSend } from "@/lib/permissions";
 import type { Campaign, CampaignStats, ContactList } from "@/lib/types";
 
 const EMPTY_STATS: CampaignStats = {
@@ -75,6 +77,9 @@ const EMPTY_STATS: CampaignStats = {
 };
 
 export default function CampaignsPage() {
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
+  const send = canSend(role);
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [listFilter, setListFilter] = React.useState("all");
@@ -189,11 +194,13 @@ export default function CampaignsPage() {
                 <Pause /> Automations
               </Link>
             </Button>
-            <Button asChild>
-              <Link href="/campaigns/new">
-                <Plus /> New campaign
-              </Link>
-            </Button>
+            {manage && (
+              <Button asChild>
+                <Link href="/campaigns/new">
+                  <Plus /> New campaign
+                </Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -331,48 +338,56 @@ export default function CampaignsPage() {
                     </TableCell>
                     <TableCell className="pr-6">
                       <div className="flex items-center justify-end gap-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="opacity-0 group-hover:opacity-100 focus:opacity-100"
-                              aria-label="Campaign actions"
-                            >
-                              <MoreHorizontal />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuLabel>Campaign</DropdownMenuLabel>
-                            <DropdownMenuItem className="cursor-pointer" asChild>
-                              <Link href={`/campaigns/${campaign.id}`}>
-                                <Pencil /> Edit campaign
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onClick={() => duplicateCampaign(campaign)}
-                            >
-                              <Copy /> Duplicate
-                            </DropdownMenuItem>
-                            {canCancel && (
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => cancelCampaign(campaign)}
+                        {(manage || send) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                aria-label="Campaign actions"
                               >
-                                <Pause /> Cancel campaign
+                                <MoreHorizontal />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuLabel>Campaign</DropdownMenuLabel>
+                              <DropdownMenuItem className="cursor-pointer" asChild>
+                                <Link href={`/campaigns/${campaign.id}`}>
+                                  <Pencil /> Edit campaign
+                                </Link>
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              variant="destructive"
-                              onClick={() => setDeleteTarget(campaign)}
-                            >
-                              <Trash2 /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {manage && (
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => duplicateCampaign(campaign)}
+                                >
+                                  <Copy /> Duplicate
+                                </DropdownMenuItem>
+                              )}
+                              {send && canCancel && (
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => cancelCampaign(campaign)}
+                                >
+                                  <Pause /> Cancel campaign
+                                </DropdownMenuItem>
+                              )}
+                              {manage && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    variant="destructive"
+                                    onClick={() => setDeleteTarget(campaign)}
+                                  >
+                                    <Trash2 /> Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

@@ -18,11 +18,13 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
+import { roleLabel } from "@/lib/permissions";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function ProfileSettingsPage() {
   const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
   const setUser = useAuthStore((s) => s.setUser);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -174,7 +176,9 @@ export default function ProfileSettingsPage() {
             </Avatar>
             <div className="min-w-0 flex-1">
               <CardTitle>{name || "Your profile"}</CardTitle>
-              <CardDescription>{user?.role ? `${user.role} · ${user.email}` : email}</CardDescription>
+              <CardDescription>
+                {role ? `${roleLabel(role)} · ${user?.email ?? email}` : email}
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <input

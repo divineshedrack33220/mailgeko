@@ -48,6 +48,9 @@ func (s *Server) handleListSegments(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateSegment(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req segmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -99,6 +102,9 @@ func (s *Server) handleGetSegment(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateSegment(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	var req segmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -126,6 +132,9 @@ func (s *Server) handleUpdateSegment(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteSegment(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteSegment(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete segment")
 		return

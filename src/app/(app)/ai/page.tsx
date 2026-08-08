@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
+import { RequireAdmin } from "@/components/layout/require-admin";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
@@ -236,7 +237,8 @@ export default function AiStudioPage() {
   const recent = history.slice(0, 3);
 
   return (
-    <div className="flex flex-col gap-6">
+    <RequireAdmin>
+      <div className="flex flex-col gap-6">
       <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-transparent to-transparent p-6 sm:p-8">
         <div className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -568,6 +570,7 @@ export default function AiStudioPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </RequireAdmin>
   );
 }
 

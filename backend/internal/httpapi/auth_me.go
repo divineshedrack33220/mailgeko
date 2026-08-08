@@ -22,7 +22,8 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := s.db.WorkspaceMemberByUserID(r.Context(), claims.GetWorkspaceID(), claims.GetUserID()); err != nil {
+	role, err := s.db.WorkspaceMemberByUserID(r.Context(), claims.GetWorkspaceID(), claims.GetUserID())
+	if err != nil {
 		if err == sql.ErrNoRows {
 			writeError(w, http.StatusForbidden, "forbidden", "you are not a member of this workspace")
 			return
@@ -34,5 +35,6 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{
 		"user":        userResponse(user),
 		"workspaceID": claims.GetWorkspaceID(),
+		"role":        role,
 	})
 }

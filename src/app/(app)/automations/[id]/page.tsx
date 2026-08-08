@@ -50,6 +50,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Automation, AutomationStatus, AutomationStep, AutomationStepType } from "@/lib/types";
 
 const stepMeta: Record<
@@ -128,6 +130,13 @@ interface CanvasNode {
 export default function AutomationBuilderPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/automations");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
 
   const [automation, setAutomation] = React.useState<Automation | null>(null);
   const [loading, setLoading] = React.useState(true);

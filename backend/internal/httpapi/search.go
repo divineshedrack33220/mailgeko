@@ -107,6 +107,9 @@ func (s *Server) handleEmbedContact(w http.ResponseWriter, r *http.Request) {
 	if !s.requireSearch(w, r) {
 		return
 	}
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	workspaceID := claimsFrom(r).GetWorkspaceID()
 	contactID := r.PathValue("id")
 	if _, err := s.db.GetContact(r.Context(), workspaceID, contactID); err != nil {
@@ -125,6 +128,9 @@ func (s *Server) handleEmbedContact(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEmbedAllContacts(w http.ResponseWriter, r *http.Request) {
 	if !s.requireSearch(w, r) {
+		return
+	}
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
 		return
 	}
 	workspaceID := claimsFrom(r).GetWorkspaceID()

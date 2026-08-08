@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { formatNumber, initials } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole, roleLabel } from "@/lib/permissions";
 import { useUiStore } from "@/stores/ui-store";
 import { useRouter } from "next/navigation";
 import { GeckoMark } from "@/components/brand/gecko-mark";
@@ -91,10 +92,22 @@ const sections: NavSection[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const { role } = useAuthStore();
   const [contactCount, setContactCount] = React.useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [workspaceLogo, setWorkspaceLogo] = React.useState("");
   const [planName, setPlanName] = React.useState("");
+
+  // AI Studio is owner/admin only; the server enforces this too.
+  const visibleSections = React.useMemo(() => {
+    if (isAdminRole(role)) return sections;
+    return sections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.href !== "/ai"),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [role]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -197,7 +210,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="scrollbar-thin flex-1 space-y-4 overflow-y-auto px-3 py-3">
-        {sections.map((section) =>
+        {visibleSections.map((section) =>
           section.collapsible && section.icon ? (
             collapsed ? (
               <DropdownMenu key={section.label}>
@@ -285,7 +298,7 @@ function WorkspaceSwitcher({
   planName: string;
 }) {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const displayName = workspaceName || "Your workspace";
   const [first, ...rest] = displayName.trim().split(/\s+/);
   const avatarText = workspaceName ? initials(first, rest[0]) : "WS";
@@ -329,7 +342,7 @@ function WorkspaceSwitcher({
           <span className="block text-sm font-semibold">{displayName}</span>
           <span className="text-muted-foreground block text-xs">
             {planName ? `${planName} plan` : "Workspace"}
-            {user?.role ? ` · ${user.role} access` : ""}
+            {role ? ` · ${roleLabel(role)} access` : ""}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

@@ -46,6 +46,8 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Template } from "@/lib/types";
 import {
   EmailBuilder,
@@ -127,6 +129,14 @@ const editorTheme = EditorView.theme({
 export default function TemplateEditorPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/templates");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
+
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 

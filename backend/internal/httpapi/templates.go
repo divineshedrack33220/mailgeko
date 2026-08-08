@@ -66,6 +66,9 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req templateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -111,6 +114,9 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGenerateTemplate(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req struct {
 		Prompt     string `json:"prompt"`
 		BrandVoice string `json:"brandVoice"`
@@ -205,6 +211,9 @@ func templateVariables(d *ai.TemplateDraft) []string {
 
 func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	var req templateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -233,6 +242,9 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteTemplate(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete template")
 		return
@@ -242,6 +254,9 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	tpl, err := s.db.GetTemplate(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {

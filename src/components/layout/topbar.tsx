@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { getPageTitle } from "@/lib/page-title";
 import { useUiStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { isAdminRole } from "@/lib/permissions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,6 +58,8 @@ export function Topbar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
   const setAiOpen = useUiStore((s) => s.setAiOpen);
+  const role = useAuthStore((s) => s.role);
+  const showAi = isAdminRole(role);
 
   const title = React.useMemo(() => getPageTitle(pathname), [pathname]);
 
@@ -92,19 +95,21 @@ export function Topbar() {
           </kbd>
         </button>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="text-primary hidden gap-2 sm:inline-flex"
-              onClick={() => setAiOpen(true)}
-            >
-              <Sparkles className="size-4" />
-              <span className="text-sm font-medium">AI Studio</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Open AI Studio</TooltipContent>
-        </Tooltip>
+        {showAi && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                className="text-primary hidden gap-2 sm:inline-flex"
+                onClick={() => setAiOpen(true)}
+              >
+                <Sparkles className="size-4" />
+                <span className="text-sm font-medium">AI Studio</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Open AI Studio</TooltipContent>
+          </Tooltip>
+        )}
 
         <ThemeToggle />
         <NotificationsMenu />

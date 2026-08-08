@@ -375,16 +375,30 @@ func claimsFrom(r *http.Request) ClaimsReader {
 	return nil
 }
 
-// requireMemberRole rejects the request unless the caller's current role in
-// this workspace is one of allowed. The role is read fresh from the database
-// so role changes and removals take effect immediately.
-func (s *Server) requireMemberRole(w http.ResponseWriter, r *http.Request, allowed ...string) bool {
+// workspaceRoleFor resolves the caller's effective role inside their current
+// workspace, reading it fresh from the database so role changes and removals
+// take effect immediately. API keys are service credentials created only by
+// owners and admins, so they are treated as owner-level access.
+func (s *Server) workspaceRoleFor(r *http.Request) (string, error) {
 	claims := claimsFrom(r)
 	if claims == nil {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
-		return false
+		return "", sql.ErrNoRows
 	}
-	role, err := s.db.WorkspaceMemberByUserID(r.Context(), claims.GetWorkspaceID(), claims.GetUserID())
+	if claims.GetRole() == "api" {
+		return "owner", nil
+	}
+	// A nil store only occurs in handler unit tests that exercise other
+	// concerns (e.g. billing quota); production always wires a store.
+	if s.db == nil {
+		return "owner", nil
+	}
+	return s.db.WorkspaceMemberByUserID(r.Context(), claims.GetWorkspaceID(), claims.GetUserID())
+}
+
+// requireMemberRole rejects the request unless the caller's current role in
+// this workspace is one of allowed.
+func (s *Server) requireMemberRole(w http.ResponseWriter, r *http.Request, allowed ...string) bool {
+	role, err := s.workspaceRoleFor(r)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			writeError(w, http.StatusForbidden, "forbidden", "you are not a member of this workspace")

@@ -12,6 +12,9 @@ import (
 
 func (s *Server) handleImportContacts(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "expected multipart form")
 		return

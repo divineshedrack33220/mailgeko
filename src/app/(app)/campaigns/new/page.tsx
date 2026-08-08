@@ -39,6 +39,8 @@ import {
 import { cn } from "@/lib/utils";
 import { formatNumber } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage } from "@/lib/permissions";
 import type { Campaign, ContactList, Segment, Template } from "@/lib/types";
 
 const steps = [
@@ -50,6 +52,14 @@ const steps = [
 
 export default function NewCampaignPage() {
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+
+  React.useEffect(() => {
+    if (role && !canManage(role)) router.replace("/dashboard");
+  }, [role, router]);
+
+  if (role && !canManage(role)) return null;
+
   const [step, setStep] = React.useState(1);
   const [sending, setSending] = React.useState(false);
 

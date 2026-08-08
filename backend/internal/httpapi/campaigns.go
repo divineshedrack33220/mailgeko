@@ -153,6 +153,9 @@ func (s *Server) handleListCampaigns(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req campaignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -213,6 +216,9 @@ func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	existing, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), id)
 	if err != nil {
@@ -238,6 +244,9 @@ func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete campaign")
 		return
@@ -247,6 +256,9 @@ func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -284,6 +296,9 @@ type sendTestRequest struct {
 
 func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -317,6 +332,9 @@ func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCancelCampaign(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {

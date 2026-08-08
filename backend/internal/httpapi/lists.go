@@ -44,6 +44,9 @@ func (s *Server) handleListLists(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateList(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	var req listRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -83,6 +86,9 @@ func (s *Server) handleGetList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateList(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	id := r.PathValue("id")
 	if _, err := s.db.GetList(r.Context(), claims.GetWorkspaceID(), id); err != nil {
 		if err == sql.ErrNoRows {
@@ -107,6 +113,9 @@ func (s *Server) handleUpdateList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteList(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.DeleteList(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete list")
 		return
@@ -116,6 +125,9 @@ func (s *Server) handleDeleteList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAddContactsToList(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	listID := r.PathValue("id")
 	if _, err := s.db.GetList(r.Context(), claims.GetWorkspaceID(), listID); err != nil {
 		writeError(w, http.StatusNotFound, "not_found", "list not found")
@@ -149,6 +161,9 @@ func (s *Server) handleAddContactsToList(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleRemoveContactFromList(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	if err := s.db.RemoveContactFromList(r.Context(), r.PathValue("id"), r.PathValue("contactId")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not remove contact")
 		return

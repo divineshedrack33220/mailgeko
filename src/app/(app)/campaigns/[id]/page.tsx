@@ -63,6 +63,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatDateTime, formatNumber, formatPercent, timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { canManage, canSend } from "@/lib/permissions";
 import type { Campaign, CampaignStats } from "@/lib/types";
 
 const EMPTY_STATS: CampaignStats = {
@@ -81,6 +83,9 @@ const EMPTY_STATS: CampaignStats = {
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useAuthStore((s) => s.role);
+  const manage = canManage(role);
+  const send = canSend(role);
   const [campaign, setCampaign] = React.useState<Campaign | null>(null);
   const [liveStats, setLiveStats] = React.useState<CampaignStats | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -246,7 +251,7 @@ export default function CampaignDetailPage() {
 
   const isSending = campaign.status === "sending";
   const isSent = campaign.status === "sent" || campaign.status === "completed";
-  const canSend = campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused";
+  const canSendNow = (campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused") && send;
   const hasAnalytics = stats.delivered > 0;
 
   return (
@@ -275,16 +280,18 @@ export default function CampaignDetailPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {canSend && (
+            {canSendNow && (
               <Button size="sm" onClick={sendNow} disabled={busy}>
                 {busy ? <Loader2 className="animate-spin" /> : <Send />}
                 Send now
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={duplicateCampaign}>
-              <Copy /> Duplicate
-            </Button>
-            {isSending && (
+            {manage && (
+              <Button variant="outline" size="sm" onClick={duplicateCampaign}>
+                <Copy /> Duplicate
+              </Button>
+            )}
+            {send && isSending && (
               <Button variant="outline" size="sm" onClick={cancelCampaign} disabled={busy}>
                 <Pause /> Cancel
               </Button>
@@ -297,20 +304,26 @@ export default function CampaignDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => setTestOpen(true)}>
-                  <Repeat /> Send test
-                </DropdownMenuItem>
+                {manage && (
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => setTestOpen(true)}>
+                    <Repeat /> Send test
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/reports")}>
                   <TrendingUp /> View reports
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  variant="destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <Trash2 /> Delete campaign
-                </DropdownMenuItem>
+                {manage && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      variant="destructive"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 /> Delete campaign
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -489,9 +502,11 @@ export default function CampaignDetailPage() {
                   <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
                     <TrendingUp /> Preview
                   </Button>
-                  <Button size="sm" onClick={() => setTestOpen(true)}>
-                    <Send /> Send test
-                  </Button>
+                  {manage && (
+                    <Button size="sm" onClick={() => setTestOpen(true)}>
+                      <Send /> Send test
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
