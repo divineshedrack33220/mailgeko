@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -34,6 +35,15 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 	colIndex := make(map[string]int, len(header))
 	for i, h := range header {
 		colIndex[normalizeHeader(h)] = i
+	}
+
+	// Load welcome automations once so bulk imports don't re-query them for
+	// every imported contact.
+	var welcome []*store.Automation
+	if automations, err := e.store.ListAutomations(ctx, workspaceID); err != nil {
+		log.Printf("import: list automations for welcome enrollment: %v", err)
+	} else {
+		welcome = filterWelcomeAutomations(automations)
 	}
 
 	for {
@@ -114,7 +124,7 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 			return imported, updated, err
 		} else {
 			imported++
-			_ = e.EnrollWelcome(ctx, contact)
+			e.enrollWelcome(ctx, contact, welcome)
 		}
 
 		if listID != "" {

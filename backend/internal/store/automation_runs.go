@@ -23,6 +23,7 @@ type AutomationRun struct {
 	StepIndex    int
 	RunAt        time.Time
 	Status       string
+	Attempts     int
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -43,6 +44,7 @@ type automationRunRow struct {
 	StepIndex    int       `db:"step_index"`
 	RunAt        time.Time `db:"run_at"`
 	Status       string    `db:"status"`
+	Attempts     int       `db:"attempts"`
 	CreatedAt    time.Time `db:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at"`
 }
@@ -56,18 +58,22 @@ func (r automationRunRow) toAutomationRun() *AutomationRun {
 		StepIndex:    r.StepIndex,
 		RunAt:        r.RunAt,
 		Status:       r.Status,
+		Attempts:     r.Attempts,
 		CreatedAt:    r.CreatedAt,
 		UpdatedAt:    r.UpdatedAt,
 	}
 }
 
 // CreateAutomationRun inserts a run, or resets an existing run for the same
-// (automation, contact) back to the start of the flow.
+// (automation, contact) back to the start of the flow. The run id is replaced
+// on every enrollment so per-run idempotency markers (e.g. which run sent an
+// email) do not leak across re-runs.
 func (s *Store) CreateAutomationRun(ctx context.Context, r *AutomationRun) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO automation_runs (id, workspace_id, automation_id, contact_id, step_index, run_at, status)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE workspace_id = VALUES(workspace_id),
+		ON DUPLICATE KEY UPDATE id = VALUES(id),
+			workspace_id = VALUES(workspace_id),
 			step_index = VALUES(step_index),
 			run_at = VALUES(run_at),
 			status = VALUES(status)`,
@@ -78,7 +84,7 @@ func (s *Store) CreateAutomationRun(ctx context.Context, r *AutomationRun) error
 func (s *Store) GetAutomationRun(ctx context.Context, id string) (*AutomationRun, error) {
 	var r automationRunRow
 	err := s.db.GetContext(ctx, &r, `
-		SELECT id, workspace_id, automation_id, contact_id, step_index, run_at, status,
+		SELECT id, workspace_id, automation_id, contact_id, step_index, run_at, status, attempts,
 			created_at, updated_at
 		FROM automation_runs WHERE id = ?`, id)
 	if err != nil {
@@ -92,10 +98,10 @@ func (s *Store) GetAutomationRun(ctx context.Context, id string) (*AutomationRun
 // doesn't strand a run forever.
 func (s *Store) ListDueAutomationRuns(ctx context.Context, now time.Time, limit int) ([]*AutomationRun, error) {
 	if limit <= 0 {
-		limit = 200
+		limit = 1000
 	}
 	rows, err := s.db.QueryxContext(ctx, `
-		SELECT id, workspace_id, automation_id, contact_id, step_index, run_at, status,
+		SELECT id, workspace_id, automation_id, contact_id, step_index, run_at, status, attempts,
 			created_at, updated_at
 		FROM automation_runs
 		WHERE status IN ('active', 'processing')
@@ -134,12 +140,25 @@ func (s *Store) ClaimAutomationRun(ctx context.Context, id string, now time.Time
 }
 
 // AdvanceAutomationRun persists the run's next step after the executor
-// finishes processing the current one.
+// finishes processing the current one. A successful advance resets the attempt
+// counter so the retry budget applies per step.
 func (s *Store) AdvanceAutomationRun(ctx context.Context, id, status string, stepIndex int, runAt time.Time) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE automation_runs SET status = ?, step_index = ?, run_at = ?
+		`UPDATE automation_runs SET status = ?, step_index = ?, run_at = ?, attempts = 0
 		 WHERE id = ?`, status, stepIndex, runAt.UTC(), id)
 	return err
+}
+
+// BumpAutomationRunAttempts increments the run's failure counter and returns
+// the new count, used to bound how many times a failing step is retried.
+func (s *Store) BumpAutomationRunAttempts(ctx context.Context, id string) (int, error) {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE automation_runs SET attempts = attempts + 1 WHERE id = ?`, id); err != nil {
+		return 0, err
+	}
+	var n int
+	err := s.db.GetContext(ctx, &n, `SELECT attempts FROM automation_runs WHERE id = ?`, id)
+	return n, err
 }
 
 // AutomationRunStats returns per-status counts for an automation.

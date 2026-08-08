@@ -24,10 +24,20 @@ type automationStep struct {
 	Config map[string]any `json:"config"`
 }
 
+// automationMaxStepAttempts bounds how many times a single failing step is
+// retried (across worker retries and scheduler re-claims) before the run is
+// marked failed instead of retrying forever.
+const automationMaxStepAttempts = 10
+
 // EnrollContact starts (or restarts) an automation flow for a single contact.
-// The automation's trigger delay is applied as the initial wait.
+// The automation's trigger delay is applied as the initial wait. Inactive
+// automations and opted-out contacts are skipped.
 func (e *Engine) EnrollContact(ctx context.Context, automation *store.Automation, contact *store.Contact) error {
-	if automation.Status != "active" {
+	return e.enrollContact(ctx, automation, contact, false)
+}
+
+func (e *Engine) enrollContact(ctx context.Context, automation *store.Automation, contact *store.Contact, force bool) error {
+	if !force && automation.Status != "active" {
 		return nil
 	}
 	if contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam {
@@ -48,6 +58,18 @@ func (e *Engine) EnrollContact(ctx context.Context, automation *store.Automation
 	})
 }
 
+// filterWelcomeAutomations returns the welcome-triggered automations from a
+// list, keeping enrollment cheap for bulk imports.
+func filterWelcomeAutomations(automations []*store.Automation) []*store.Automation {
+	var out []*store.Automation
+	for _, a := range automations {
+		if a.TriggerType == "welcome" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // EnrollWelcome enrolls a new contact in every active welcome-triggered
 // automation in their workspace. Called after a contact is created or
 // imported. Enrollment is best-effort: a failure here must never fail the
@@ -58,18 +80,24 @@ func (e *Engine) EnrollWelcome(ctx context.Context, contact *store.Contact) erro
 		log.Printf("automation: list automations for welcome enrollment: %v", err)
 		return nil
 	}
-	for _, a := range automations {
-		if a.TriggerType == "welcome" {
-			if err := e.EnrollContact(ctx, a, contact); err != nil {
-				log.Printf("automation: enroll contact %s in %s: %v", contact.ID, a.ID, err)
-			}
-		}
-	}
+	e.enrollWelcome(ctx, contact, filterWelcomeAutomations(automations))
 	return nil
 }
 
+// enrollWelcome enrolls a contact into a pre-fetched list of welcome
+// automations, best-effort.
+func (e *Engine) enrollWelcome(ctx context.Context, contact *store.Contact, automations []*store.Automation) {
+	for _, a := range automations {
+		if err := e.EnrollContact(ctx, a, contact); err != nil {
+			log.Printf("automation: enroll contact %s in %s: %v", contact.ID, a.ID, err)
+		}
+	}
+}
+
 // EnrollAutomation runs an automation now against every contact in the
-// workspace. Used by the manual "Run now" action.
+// workspace. Used by the manual "Run now" action. It runs the automation
+// regardless of its status (the user explicitly asked), but still skips
+// opted-out contacts.
 func (e *Engine) EnrollAutomation(ctx context.Context, workspaceID, automationID string) (int, error) {
 	automation, err := e.store.GetAutomation(ctx, workspaceID, automationID)
 	if err != nil {
@@ -81,7 +109,7 @@ func (e *Engine) EnrollAutomation(ctx context.Context, workspaceID, automationID
 	}
 	enrolled := 0
 	for _, c := range contacts {
-		if err := e.EnrollContact(ctx, automation, c); err == nil {
+		if err := e.enrollContact(ctx, automation, c, true); err == nil {
 			enrolled++
 		}
 	}
@@ -135,34 +163,30 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 
 	switch step.Type {
 	case "send-email":
-		if err := e.sendEmailStep(ctx, automation, contact, step.Config); err != nil {
-			log.Printf("automation %s: send-email step %q failed for %s: %v", automation.ID, step.Label, contact.Email, err)
-			_ = e.notify(ctx, run.WorkspaceID, "automation-failed",
-				"Automation step failed",
-				"The step \""+step.Label+"\" in \""+automation.Name+"\" could not send to "+contact.Email+".",
-				"/automations/"+automation.ID)
+		if err := e.sendEmailStep(ctx, run.ID, automation, contact, step.Config); err != nil {
+			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "delay":
 		nextRunAt = time.Now().UTC().Add(automationDelay(step.Config))
 	case "condition":
 		matches, err := e.conditionStep(ctx, contact, step.Config)
 		if err != nil {
-			return err
+			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 		if !matches {
 			stop = true
 		}
 	case "add-tag":
 		if err := e.addTagStep(ctx, contact, step.Config); err != nil {
-			return err
+			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "remove-tag":
 		if err := e.removeTagStep(ctx, contact, step.Config); err != nil {
-			return err
+			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "unsubscribe":
 		if err := e.store.UpdateContactStatus(ctx, contact.WorkspaceID, contact.ID, store.ContactUnsubscribed); err != nil {
-			return err
+			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "webhook":
 		e.webhookStep(ctx, step.Config, contact)
@@ -182,7 +206,29 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 	return e.store.AdvanceAutomationRun(ctx, run.ID, status, nextIndex, nextRunAt)
 }
 
-func (e *Engine) sendEmailStep(ctx context.Context, automation *store.Automation, contact *store.Contact, cfg map[string]any) error {
+// boundStepFailure handles a step that failed to execute. It returns the error
+// so the worker retries it, but once the run has exhausted its retry budget
+// the run is marked failed and the owner is notified, so a permanently failing
+// step never retries forever.
+func (e *Engine) boundStepFailure(ctx context.Context, run *store.AutomationRun, automation *store.Automation, step automationStep, contact *store.Contact, err error) error {
+	attempts, bumpErr := e.store.BumpAutomationRunAttempts(ctx, run.ID)
+	if bumpErr != nil {
+		return err
+	}
+	if attempts < automationMaxStepAttempts {
+		log.Printf("automation %s: step %q failed for %s (attempt %d/%d): %v",
+			automation.ID, step.Label, contact.Email, attempts, automationMaxStepAttempts, err)
+		return err
+	}
+	_ = e.store.AdvanceAutomationRun(ctx, run.ID, store.AutomationRunFailed, run.StepIndex, run.RunAt)
+	_ = e.notify(ctx, run.WorkspaceID, "automation-failed",
+		"Automation run stopped",
+		"The step \""+step.Label+"\" in \""+automation.Name+"\" kept failing for "+contact.Email+". The run was stopped and will not retry.",
+		"/automations/"+automation.ID)
+	return nil
+}
+
+func (e *Engine) sendEmailStep(ctx context.Context, runID string, automation *store.Automation, contact *store.Contact, cfg map[string]any) error {
 	if contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam {
 		return nil
 	}
@@ -194,14 +240,23 @@ func (e *Engine) sendEmailStep(ctx context.Context, automation *store.Automation
 	if err != nil {
 		return nil
 	}
-	return e.SendAutomationEmail(ctx, automation.ID, campaign, contact)
+	// Idempotency guard: if a retried step already sent this email for this
+	// run, don't send it again.
+	sent, err := e.store.RecipientSentByAutomation(ctx, campaign.ID, contact.ID, runID)
+	if err != nil {
+		return err
+	}
+	if sent {
+		return nil
+	}
+	return e.SendAutomationEmail(ctx, runID, automation.ID, campaign, contact)
 }
 
 // SendAutomationEmail sends one fully-rendered email to a contact using the
 // referenced campaign's sender, subject, body and tracking settings. The
 // automation id is attached so opens/clicks count toward the campaign and the
 // contact's engagement.
-func (e *Engine) SendAutomationEmail(ctx context.Context, automationID string, campaign *store.Campaign, contact *store.Contact) error {
+func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, automationID string, campaign *store.Campaign, contact *store.Contact) error {
 	body := campaign.HTMLContent
 	if body == "" && campaign.TemplateID != "" {
 		if tpl, err := e.store.GetTemplate(ctx, campaign.WorkspaceID, campaign.TemplateID); err == nil {
@@ -253,13 +308,15 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationID string, c
 		return err
 	}
 	// Record the recipient so engagement (opens/clicks) can be tracked and
-	// automation "opened"/"clicked" conditions can evaluate.
+	// automation "opened"/"clicked" conditions can evaluate. This row is also
+	// the idempotency marker for retried steps.
 	now := time.Now().UTC()
-	return e.store.UpsertCampaignRecipient(ctx, &store.CampaignRecipient{
-		CampaignID: campaign.ID,
-		ContactID:  contact.ID,
-		Status:     "sent",
-		SentAt:     &now,
+	return e.store.MarkAutomationSent(ctx, &store.CampaignRecipient{
+		CampaignID:      campaign.ID,
+		ContactID:       contact.ID,
+		Status:          "sent",
+		AutomationRunID: automationRunID,
+		SentAt:          &now,
 	})
 }
 

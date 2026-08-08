@@ -72,8 +72,11 @@ func (s *Scheduler) releaseDue(ctx context.Context, now time.Time) {
 // is claimed atomically with a lease so a crashed worker's run is retried
 // once the lease expires.
 func (s *Scheduler) releaseDueAutomationRuns(ctx context.Context, now time.Time) {
-	const lease = 5 * time.Minute
-	due, err := s.db.ListDueAutomationRuns(ctx, now, 200)
+	const (
+		lease        = 5 * time.Minute
+		maxBatchSize = 1000
+	)
+	due, err := s.db.ListDueAutomationRuns(ctx, now, maxBatchSize)
 	if err != nil {
 		log.Printf("scheduler: list due automation runs: %v", err)
 		return

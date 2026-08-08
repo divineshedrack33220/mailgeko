@@ -239,7 +239,7 @@ export default function AutomationsPage() {
         <p className="text-sm leading-relaxed">
           <span className="font-medium">How it runs.</span> Welcome automations
           start automatically when a contact is created or imported. Use
-          &quot;Run now&quot; on an active automation to start every contact in your
+          &quot;Run now&quot; to start every contact in your
           workspace immediately. Steps (emails, waits, conditions, tags,
           webhooks) execute one at a time from the queue.
         </p>
@@ -321,7 +321,7 @@ export default function AutomationsPage() {
                           <Pencil /> Edit workflow
                         </Link>
                       </DropdownMenuItem>
-                      {manage && automation.status === "active" && canRun && (
+                      {manage && canRun && (
                         <DropdownMenuItem
                           className="cursor-pointer"
                           onClick={() => setRunTarget(automation)}

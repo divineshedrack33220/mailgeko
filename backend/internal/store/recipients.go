@@ -13,6 +13,7 @@ type CampaignRecipient struct {
 	ResendMessageID string
 	Status          string
 	Error           string
+	AutomationRunID string
 	SentAt          *time.Time
 	DeliveredAt     *time.Time
 	OpenedAt        *time.Time
@@ -39,6 +40,38 @@ func (s *Store) SetRecipientMessageID(ctx context.Context, campaignID, contactID
 		`UPDATE campaign_recipients SET resend_message_id = ? WHERE campaign_id = ? AND contact_id = ?`,
 		messageID, campaignID, contactID)
 	return err
+}
+
+// MarkAutomationSent records that an automation run sent a campaign to a
+// contact. The row doubles as the engagement record and as the idempotency
+// marker used to avoid re-sending on a retried step.
+func (s *Store) MarkAutomationSent(ctx context.Context, r *CampaignRecipient) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO campaign_recipients (campaign_id, contact_id, resend_message_id, status, error, automation_run_id, sent_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			resend_message_id = VALUES(resend_message_id),
+			status = VALUES(status),
+			error = VALUES(error),
+			automation_run_id = VALUES(automation_run_id),
+			sent_at = VALUES(sent_at)`,
+		r.CampaignID, r.ContactID, r.ResendMessageID, r.Status, r.Error, r.AutomationRunID, r.SentAt)
+	return err
+}
+
+// RecipientSentByAutomation reports whether the given automation run already
+// sent this campaign to the contact, so a retried send-email step does not
+// email them twice.
+func (s *Store) RecipientSentByAutomation(ctx context.Context, campaignID, contactID, automationRunID string) (bool, error) {
+	var n int
+	err := s.db.GetContext(ctx, &n, `
+		SELECT COUNT(*) FROM campaign_recipients
+		WHERE campaign_id = ? AND contact_id = ? AND automation_run_id = ? AND status = 'sent'`,
+		campaignID, contactID, automationRunID)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (s *Store) MarkRecipientSent(ctx context.Context, campaignID, contactID, messageID string) error {

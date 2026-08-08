@@ -136,8 +136,9 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRunAutomation manually enrolls every contact in the workspace into
-// the automation flow ("Run now"). Requires an active automation and an
-// owner/admin (it sends email).
+// the automation flow ("Run now"). It runs even a paused or draft automation
+// (the user asked explicitly); only owner/admin may trigger it (it sends
+// email).
 func (s *Server) handleRunAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	if !s.requireMemberRole(w, r, "owner", "admin") {
@@ -150,10 +151,6 @@ func (s *Server) handleRunAutomation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal", "could not load automation")
-		return
-	}
-	if automation.Status != "active" {
-		writeError(w, http.StatusUnprocessableEntity, "not_active", "activate the automation before running it")
 		return
 	}
 	if s.engine == nil {
