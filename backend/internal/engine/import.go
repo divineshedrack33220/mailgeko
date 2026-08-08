@@ -114,9 +114,7 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 			return imported, updated, err
 		} else {
 			imported++
-			if err := e.EnrollWelcome(ctx, contact); err != nil {
-				return imported, updated, err
-			}
+			_ = e.EnrollWelcome(ctx, contact)
 		}
 
 		if listID != "" {

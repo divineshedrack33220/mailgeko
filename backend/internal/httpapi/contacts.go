@@ -174,10 +174,7 @@ func (s *Server) handleCreateContact(w http.ResponseWriter, r *http.Request) {
 	}
 	s.maybeEnqueueEmbed(r, claims.GetWorkspaceID(), c.ID)
 	if s.engine != nil {
-		if err := s.engine.EnrollWelcome(r.Context(), c); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", "could not create contact")
-			return
-		}
+		_ = s.engine.EnrollWelcome(r.Context(), c)
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"contact": contactResponse(c)})
 }

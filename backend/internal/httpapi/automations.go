@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -68,12 +69,15 @@ func (s *Server) handleListAutomations(w http.ResponseWriter, r *http.Request) {
 	}
 	stats, err := s.db.AutomationRunStatsByWorkspace(r.Context(), claims.GetWorkspaceID())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not list automations")
-		return
+		log.Printf("list automations: run stats: %v", err)
 	}
 	out := make([]map[string]any, 0, len(automations))
 	for _, a := range automations {
-		out = append(out, automationResponseWithStats(a, stats[a.ID]))
+		var st *store.AutomationRunStats
+		if stats != nil {
+			st = stats[a.ID]
+		}
+		out = append(out, automationResponseWithStats(a, st))
 	}
 	writeOK(w, map[string]any{"automations": out})
 }

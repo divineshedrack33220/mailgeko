@@ -3,7 +3,9 @@ package engine
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -48,11 +50,13 @@ func (e *Engine) EnrollContact(ctx context.Context, automation *store.Automation
 
 // EnrollWelcome enrolls a new contact in every active welcome-triggered
 // automation in their workspace. Called after a contact is created or
-// imported.
+// imported. Enrollment is best-effort: a failure here must never fail the
+// contact creation or import that triggered it.
 func (e *Engine) EnrollWelcome(ctx context.Context, contact *store.Contact) error {
 	automations, err := e.store.ListAutomations(ctx, contact.WorkspaceID)
 	if err != nil {
-		return err
+		log.Printf("automation: list automations for welcome enrollment: %v", err)
+		return nil
 	}
 	for _, a := range automations {
 		if a.TriggerType == "welcome" {
@@ -98,10 +102,18 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 
 	automation, err := e.store.GetAutomation(ctx, run.WorkspaceID, run.AutomationID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			_ = e.store.AdvanceAutomationRun(ctx, run.ID, store.AutomationRunCompleted, run.StepIndex, run.RunAt)
+			return nil
+		}
 		return err
 	}
 	contact, err := e.store.GetContact(ctx, run.WorkspaceID, run.ContactID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			_ = e.store.AdvanceAutomationRun(ctx, run.ID, store.AutomationRunCompleted, run.StepIndex, run.RunAt)
+			return nil
+		}
 		return err
 	}
 
@@ -237,7 +249,18 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationID string, c
 			{Name: "automation", Value: automationID},
 		},
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// Record the recipient so engagement (opens/clicks) can be tracked and
+	// automation "opened"/"clicked" conditions can evaluate.
+	now := time.Now().UTC()
+	return e.store.UpsertCampaignRecipient(ctx, &store.CampaignRecipient{
+		CampaignID: campaign.ID,
+		ContactID:  contact.ID,
+		Status:     "sent",
+		SentAt:     &now,
+	})
 }
 
 func (e *Engine) conditionStep(ctx context.Context, contact *store.Contact, cfg map[string]any) (bool, error) {
