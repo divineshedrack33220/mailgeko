@@ -83,7 +83,8 @@ func (s *Server) handleCreateList(w http.ResponseWriter, r *http.Request) {
 			added++
 		}
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"list": listResponse(l, int64(added))})
+	count, _ := s.db.ListContactCount(r.Context(), claims.GetWorkspaceID(), l.ID)
+	writeJSON(w, http.StatusCreated, map[string]any{"list": listResponse(l, count), "added": added})
 }
 
 func (s *Server) handleGetList(w http.ResponseWriter, r *http.Request) {
