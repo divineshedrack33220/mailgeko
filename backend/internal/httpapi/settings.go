@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -590,7 +591,7 @@ func (s *Server) handleGetNotificationPrefs(w http.ResponseWriter, r *http.Reque
 	}
 
 	prefs := make(map[string]bool)
-	for _, k := range []string{"camp-sent", "camp-scheduled", "camp-failed", "aud-spikes", "aud-bounces", "aud-list", "sec-login", "sec-key", "bill-invoice", "bill-limit"} {
+	for _, k := range notificationPrefKeys {
 		prefs[k] = rows[k] != "0"
 	}
 	digest := "weekly"
@@ -599,6 +600,12 @@ func (s *Server) handleGetNotificationPrefs(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeOK(w, map[string]any{"prefs": prefs, "digest": digest})
+}
+
+// notificationPrefKeys are the only notification preference keys the API
+// accepts or returns; anything else is ignored on write.
+var notificationPrefKeys = []string{
+	"camp-sent", "camp-scheduled", "camp-failed", "aud-spikes", "aud-bounces", "aud-list", "sec-login", "sec-key", "bill-invoice", "bill-limit",
 }
 
 func (s *Server) handleUpdateNotificationPrefs(w http.ResponseWriter, r *http.Request) {
@@ -613,6 +620,9 @@ func (s *Server) handleUpdateNotificationPrefs(w http.ResponseWriter, r *http.Re
 	}
 
 	for key, enabled := range req.Prefs {
+		if !slices.Contains(notificationPrefKeys, key) {
+			continue
+		}
 		value := "0"
 		if enabled {
 			value = "1"
@@ -692,6 +702,13 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.UpdateUserPassword(r.Context(), user.ID, hash); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not change password")
 		return
+	}
+	// A password change invalidates every other device; keep the current
+	// session so the user isn't signed out mid-flow.
+	if s.session != nil {
+		if err := s.session.RevokeAllExcept(r.Context(), user.ID, claims.GetTokenID(), s.cfg.TokenTTL); err != nil {
+			log.Printf("httpapi: could not revoke other sessions after password change: %v", err)
+		}
 	}
 	writeOK(w, map[string]bool{"ok": true})
 }
