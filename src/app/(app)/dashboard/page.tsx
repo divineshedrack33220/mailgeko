@@ -57,6 +57,7 @@ interface AnalyticsTotals {
 }
 
 interface OverviewResponse {
+  subscribers?: number;
   totals: AnalyticsTotals;
   rates: {
     deliverability: number;
@@ -163,7 +164,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Subscribers"
-          value={formatNumber(overview?.totals?.recipients ?? 0)}
+          value={formatNumber(overview?.subscribers ?? 0)}
           icon={Users}
           hint="Total contacts in your account"
           loading={loading}

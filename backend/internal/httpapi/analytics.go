@@ -73,9 +73,15 @@ func (s *Server) handleAnalyticsOverview(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	subscribers := int64(0)
+	if s.db != nil {
+		subscribers, _ = s.db.CountContacts(r.Context(), workspaceID)
+	}
+
 	out := map[string]any{
-		"range":  r.URL.Query().Get("range"),
-		"totals": totals,
+		"range":       r.URL.Query().Get("range"),
+		"subscribers": subscribers,
+		"totals":      totals,
 		"rates": map[string]any{
 			"deliverability":  pct(totals.Sent-totals.Bounced, totals.Sent),
 			"openRate":        pct(totals.UniqueOpens, totals.Delivered),
