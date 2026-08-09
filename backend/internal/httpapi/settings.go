@@ -43,6 +43,9 @@ func normalizeAssignableRole(role string) (string, string, bool) {
 }
 
 func (s *Server) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	claims := claimsFrom(r)
 	workspaceID := claims.GetWorkspaceID()
 
@@ -484,6 +487,9 @@ func invitationResponse(inv *store.Invitation) map[string]any {
 }
 
 func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	claims := claimsFrom(r)
 	keys, err := s.db.ListAPIKeys(r.Context(), claims.GetWorkspaceID())
 	if err != nil {

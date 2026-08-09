@@ -43,6 +43,9 @@ func (s *Server) handleBillingCheckout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "billing_unavailable", "billing is not configured")
 		return
 	}
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	var req struct {
 		Plan string `json:"plan"`
 	}
@@ -66,6 +69,9 @@ func (s *Server) handleBillingCheckout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBillingPortal(w http.ResponseWriter, r *http.Request) {
 	if s.biller == nil {
 		writeError(w, http.StatusServiceUnavailable, "billing_unavailable", "billing is not configured")
+		return
+	}
+	if !s.requireMemberRole(w, r, "owner", "admin") {
 		return
 	}
 	claims := claimsFrom(r)

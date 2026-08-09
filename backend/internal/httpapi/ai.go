@@ -39,6 +39,9 @@ func (s *Server) recordAIHistory(ctx context.Context, workspaceID, kind, prompt,
 }
 
 func (s *Server) handleGenerateSubjects(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	claims := claimsFrom(r)
 	var req struct {
 		Topic    string `json:"topic"`
@@ -66,6 +69,9 @@ func (s *Server) handleGenerateSubjects(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleGenerateCampaign(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
 	claims := claimsFrom(r)
 	var req struct {
 		Prompt     string `json:"prompt"`
@@ -132,6 +138,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListAIHistory(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	claims := claimsFrom(r)
 	items, err := s.db.ListAIHistory(r.Context(), claims.GetWorkspaceID(), 50)
 	if err != nil {
@@ -152,6 +161,9 @@ func (s *Server) handleListAIHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteAIHistory(w http.ResponseWriter, r *http.Request) {
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
 	claims := claimsFrom(r)
 	if err := s.db.DeleteAIHistory(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not delete history")
