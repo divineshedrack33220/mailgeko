@@ -338,7 +338,7 @@ function WorkspaceSwitcher({
     setSwitching(ws.id);
     try {
       await switchWorkspace(ws.id);
-      window.location.href = "/dashboard";
+      window.location.assign("/dashboard");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not switch workspace");
       setSwitching(null);

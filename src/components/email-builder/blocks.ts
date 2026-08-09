@@ -391,17 +391,6 @@ const indent = (s: string, n: number) =>
     .map((l) => " ".repeat(n) + l)
     .join("\n");
 
-const DEFAULT_PROPS: Record<BlockType, () => Block> = {
-  hero: () => makeBlock("hero"),
-  banner: () => makeBlock("banner"),
-  image: () => makeBlock("image"),
-  text: () => makeBlock("text"),
-  button: () => makeBlock("button"),
-  divider: () => makeBlock("divider"),
-  spacer: () => makeBlock("spacer"),
-  social: () => makeBlock("social"),
-};
-
 const stripText = (innerHtml: string): string => {
   const div = document.createElement("div");
   div.innerHTML = innerHtml.replace(/<br\s*\/?>/gi, "\n");

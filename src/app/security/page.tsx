@@ -46,7 +46,7 @@ export default function SecurityPage() {
         <p>
           No system is perfectly secure. You can reduce risk by enabling two-factor
           authentication, using strong unique passwords, reviewing active sessions, and keeping
-          your own deployment's operating system and configuration up to date.
+          your own deployment&apos;s operating system and configuration up to date.
         </p>
       </Section>
       <Section title="Reporting a vulnerability">

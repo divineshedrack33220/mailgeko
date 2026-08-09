@@ -20,23 +20,26 @@ export default function NotificationsPage() {
   const [unread, setUnread] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
 
-  const load = React.useCallback(async () => {
-    try {
-      const res = await api.get<{ notifications: AppNotification[]; unread: number }>(
-        "/api/v1/notifications?limit=50"
-      );
-      setNotifications(res.notifications ?? []);
-      setUnread(res.unread ?? 0);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not load notifications");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   React.useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api.get<{ notifications: AppNotification[]; unread: number }>(
+          "/api/v1/notifications?limit=50"
+        );
+        if (cancelled) return;
+        setNotifications(res.notifications ?? []);
+        setUnread(res.unread ?? 0);
+      } catch (err) {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load notifications");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const open = async (n: AppNotification) => {
     if (!n.read) {

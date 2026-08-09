@@ -282,17 +282,16 @@ function HeroPreview({ p }: { p: HeroProps }) {
 function MediaPreview({
   src,
   alt,
-  href,
   fullBleed,
   image,
 }: {
   src: string;
   alt: string;
-  href: string;
   fullBleed: boolean;
   image: ImageProps;
 }) {
   const inner = src ? (
+    // eslint-disable-next-line @next/next/no-img-element -- email preview needs a raw <img>, next/image rewrites the URL
     <img
       src={src}
       alt={alt}
@@ -326,14 +325,13 @@ function BlockPreview({ block }: { block: Block }) {
         <MediaPreview
           src={p.src}
           alt={p.alt}
-          href={p.href}
           fullBleed
           image={{ src: p.src, alt: p.alt, href: p.href, width: "100%", align: "center", borderRadius: "0px", padding: "0" }}
         />
       );
     }
     case "image":
-      return <MediaPreview src={(block.props as ImageProps).src} alt={(block.props as ImageProps).alt} href={(block.props as ImageProps).href} fullBleed={false} image={block.props as ImageProps} />;
+      return <MediaPreview src={(block.props as ImageProps).src} alt={(block.props as ImageProps).alt} fullBleed={false} image={block.props as ImageProps} />;
     case "text": {
       const p = block.props as TextProps;
       return (
