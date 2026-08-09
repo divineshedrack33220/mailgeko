@@ -1,6 +1,35 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const TOKEN_KEY = "mailgeko_token";
 
+// Endpoints that legitimately return 401 without meaning the session is dead
+// (bad credentials, expired 2FA challenge, invalid reset link, …). These must
+// never trigger a logout redirect.
+const UNAUTHENTICATED_PATHS = [
+  "/api/v1/auth/login",
+  "/api/v1/auth/register",
+  "/api/v1/auth/forgot-password",
+  "/api/v1/auth/reset-password",
+  "/api/v1/auth/verify-email",
+  "/api/v1/auth/2fa/verify",
+  "/api/v1/auth/oauth",
+];
+
+// Routes that don't need a redirect because the user is already there.
+const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/verify", "/2fa", "/invite"];
+
+let redirectingToLogin = false;
+
+function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  if (redirectingToLogin) return;
+  const current = window.location.pathname;
+  if (AUTH_PAGES.some((p) => current === p || current.startsWith(p + "/"))) return;
+  redirectingToLogin = true;
+  const next = window.location.pathname + window.location.search;
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.location.replace(`/login${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`);
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -20,8 +49,10 @@ export function getToken(): string | null {
 
 export function setToken(token: string | null): void {
   if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) {
+    redirectingToLogin = false;
+    window.localStorage.setItem(TOKEN_KEY, token);
+  } else window.localStorage.removeItem(TOKEN_KEY);
 }
 
 export function oauthUrl(provider: "google" | "github"): string {
@@ -53,6 +84,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       if (typeof body.error === "string") code = body.error;
     } catch {
       // non-JSON error body
+    }
+    if (res.status === 401 && !options.skipAuth && !UNAUTHENTICATED_PATHS.some((p) => path.startsWith(p))) {
+      redirectToLogin();
     }
     throw new ApiError(res.status, code, message);
   }
