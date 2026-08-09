@@ -705,8 +705,7 @@ function ComingSoon({ tool }: { tool: Tool }) {
         <div>
           <h3 className="font-semibold">{tool.title}</h3>
           <p className="text-muted-foreground mt-1 max-w-sm text-sm">
-            {tool.description} Subject lines, copywriting, and the assistant are
-            available today.
+            {tool.description}
           </p>
         </div>
         <Badge variant="outline" className="mt-1">Not built yet</Badge>
