@@ -225,14 +225,18 @@ func (s *Store) ListCampaignRecipients(ctx context.Context, campaignID string) (
 	var out []CampaignRecipientWithContact
 	for rows.Next() {
 		var r CampaignRecipientWithContact
+		var resendMessageID, statusErr, automationRunID sql.NullString
 		var sentAt, deliveredAt, openedAt, clickedAt, bouncedAt, complainedAt, unsubscribedAt sql.NullTime
 		if err := rows.Scan(
-			&r.CampaignID, &r.ContactID, &r.ResendMessageID, &r.Status, &r.Error,
-			&r.AutomationRunID, &sentAt, &deliveredAt, &openedAt, &clickedAt, &bouncedAt, &complainedAt, &unsubscribedAt,
+			&r.CampaignID, &r.ContactID, &resendMessageID, &r.Status, &statusErr,
+			&automationRunID, &sentAt, &deliveredAt, &openedAt, &clickedAt, &bouncedAt, &complainedAt, &unsubscribedAt,
 			&r.Email, &r.FirstName, &r.LastName,
 		); err != nil {
 			return nil, err
 		}
+		r.ResendMessageID = resendMessageID.String
+		r.Error = statusErr.String
+		r.AutomationRunID = automationRunID.String
 		r.SentAt = nullTimePtr(sentAt)
 		r.DeliveredAt = nullTimePtr(deliveredAt)
 		r.OpenedAt = nullTimePtr(openedAt)
