@@ -88,9 +88,15 @@ func (r *campaignRequest) apply(c *store.Campaign) {
 	}
 }
 
-func campaignResponse(c *store.Campaign, stats *store.CampaignStats) map[string]any {
+func campaignResponse(c *store.Campaign, stats *store.CampaignStats, recipientCount int64) map[string]any {
 	if stats == nil {
 		stats = &store.CampaignStats{CampaignID: c.ID}
+	}
+	recipients := stats.Recipients
+	sent := stats.Sent
+	if c.Type == "automated" && recipientCount > 0 {
+		recipients = recipientCount
+		sent = recipientCount
 	}
 	var scheduleAt any
 	if c.ScheduleAt != nil {
@@ -120,8 +126,8 @@ func campaignResponse(c *store.Campaign, stats *store.CampaignStats) map[string]
 			"allowUnsubscribe": c.AllowUnsubscribe,
 		},
 		"stats": map[string]any{
-			"recipients":   stats.Recipients,
-			"sent":         stats.Sent,
+			"recipients":   recipients,
+			"sent":         sent,
 			"delivered":    stats.Delivered,
 			"opened":       stats.Opened,
 			"clicked":      stats.Clicked,
@@ -146,7 +152,11 @@ func (s *Server) handleListCampaigns(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(campaigns))
 	for _, c := range campaigns {
 		stats, _ := s.db.GetCampaignStats(r.Context(), c.ID)
-		out = append(out, campaignResponse(c, stats))
+		var count int64
+		if c.Type == "automated" {
+			count, _ = s.db.CountRecipients(r.Context(), c.ID)
+		}
+		out = append(out, campaignResponse(c, stats, count))
 	}
 	writeOK(w, map[string]any{"campaigns": out})
 }
@@ -198,7 +208,7 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create campaign")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"campaign": campaignResponse(c, nil)})
+	writeJSON(w, http.StatusCreated, map[string]any{"campaign": campaignResponse(c, nil, 0)})
 }
 
 func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +223,11 @@ func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stats, _ := s.db.GetCampaignStats(r.Context(), c.ID)
-	writeOK(w, map[string]any{"campaign": campaignResponse(c, stats)})
+	var count int64
+	if c.Type == "automated" {
+		count, _ = s.db.CountRecipients(r.Context(), c.ID)
+	}
+	writeOK(w, map[string]any{"campaign": campaignResponse(c, stats, count)})
 }
 
 func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +255,7 @@ func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update campaign")
 		return
 	}
-	writeOK(w, map[string]any{"campaign": campaignResponse(existing, nil)})
+	writeOK(w, map[string]any{"campaign": campaignResponse(existing, nil, 0)})
 }
 
 func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {

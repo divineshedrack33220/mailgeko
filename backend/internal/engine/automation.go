@@ -322,13 +322,19 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 	// automation "opened"/"clicked" conditions can evaluate. This row is also
 	// the idempotency marker for retried steps.
 	now := time.Now().UTC()
-	return e.store.MarkAutomationSent(ctx, &store.CampaignRecipient{
+	if err := e.store.MarkAutomationSent(ctx, &store.CampaignRecipient{
 		CampaignID:      campaign.ID,
 		ContactID:       contact.ID,
 		Status:          "sent",
 		AutomationRunID: automationRunID,
 		SentAt:          &now,
-	})
+	}); err != nil {
+		return err
+	}
+	if campaign.TemplateID != "" {
+		_ = e.store.IncrementTemplateUsed(ctx, campaign.WorkspaceID, campaign.TemplateID)
+	}
+	return nil
 }
 
 func (e *Engine) conditionStep(ctx context.Context, contact *store.Contact, cfg map[string]any) (bool, error) {

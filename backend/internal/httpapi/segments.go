@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -20,16 +21,27 @@ type segmentRequest struct {
 	Conditions  []store.Condition `json:"conditions"`
 }
 
-func segmentResponse(seg *store.Segment) map[string]any {
+func segmentResponse(seg *store.Segment, contactCount int64) map[string]any {
 	return map[string]any{
-		"id":          seg.ID,
-		"name":        seg.Name,
-		"description": seg.Description,
-		"matchType":   seg.MatchType,
-		"conditions":  orEmptySlice(seg.Conditions),
-		"createdAt":   seg.CreatedAt.UTC().Format(time.RFC3339),
-		"updatedAt":   seg.UpdatedAt.UTC().Format(time.RFC3339),
+		"id":           seg.ID,
+		"name":         seg.Name,
+		"description":  seg.Description,
+		"matchType":    seg.MatchType,
+		"conditions":   orEmptySlice(seg.Conditions),
+		"contactCount": contactCount,
+		"createdAt":    seg.CreatedAt.UTC().Format(time.RFC3339),
+		"updatedAt":    seg.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+func (s *Server) segmentCount(ctx context.Context, workspaceID, segmentID string) int64 {
+	var count int64
+	if s.engine != nil {
+		if n, err := s.engine.CountSegmentMatches(ctx, workspaceID, segmentID); err == nil {
+			count = int64(n)
+		}
+	}
+	return count
 }
 
 func (s *Server) handleListSegments(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +53,7 @@ func (s *Server) handleListSegments(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(segments))
 	for _, seg := range segments {
-		out = append(out, segmentResponse(seg))
+		out = append(out, segmentResponse(seg, s.segmentCount(r.Context(), claims.GetWorkspaceID(), seg.ID)))
 	}
 	writeOK(w, map[string]any{"segments": out})
 }
@@ -83,7 +95,7 @@ func (s *Server) handleCreateSegment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create segment")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"segment": segmentResponse(seg)})
+	writeJSON(w, http.StatusCreated, map[string]any{"segment": segmentResponse(seg, s.segmentCount(r.Context(), claims.GetWorkspaceID(), seg.ID))})
 }
 
 func (s *Server) handleGetSegment(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +109,7 @@ func (s *Server) handleGetSegment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load segment")
 		return
 	}
-	writeOK(w, map[string]any{"segment": segmentResponse(seg)})
+	writeOK(w, map[string]any{"segment": segmentResponse(seg, s.segmentCount(r.Context(), claims.GetWorkspaceID(), seg.ID))})
 }
 
 func (s *Server) handleUpdateSegment(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +139,7 @@ func (s *Server) handleUpdateSegment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update segment")
 		return
 	}
-	writeOK(w, map[string]any{"segment": segmentResponse(seg)})
+	writeOK(w, map[string]any{"segment": segmentResponse(seg, s.segmentCount(r.Context(), claims.GetWorkspaceID(), seg.ID))})
 }
 
 func (s *Server) handleDeleteSegment(w http.ResponseWriter, r *http.Request) {

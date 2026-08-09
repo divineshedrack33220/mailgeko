@@ -270,6 +270,26 @@ func (e *Engine) resolveRecipients(ctx context.Context, campaign *store.Campaign
 	return out, nil
 }
 
+// CountSegmentMatches returns how many contacts in the workspace match the
+// given segment, using the same matching rules as campaign delivery.
+func (e *Engine) CountSegmentMatches(ctx context.Context, workspaceID, segmentID string) (int, error) {
+	seg, err := e.store.GetSegment(ctx, workspaceID, segmentID)
+	if err != nil {
+		return 0, err
+	}
+	contacts, err := e.store.AllContacts(ctx, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, c := range contacts {
+		if segmentMatches(seg, c) {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID string) error {
 	campaign, err := e.store.GetCampaignByID(ctx, campaignID)
 	if err != nil {

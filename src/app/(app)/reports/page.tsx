@@ -121,13 +121,17 @@ export default function ReportsPage() {
   ];
 
   const bestCampaigns = campaigns
-    .filter((c) => (c.stats ?? EMPTY_STATS).delivered > 0 && c.type !== "test")
+    .filter((c) => {
+      const s = c.stats ?? EMPTY_STATS;
+      return c.type !== "test" && (s.delivered > 0 || s.opened > 0 || s.clicked > 0 || s.uniqueOpens > 0 || s.uniqueClicks > 0);
+    })
     .map((c) => {
       const stats = c.stats ?? EMPTY_STATS;
+      const base = stats.delivered > 0 ? stats.delivered : stats.sent;
       return {
         id: c.id,
         name: c.name,
-        openRate: (stats.uniqueOpens / stats.delivered) * 100,
+        openRate: base ? (stats.uniqueOpens / base) * 100 : 0,
       };
     })
     .sort((a, b) => b.openRate - a.openRate)

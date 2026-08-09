@@ -122,7 +122,7 @@ export default function NewCampaignPage() {
       ? segments.find((s) => s.id === segment)?.contactCount ?? 0
       : 0;
 
-  const finalRecipients = segment !== "none" ? Math.min(recipients, segmentCount) : recipients;
+  const finalRecipients = segment !== "none" ? recipients + segmentCount : recipients;
 
   const canContinue = React.useMemo(() => {
     if (step === 1) return selectedLists.length > 0;
@@ -426,7 +426,7 @@ function RecipientsStep({
         <div className="px-6">
           <div className="flex items-center gap-2">
             <Sparkles className="text-primary size-4" />
-            <span className="text-sm font-medium">Optional: narrow by segment</span>
+            <span className="text-sm font-medium">Optional: add segment audience</span>
           </div>
         </div>
         <div className="px-6">
@@ -450,7 +450,7 @@ function RecipientsStep({
         <div>
           <p className="text-sm font-medium">Estimated recipients</p>
           <p className="text-muted-foreground text-xs">
-            {segment !== "none" ? "Limited to segment size" : "Sum of selected lists"}
+            {segment !== "none" ? "Contacts in selected lists plus segment matches" : "Sum of selected lists"}
           </p>
         </div>
         <span className="text-primary text-2xl font-semibold tabular-nums">

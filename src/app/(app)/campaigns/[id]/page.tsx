@@ -255,8 +255,9 @@ export default function CampaignDetailPage() {
 
   const stats = liveStats ?? campaign.stats ?? EMPTY_STATS;
   const delivered = stats.delivered;
-  const openRate = delivered ? (stats.uniqueOpens / delivered) * 100 : 0;
-  const clickRate = delivered ? (stats.uniqueClicks / delivered) * 100 : 0;
+  const rateBase = delivered > 0 ? delivered : stats.sent;
+  const openRate = rateBase ? (stats.uniqueOpens / rateBase) * 100 : 0;
+  const clickRate = rateBase ? (stats.uniqueClicks / rateBase) * 100 : 0;
   const bounceRate = stats.sent ? (stats.bounced / stats.sent) * 100 : 0;
   const sendProgress = stats.sent
     ? (stats.sent / Math.max(stats.recipients, 1)) * 100
@@ -265,7 +266,12 @@ export default function CampaignDetailPage() {
   const isSending = campaign.status === "sending";
   const isSent = campaign.status === "sent" || campaign.status === "completed";
   const canSendNow = (campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused") && send;
-  const hasAnalytics = stats.delivered > 0;
+  const hasAnalytics =
+    stats.delivered > 0 ||
+    stats.opened > 0 ||
+    stats.clicked > 0 ||
+    stats.uniqueOpens > 0 ||
+    stats.uniqueClicks > 0;
 
   const effectiveStatus = (r: CampaignRecipient): RecipientStatus => {
     if (r.bouncedAt) return "bounced";
