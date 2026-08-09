@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -153,6 +154,15 @@ func unmarshalStringSlice(b []byte) []string {
 		out = []string{}
 	}
 	return out
+}
+
+// nullTimePtr converts a nullable timestamp into a pointer suitable for the
+// domain models (nil when the column is NULL).
+func nullTimePtr(t sql.NullTime) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	return &t.Time
 }
 
 func unmarshalStringMap(b []byte) map[string]string {

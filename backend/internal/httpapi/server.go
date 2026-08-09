@@ -21,19 +21,19 @@ const claimsKey contextKey = "claims"
 type contextKey string
 
 type Server struct {
-	cfg       Config
-	db        *store.Store
-	analytics AnalyticsStore
-	tokens    TokenIssuer
-	session   *SessionStore
-	queue     CampaignEnqueuer
-	engine    *engine.Engine
-	searcher  ContactSearcher
-	biller    Biller
-	rateLimit *RateLimiter
-	ai        *ai.Client
-	uploads   *cloudinary.Client
-	oauth     *oauth.Manager
+	cfg            Config
+	db             *store.Store
+	analytics      AnalyticsStore
+	tokens         TokenIssuer
+	session        *SessionStore
+	queue          CampaignEnqueuer
+	engine         *engine.Engine
+	searcher       ContactSearcher
+	biller         Biller
+	rateLimit      *RateLimiter
+	ai             *ai.Client
+	uploads        *cloudinary.Client
+	oauth          *oauth.Manager
 	trackingSecret string
 }
 
@@ -180,6 +180,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/campaigns", s.withAuth(http.HandlerFunc(s.handleListCampaigns)))
 	mux.Handle("POST /api/v1/campaigns", s.withAuth(http.HandlerFunc(s.handleCreateCampaign)))
 	mux.Handle("GET /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleGetCampaign)))
+	mux.Handle("GET /api/v1/campaigns/{id}/recipients", s.withAuth(http.HandlerFunc(s.handleListCampaignRecipients)))
 	mux.Handle("PATCH /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleUpdateCampaign)))
 	mux.Handle("DELETE /api/v1/campaigns/{id}", s.withAuth(http.HandlerFunc(s.handleDeleteCampaign)))
 	mux.Handle("POST /api/v1/campaigns/{id}/send", s.withAuth(http.HandlerFunc(s.handleSendCampaign)))

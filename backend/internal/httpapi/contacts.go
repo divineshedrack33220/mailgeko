@@ -69,9 +69,12 @@ func (r *contactRequest) applyTo(c *store.Contact) {
 }
 
 func (r *contactRequest) toContact(wsID, id string) *store.Contact {
+	now := time.Now()
 	c := &store.Contact{
 		ID:          id,
 		WorkspaceID: wsID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	r.applyTo(c)
 	if c.Status == "" {

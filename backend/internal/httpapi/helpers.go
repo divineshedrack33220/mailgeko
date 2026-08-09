@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -37,4 +39,13 @@ type queueEmbedWorkspacePayload struct {
 
 func newID() string {
 	return uuid.NewString()
+}
+
+// nullTimeRFC3339 renders a nullable timestamp as an RFC3339 string (nil when
+// the value is absent) for JSON responses.
+func nullTimeRFC3339(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339)
 }

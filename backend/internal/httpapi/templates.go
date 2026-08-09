@@ -90,6 +90,8 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 		Variables:   req.Variables,
 		Tags:        req.Tags,
 		IsFavorite:  req.IsFavorite,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if err := s.db.CreateTemplate(r.Context(), t); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create template")

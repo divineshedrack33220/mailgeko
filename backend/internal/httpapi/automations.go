@@ -111,6 +111,8 @@ func (s *Server) handleCreateAutomation(w http.ResponseWriter, r *http.Request) 
 		TriggerDelay:      req.Trigger.Delay,
 		Steps:             req.Steps,
 		Status:            status,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 	a.Steps = normalizeSteps(req.Steps)
 	if err := s.db.CreateAutomation(r.Context(), a); err != nil {

@@ -169,6 +169,8 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		TrackOpens:       true,
 		TrackClicks:      true,
 		AllowUnsubscribe: true,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 	req.apply(c)
 	if strings.TrimSpace(c.Name) == "" {
@@ -292,6 +294,52 @@ func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
 
 type sendTestRequest struct {
 	Emails []string `json:"emails"`
+}
+
+// handleListCampaignRecipients returns the per-recipient delivery breakdown
+// for a campaign: who was queued, sent, delivered, opened, clicked, bounced,
+// complained, unsubscribed, skipped or failed (with the error).
+func (s *Server) handleListCampaignRecipients(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
+		return
+	}
+	c, err := s.db.GetCampaign(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
+		return
+	}
+	rows, err := s.db.ListCampaignRecipients(r.Context(), c.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not load recipients")
+		return
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, rc := range rows {
+		item := map[string]any{
+			"contactId":       rc.ContactID,
+			"email":           rc.Email,
+			"firstName":       rc.FirstName,
+			"lastName":        rc.LastName,
+			"status":          rc.Status,
+			"error":           rc.Error,
+			"messageId":       rc.ResendMessageID,
+			"automationRunId": rc.AutomationRunID,
+			"sentAt":          nullTimeRFC3339(rc.SentAt),
+			"deliveredAt":     nullTimeRFC3339(rc.DeliveredAt),
+			"openedAt":        nullTimeRFC3339(rc.OpenedAt),
+			"clickedAt":       nullTimeRFC3339(rc.ClickedAt),
+			"bouncedAt":       nullTimeRFC3339(rc.BouncedAt),
+			"complainedAt":    nullTimeRFC3339(rc.ComplainedAt),
+			"unsubscribedAt":  nullTimeRFC3339(rc.UnsubscribedAt),
+		}
+		out = append(out, item)
+	}
+	writeOK(w, map[string]any{"recipients": out})
 }
 
 func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) {

@@ -196,6 +196,55 @@ func (s *Store) CountRecipients(ctx context.Context, campaignID string) (int64, 
 	return n, err
 }
 
+// CampaignRecipientWithContact pairs a recipient row with the contact it was
+// sent to, so the API can surface who received what and why a send failed.
+type CampaignRecipientWithContact struct {
+	CampaignRecipient
+	Email     string
+	FirstName string
+	LastName  string
+}
+
+// ListCampaignRecipients returns every recipient of a campaign together with
+// the contact's email and name, newest sends first.
+func (s *Store) ListCampaignRecipients(ctx context.Context, campaignID string) ([]CampaignRecipientWithContact, error) {
+	rows, err := s.db.QueryxContext(ctx, `
+		SELECT r.campaign_id, r.contact_id, r.resend_message_id, r.status, r.error,
+		       r.automation_run_id, r.sent_at, r.delivered_at, r.opened_at,
+		       r.clicked_at, r.bounced_at, r.complained_at, r.unsubscribed_at,
+		       c.email, c.first_name, c.last_name
+		FROM campaign_recipients r
+		JOIN contacts c ON c.id = r.contact_id
+		WHERE r.campaign_id = ?
+		ORDER BY (r.status = 'queued') DESC, r.sent_at DESC, c.email ASC`, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []CampaignRecipientWithContact
+	for rows.Next() {
+		var r CampaignRecipientWithContact
+		var sentAt, deliveredAt, openedAt, clickedAt, bouncedAt, complainedAt, unsubscribedAt sql.NullTime
+		if err := rows.Scan(
+			&r.CampaignID, &r.ContactID, &r.ResendMessageID, &r.Status, &r.Error,
+			&r.AutomationRunID, &sentAt, &deliveredAt, &openedAt, &clickedAt, &bouncedAt, &complainedAt, &unsubscribedAt,
+			&r.Email, &r.FirstName, &r.LastName,
+		); err != nil {
+			return nil, err
+		}
+		r.SentAt = nullTimePtr(sentAt)
+		r.DeliveredAt = nullTimePtr(deliveredAt)
+		r.OpenedAt = nullTimePtr(openedAt)
+		r.ClickedAt = nullTimePtr(clickedAt)
+		r.BouncedAt = nullTimePtr(bouncedAt)
+		r.ComplainedAt = nullTimePtr(complainedAt)
+		r.UnsubscribedAt = nullTimePtr(unsubscribedAt)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) SetCampaignStatsField(ctx context.Context, campaignID, field string, delta int64) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE campaign_stats SET `+field+` = `+field+` + ? WHERE campaign_id = ?`, delta, campaignID)
