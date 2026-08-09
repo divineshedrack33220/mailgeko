@@ -30,6 +30,7 @@ var mysqlMigrations = []string{
 	"migrations/0015_automation_runs.sql",
 	"migrations/0016_automation_run_attempts.sql",
 	"migrations/0017_workspace_smtp.sql",
+	"migrations/0018_cleanup_orphaned_automation_runs.sql",
 }
 
 // postgresMigrations are the Postgres / pgvector migrations, in order.
