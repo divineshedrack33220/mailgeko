@@ -52,8 +52,6 @@ export default function NewTemplatePage() {
     if (role && !canManage(role)) router.replace("/dashboard");
   }, [role, router]);
 
-  if (role && !canManage(role)) return null;
-
   const [saving, setSaving] = React.useState(false);
   const [aiPrompt, setAiPrompt] = React.useState("");
   const [aiCategory, setAiCategory] = React.useState<TemplateCategory>("Newsletter");
@@ -121,6 +119,8 @@ export default function NewTemplatePage() {
       setSaving(false);
     }
   };
+
+  if (role && !canManage(role)) return null;
 
   return (
     <div className="flex flex-col gap-6">

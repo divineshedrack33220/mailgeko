@@ -23,8 +23,6 @@ export default function NewContactPage() {
     if (role && !canManage(role)) router.replace("/dashboard");
   }, [role, router]);
 
-  if (role && !canManage(role)) return null;
-
   const [saving, setSaving] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -53,6 +51,8 @@ export default function NewContactPage() {
       setSaving(false);
     }
   };
+
+  if (role && !canManage(role)) return null;
 
   return (
     <div className="flex flex-col gap-6">

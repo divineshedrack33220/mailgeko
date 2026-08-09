@@ -58,8 +58,6 @@ export default function NewCampaignPage() {
     if (role && !canManage(role)) router.replace("/dashboard");
   }, [role, router]);
 
-  if (role && !canManage(role)) return null;
-
   const [step, setStep] = React.useState(1);
   const [sending, setSending] = React.useState(false);
 
@@ -168,6 +166,8 @@ export default function NewCampaignPage() {
       setSending(false);
     }
   };
+
+  if (role && !canManage(role)) return null;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">

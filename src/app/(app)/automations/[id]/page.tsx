@@ -137,8 +137,6 @@ export default function AutomationBuilderPage() {
     if (role && !canManage(role)) router.replace("/automations");
   }, [role, router]);
 
-  if (role && !canManage(role)) return null;
-
   const [automation, setAutomation] = React.useState<Automation | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -338,6 +336,8 @@ export default function AutomationBuilderPage() {
       setSaving(false);
     }
   };
+
+  if (role && !canManage(role)) return null;
 
   if (loading) {
     return (

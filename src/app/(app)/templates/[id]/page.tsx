@@ -51,7 +51,6 @@ import { canManage } from "@/lib/permissions";
 import type { Template } from "@/lib/types";
 import {
   EmailBuilder,
-  Device,
 } from "@/components/email-builder/EmailBuilder";
 import {
   Block,
@@ -134,8 +133,6 @@ export default function TemplateEditorPage() {
   React.useEffect(() => {
     if (role && !canManage(role)) router.replace("/templates");
   }, [role, router]);
-
-  if (role && !canManage(role)) return null;
 
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -420,6 +417,8 @@ export default function TemplateEditorPage() {
       toast.error(err instanceof Error ? err.message : "Could not render preview");
     }
   }, [mode, designBlocks, designSettings, code, sampleData, renderRaw]);
+
+  if (role && !canManage(role)) return null;
 
   if (loading) {
     return (

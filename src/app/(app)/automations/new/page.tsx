@@ -85,8 +85,6 @@ export default function NewAutomationPage() {
     if (role && !canManage(role)) router.replace("/dashboard");
   }, [role, router]);
 
-  if (role && !canManage(role)) return null;
-
   const [name, setName] = React.useState("");
   const [selected, setSelected] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
@@ -124,6 +122,8 @@ export default function NewAutomationPage() {
       triggerOptions.find((t) => t.id === selected) ?? triggerOptions.find((t) => t.id === "welcome");
     create(trigger!.id, trigger!.title, []);
   };
+
+  if (role && !canManage(role)) return null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 lg:px-6">

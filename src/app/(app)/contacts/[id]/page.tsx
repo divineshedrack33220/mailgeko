@@ -70,14 +70,11 @@ export default function ContactDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const role = useAuthStore((s) => s.role);
-  const manage = canManage(role);
   const send = canSend(role);
 
   React.useEffect(() => {
     if (role && !canManage(role)) router.replace("/contacts");
   }, [role, router]);
-
-  if (role && !canManage(role)) return null;
 
   const [contact, setContact] = React.useState<Contact | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -243,6 +240,8 @@ export default function ContactDetailPage() {
       setSending(false);
     }
   };
+
+  if (role && !canManage(role)) return null;
 
   if (loading) {
     return (
