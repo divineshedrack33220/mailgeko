@@ -284,7 +284,7 @@ func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load campaign")
 		return
 	}
-	if c.Status != store.CampaignDraft && c.Status != store.CampaignScheduled && c.Status != store.CampaignPaused {
+	if c.Status != store.CampaignDraft && c.Status != store.CampaignScheduled && c.Status != store.CampaignPaused && c.Status != store.CampaignFailed {
 		writeError(w, http.StatusConflict, "invalid_state", "campaign cannot be sent from its current state")
 		return
 	}

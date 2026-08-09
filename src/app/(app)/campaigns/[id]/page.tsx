@@ -265,7 +265,7 @@ export default function CampaignDetailPage() {
 
   const isSending = campaign.status === "sending";
   const isSent = campaign.status === "sent" || campaign.status === "completed";
-  const canSendNow = (campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused") && send;
+  const canSendNow = (campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused" || campaign.status === "failed") && send;
   const hasAnalytics =
     stats.delivered > 0 ||
     stats.opened > 0 ||

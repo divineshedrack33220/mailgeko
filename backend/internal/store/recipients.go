@@ -111,7 +111,35 @@ func (s *Store) CompleteCampaignIfDone(ctx context.Context, campaignID string) (
 		return false, err
 	}
 	n, err := res.RowsAffected()
-	return n == 1, err
+	if n != 1 {
+		return false, err
+	}
+
+	// If no recipient actually got sent (every one failed or was skipped),
+	// mark the campaign failed instead of sent so the UI reflects reality.
+	var sent, failed int64
+	if err := s.db.GetContext(ctx, &sent,
+		`SELECT COUNT(*) FROM campaign_recipients
+		 WHERE campaign_id = ?
+		   AND (status = 'sent' OR status IN ('bounced','complained','unsubscribed')
+		        OR delivered_at IS NOT NULL OR opened_at IS NOT NULL OR clicked_at IS NOT NULL)`,
+		campaignID); err != nil {
+		return true, err
+	}
+	if sent > 0 {
+		return true, nil
+	}
+	if err := s.db.GetContext(ctx, &failed,
+		`SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = ? AND status = 'failed'`,
+		campaignID); err != nil {
+		return true, err
+	}
+	if failed > 0 {
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE campaigns SET status = 'failed', updated_at = ? WHERE id = ?`,
+			time.Now().UTC(), campaignID)
+	}
+	return true, err
 }
 
 func (s *Store) firstOccurrence(ctx context.Context, campaignID, contactID, column string) (bool, error) {

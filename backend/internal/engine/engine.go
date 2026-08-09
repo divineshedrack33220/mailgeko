@@ -394,13 +394,23 @@ func (e *Engine) maybeCompleteCampaign(ctx context.Context, campaign *store.Camp
 	if err != nil {
 		return err
 	}
-	if done {
-		_ = e.notify(ctx, campaign.WorkspaceID, "campaign-sent",
-			"Campaign finished sending",
-			"Your campaign \""+campaign.Name+"\" finished sending.",
+	if !done {
+		return nil
+	}
+	final, err := e.store.GetCampaign(ctx, campaign.WorkspaceID, campaign.ID)
+	if err != nil {
+		return err
+	}
+	if final.Status == store.CampaignFailed {
+		return e.notify(ctx, campaign.WorkspaceID, "campaign-failed",
+			"Campaign failed to send",
+			"Your campaign \""+campaign.Name+"\" finished but no emails could be delivered. Check the recipients for errors.",
 			"/campaigns/"+campaign.ID)
 	}
-	return nil
+	return e.notify(ctx, campaign.WorkspaceID, "campaign-sent",
+		"Campaign finished sending",
+		"Your campaign \""+campaign.Name+"\" finished sending.",
+		"/campaigns/"+campaign.ID)
 }
 
 func (e *Engine) notify(ctx context.Context, workspaceID, typ, title, body, link string) error {
