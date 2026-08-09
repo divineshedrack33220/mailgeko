@@ -286,12 +286,9 @@ export default function CampaignsPage() {
             <TableBody>
               {filtered.map((campaign) => {
                 const stats = campaign.stats ?? EMPTY_STATS;
-                const openRate = stats.delivered
-                  ? (stats.uniqueOpens / stats.delivered) * 100
-                  : 0;
-                const clickRate = stats.delivered
-                  ? (stats.uniqueClicks / stats.delivered) * 100
-                  : 0;
+                const rateBase = stats.delivered > 0 ? stats.delivered : stats.sent;
+                const openRate = rateBase ? (stats.uniqueOpens / rateBase) * 100 : 0;
+                const clickRate = rateBase ? (stats.uniqueClicks / rateBase) * 100 : 0;
                 const recipients = campaign.type === "automated" ? stats.sent : stats.recipients;
                 const canCancel = campaign.status === "scheduled" || campaign.status === "paused" || campaign.status === "sending";
                 return (
@@ -328,10 +325,10 @@ export default function CampaignsPage() {
                       {formatNumber(recipients)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {stats.delivered ? formatPercent(openRate) : "—"}
+                      {rateBase ? formatPercent(openRate) : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {stats.delivered ? formatPercent(clickRate) : "—"}
+                      {rateBase ? formatPercent(clickRate) : "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {timeAgo(campaign.updatedAt)}

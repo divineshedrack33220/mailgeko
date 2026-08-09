@@ -308,12 +308,9 @@ export default function DashboardPage() {
               <div className="divide-y">
                 {recentCampaigns.map((campaign) => {
                   const stats = campaign.stats ?? EMPTY_STATS;
-                  const openRate = stats.delivered
-                    ? (stats.uniqueOpens / stats.delivered) * 100
-                    : 0;
-                  const clickRate = stats.delivered
-                    ? (stats.uniqueClicks / stats.delivered) * 100
-                    : 0;
+                  const rateBase = stats.delivered > 0 ? stats.delivered : stats.sent;
+                  const openRate = rateBase ? (stats.uniqueOpens / rateBase) * 100 : 0;
+                  const clickRate = rateBase ? (stats.uniqueClicks / rateBase) * 100 : 0;
                   return (
                     <Link
                       key={campaign.id}

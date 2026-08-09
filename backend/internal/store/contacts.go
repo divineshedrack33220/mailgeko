@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type contactRow struct {
@@ -164,9 +166,21 @@ func (s *Store) UpdateContact(ctx context.Context, c *Contact) error {
 }
 
 func (s *Store) DeleteContact(ctx context.Context, workspaceID, id string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM contacts WHERE workspace_id = ? AND id = ?`, workspaceID, id)
-	return err
+	return s.WithTx(ctx, func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM contacts WHERE workspace_id = ? AND id = ?`, workspaceID, id); err != nil {
+			return err
+		}
+		// Clean up the contact's automation runs and delivery records so
+		// orphaned rows don't inflate "in flow" counts or totals forever.
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM automation_runs WHERE contact_id = ?`, id); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx,
+			`DELETE FROM campaign_recipients WHERE contact_id = ?`, id)
+		return err
+	})
 }
 
 func (s *Store) UpdateContactStatus(ctx context.Context, workspaceID, id, status string) error {
