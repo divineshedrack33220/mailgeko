@@ -14,8 +14,10 @@ import (
 )
 
 type listRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	ContactIDs  []string `json:"contactIds"`
+	Emails      []string `json:"emails"`
 }
 
 func listResponse(l *store.List, contactCount int64) map[string]any {
@@ -66,7 +68,22 @@ func (s *Server) handleCreateList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create list")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"list": listResponse(l, 0)})
+	added := 0
+	for _, id := range req.ContactIDs {
+		if err := s.db.AddContactToList(r.Context(), l.ID, id); err == nil {
+			added++
+		}
+	}
+	for _, email := range req.Emails {
+		contact, err := s.db.ContactByEmail(r.Context(), claims.GetWorkspaceID(), email)
+		if err != nil {
+			continue
+		}
+		if err := s.db.AddContactToList(r.Context(), l.ID, contact.ID); err == nil {
+			added++
+		}
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"list": listResponse(l, int64(added))})
 }
 
 func (s *Server) handleGetList(w http.ResponseWriter, r *http.Request) {
