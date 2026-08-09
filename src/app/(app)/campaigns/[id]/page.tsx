@@ -29,6 +29,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -37,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StatCard } from "@/components/shared/stat-card";
-import { CampaignStatusBadge } from "@/components/shared/status-badges";
+import { CampaignStatusBadge, RecipientStatusBadge } from "@/components/shared/status-badges";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +73,7 @@ import { formatDateTime, formatNumber, formatPercent, timeAgo } from "@/lib/form
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { canManage, canSend } from "@/lib/permissions";
-import type { Campaign, CampaignStats } from "@/lib/types";
+import type { Campaign, CampaignRecipient, CampaignStats, RecipientStatus } from "@/lib/types";
 
 const EMPTY_STATS: CampaignStats = {
   recipients: 0,
@@ -88,6 +96,7 @@ export default function CampaignDetailPage() {
   const send = canSend(role);
   const [campaign, setCampaign] = React.useState<Campaign | null>(null);
   const [liveStats, setLiveStats] = React.useState<CampaignStats | null>(null);
+  const [recipients, setRecipients] = React.useState<CampaignRecipient[] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -102,6 +111,10 @@ export default function CampaignDetailPage() {
       api
         .get<{ stats?: CampaignStats }>(`/api/v1/analytics/campaigns/${params.id}`)
         .then((a) => setLiveStats(a.stats ?? null))
+        .catch(() => {});
+      api
+        .get<{ recipients: CampaignRecipient[] }>(`/api/v1/campaigns/${params.id}/recipients`)
+        .then((r) => setRecipients(r.recipients ?? []))
         .catch(() => {});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not load campaign");
@@ -254,6 +267,25 @@ export default function CampaignDetailPage() {
   const canSendNow = (campaign.status === "draft" || campaign.status === "scheduled" || campaign.status === "paused") && send;
   const hasAnalytics = stats.delivered > 0;
 
+  const effectiveStatus = (r: CampaignRecipient): RecipientStatus => {
+    if (r.bouncedAt) return "bounced";
+    if (r.complainedAt) return "complained";
+    if (r.unsubscribedAt) return "unsubscribed";
+    if (r.clickedAt) return "clicked";
+    if (r.openedAt) return "opened";
+    if (r.deliveredAt) return "delivered";
+    return r.status;
+  };
+
+  const recipientTotals = (recipients ?? []).reduce(
+    (acc, r) => {
+      const s = effectiveStatus(r);
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    },
+    {} as Partial<Record<RecipientStatus, number>>
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -351,6 +383,7 @@ export default function CampaignDetailPage() {
         <TabsList>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="recipients">Recipients</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
@@ -552,6 +585,110 @@ export default function CampaignDetailPage() {
               )}
             </div>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="recipients" className="mt-5 flex flex-col gap-6">
+          {recipients === null ? (
+            <Card>
+              <CardContent className="flex items-center justify-center gap-2 py-12">
+                <Loader2 className="animate-spin" />
+                <span className="text-muted-foreground text-sm">Loading recipients…</span>
+              </CardContent>
+            </Card>
+          ) : recipients.length === 0 ? (
+            <EmptyState
+              title="No recipients yet"
+              description="Recipients will appear here after this campaign is sent."
+              icon={Send}
+            />
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "queued" as const, label: "Queued", variant: "warning" as const },
+                  { key: "sent" as const, label: "Sent", variant: "info" as const },
+                  { key: "delivered" as const, label: "Delivered", variant: "success" as const },
+                  { key: "opened" as const, label: "Opened", variant: "success" as const },
+                  { key: "clicked" as const, label: "Clicked", variant: "success" as const },
+                  { key: "bounced" as const, label: "Bounced", variant: "destructive" as const },
+                  { key: "complained" as const, label: "Complained", variant: "destructive" as const },
+                  { key: "unsubscribed" as const, label: "Unsubscribed", variant: "secondary" as const },
+                  { key: "failed" as const, label: "Failed", variant: "destructive" as const },
+                  { key: "skipped" as const, label: "Skipped", variant: "outline" as const },
+                ]
+                  .filter((row) => (recipientTotals[row.key] ?? 0) > 0)
+                  .map((row) => (
+                    <Badge key={row.key} variant={row.variant} className="gap-1.5">
+                      {row.label}
+                      <span className="tabular-nums">{recipientTotals[row.key]}</span>
+                    </Badge>
+                  ))}
+              </div>
+
+              <Card className="gap-0 overflow-hidden py-0">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Recipients</CardTitle>
+                      <CardDescription>
+                        Per-recipient delivery status for this campaign
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <span className="text-muted-foreground text-xs tabular-nums">
+                        {recipients.length} total
+                      </span>
+                    </CardAction>
+                  </div>
+                </CardHeader>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Error</TableHead>
+                      <TableHead>Sent</TableHead>
+                      <TableHead>Opened</TableHead>
+                      <TableHead>Clicked</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recipients.map((r) => (
+                      <TableRow key={`${r.contactId}-${r.messageId ?? ""}`}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              {[r.firstName, r.lastName].filter(Boolean).join(" ") || "—"}
+                            </span>
+                            <span className="text-muted-foreground text-xs">{r.email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <RecipientStatusBadge status={effectiveStatus(r)} />
+                        </TableCell>
+                        <TableCell>
+                          {r.error ? (
+                            <span className="text-destructive text-xs">{r.error}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                          {r.sentAt ? formatDateTime(r.sentAt) : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                          {r.openedAt ? formatDateTime(r.openedAt) : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                          {r.clickedAt ? formatDateTime(r.clickedAt) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="settings" className="mt-5">

@@ -1,4 +1,4 @@
-import type { CampaignStatus, ContactStatus, AutomationStatus } from "@/lib/types";
+import type { CampaignStatus, ContactStatus, AutomationStatus, RecipientStatus } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +90,46 @@ export function AutomationStatusBadge({
   return (
     <Badge variant={automationStatusStyles[status]} className={className}>
       {automationStatusLabels[status]}
+    </Badge>
+  );
+}
+
+const recipientStatusStyles: Record<RecipientStatus, "success" | "info" | "warning" | "secondary" | "destructive" | "outline"> = {
+  queued: "warning",
+  sent: "info",
+  delivered: "success",
+  opened: "success",
+  clicked: "success",
+  bounced: "destructive",
+  complained: "destructive",
+  unsubscribed: "secondary",
+  failed: "destructive",
+  skipped: "outline",
+};
+
+const recipientStatusLabels: Record<RecipientStatus, string> = {
+  queued: "Queued",
+  sent: "Sent",
+  delivered: "Delivered",
+  opened: "Opened",
+  clicked: "Clicked",
+  bounced: "Bounced",
+  complained: "Complained",
+  unsubscribed: "Unsubscribed",
+  failed: "Failed",
+  skipped: "Skipped",
+};
+
+export function RecipientStatusBadge({
+  status,
+  className,
+}: {
+  status: RecipientStatus;
+  className?: string;
+}) {
+  return (
+    <Badge variant={recipientStatusStyles[status]} className={className}>
+      {recipientStatusLabels[status]}
     </Badge>
   );
 }

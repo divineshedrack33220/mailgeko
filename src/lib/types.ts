@@ -81,6 +81,36 @@ export interface CampaignStats {
   uniqueClicks: number;
 }
 
+export type RecipientStatus =
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "unsubscribed"
+  | "failed"
+  | "skipped";
+
+export interface CampaignRecipient {
+  contactId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  status: RecipientStatus;
+  error?: string;
+  messageId?: string;
+  automationRunId?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  openedAt?: string;
+  clickedAt?: string;
+  bouncedAt?: string;
+  complainedAt?: string;
+  unsubscribedAt?: string;
+}
+
 export interface Campaign {
   id: string;
   name: string;
