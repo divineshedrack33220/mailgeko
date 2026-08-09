@@ -197,23 +197,36 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID string) (*Campa
 }
 
 // WorkspaceTotals sums delivery/engagement counters across all non-test
-// campaigns in a workspace. Used by the Reports overview.
+// campaigns in a workspace. Used by the Reports overview. Automation sends
+// never write campaign_stats rows for recipients/sent (they live in
+// campaign_recipients with an automation_run_id), so those two counters are
+// padded from the recipient table to match billing's email count.
 func (s *Store) WorkspaceTotals(ctx context.Context, workspaceID string) (*CampaignStats, error) {
 	var st CampaignStats
 	err := s.db.GetContext(ctx, &st, `
-		SELECT COALESCE(SUM(recipients), 0) AS recipients,
-		       COALESCE(SUM(sent), 0) AS sent,
-		       COALESCE(SUM(delivered), 0) AS delivered,
-		       COALESCE(SUM(opened), 0) AS opened,
-		       COALESCE(SUM(clicked), 0) AS clicked,
-		       COALESCE(SUM(bounced), 0) AS bounced,
-		       COALESCE(SUM(complained), 0) AS complained,
-		       COALESCE(SUM(unsubscribed), 0) AS unsubscribed,
-		       COALESCE(SUM(unique_opens), 0) AS unique_opens,
-		       COALESCE(SUM(unique_clicks), 0) AS unique_clicks
+		SELECT COALESCE(SUM(cs.recipients), 0)
+		         + COALESCE((SELECT COUNT(*) FROM campaign_recipients r
+		                     JOIN campaigns ac ON ac.id = r.campaign_id
+		                     WHERE ac.workspace_id = ? AND ac.type <> 'test'
+		                       AND r.automation_run_id IS NOT NULL), 0) AS recipients,
+		       COALESCE(SUM(cs.sent), 0)
+		         + COALESCE((SELECT COUNT(*) FROM campaign_recipients r
+		                     JOIN campaigns ac ON ac.id = r.campaign_id
+		                     WHERE ac.workspace_id = ? AND ac.type <> 'test'
+		                       AND r.automation_run_id IS NOT NULL
+		                       AND r.sent_at IS NOT NULL), 0) AS sent,
+		       COALESCE(SUM(cs.delivered), 0) AS delivered,
+		       COALESCE(SUM(cs.opened), 0) AS opened,
+		       COALESCE(SUM(cs.clicked), 0) AS clicked,
+		       COALESCE(SUM(cs.bounced), 0) AS bounced,
+		       COALESCE(SUM(cs.complained), 0) AS complained,
+		       COALESCE(SUM(cs.unsubscribed), 0) AS unsubscribed,
+		       COALESCE(SUM(cs.unique_opens), 0) AS unique_opens,
+		       COALESCE(SUM(cs.unique_clicks), 0) AS unique_clicks
 		FROM campaign_stats cs
 		JOIN campaigns c ON c.id = cs.campaign_id
-		WHERE c.workspace_id = ? AND c.type <> 'test'`, workspaceID)
+		WHERE c.workspace_id = ? AND c.type <> 'test'`,
+		workspaceID, workspaceID, workspaceID)
 	if err == sql.ErrNoRows {
 		return &CampaignStats{}, nil
 	}
