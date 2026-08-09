@@ -786,7 +786,10 @@ function NodeInspector({
                 onChange={(config) => onConfigChange(node.id, config)}
               />
             ) : (
-              <UnsubscribeConfig />
+              <UnsubscribeConfig
+                value={node.config ?? {}}
+                onChange={(config) => onConfigChange(node.id, config)}
+              />
             )}
           </div>
         </ScrollArea>
@@ -1259,7 +1262,36 @@ function WebhookConfig({
   );
 }
 
-function UnsubscribeConfig() {
+function UnsubscribeConfig({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const [lists, setLists] = React.useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const listId = (value.listId as string) ?? "all";
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await api.get<{ lists: { id: string; name: string }[] }>("/api/v1/lists");
+        if (!mounted) return;
+        setLists(res.lists ?? []);
+      } catch (err) {
+        if (!mounted) return;
+        toast.error(err instanceof Error ? err.message : "Could not load lists");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
@@ -1270,16 +1302,21 @@ function UnsubscribeConfig() {
       </div>
       <div className="flex flex-col gap-2">
         <Label>List to unsubscribe from</Label>
-        <Select defaultValue="all">
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All lists</SelectItem>
-            <SelectItem value="list-001">All Subscribers</SelectItem>
-            <SelectItem value="list-002">Product Updates</SelectItem>
-          </SelectContent>
-        </Select>
+        {loading ? (
+          <div className="text-muted-foreground text-xs">Loading lists…</div>
+        ) : (
+          <Select value={listId} onValueChange={(v) => onChange({ listId: v })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All lists</SelectItem>
+              {lists.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );

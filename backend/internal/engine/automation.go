@@ -185,8 +185,14 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "unsubscribe":
-		if err := e.store.UpdateContactStatus(ctx, contact.WorkspaceID, contact.ID, store.ContactUnsubscribed); err != nil {
-			return e.boundStepFailure(ctx, run, automation, step, contact, err)
+		if listID, ok := step.Config["listId"].(string); ok && listID != "" && listID != "all" {
+			if err := e.store.RemoveContactFromList(ctx, listID, contact.ID); err != nil {
+				return e.boundStepFailure(ctx, run, automation, step, contact, err)
+			}
+		} else {
+			if err := e.store.UpdateContactStatus(ctx, contact.WorkspaceID, contact.ID, store.ContactUnsubscribed); err != nil {
+				return e.boundStepFailure(ctx, run, automation, step, contact, err)
+			}
 		}
 	case "webhook":
 		e.webhookStep(ctx, step.Config, contact)
