@@ -155,6 +155,13 @@ func nullIfEmpty(s string) any {
 	return s
 }
 
+func nullIfEmptyBytes(b []byte) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
+}
+
 func (s *Store) CreateWorkspace(ctx context.Context, w *Workspace) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO workspaces (id, name) VALUES (?, ?)`, w.ID, w.Name)

@@ -280,7 +280,18 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 		SigningKey:       e.trackingSecret,
 	}
 
+	snd, err := e.resolveSender(ctx, campaign.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
 	from := e.resolveFrom(campaign.FromName, campaign.FromEmail)
+	replyTo := campaign.ReplyTo
+	if smtp, ok := snd.(*sender.SMTPClient); ok {
+		from = smtp.From()
+		replyTo = smtp.ReplyTo()
+	}
+
 	headers := map[string]string{
 		"X-Mailgeko-Automation": automationID,
 		"X-Mailgeko-Contact":    contact.ID,
@@ -291,13 +302,13 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 	}
 
-	_, err := e.sender.Send(ctx, sender.Message{
+	_, err = snd.Send(ctx, sender.Message{
 		From:    from,
 		To:      contact.Email,
 		Subject: Substitute(campaign.Subject, contactVariables(contact)),
 		HTML:    RenderHTML(body, contactVariables(contact), opts),
 		Text:    campaign.PlainText,
-		ReplyTo: campaign.ReplyTo,
+		ReplyTo: replyTo,
 		Headers: headers,
 		Tags: []sender.Tag{
 			{Name: "campaign", Value: campaign.ID},

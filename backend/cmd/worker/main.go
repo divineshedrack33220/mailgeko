@@ -10,6 +10,7 @@ import (
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/analytics"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/config"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/crypto"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/database"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/embed"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/engine"
@@ -40,6 +41,13 @@ func main() {
 	eng.WithTrackingSecret(cfg.TrackingSecret)
 	eng.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
 	eng.WithAllowedFromDomains(cfg.AllowedFromDomains...)
+	if enc, err := crypto.New(cfg.SecretKey); err == nil {
+		eng.WithEncryptor(enc)
+	} else if cfg.SecretKey != "" {
+		log.Fatalf("crypto: %v", err)
+	} else {
+		log.Println("MAILGEKO_SECRET_KEY unset; BYO-SMTP disabled")
+	}
 
 	var eventLog *analytics.Store
 	if cfg.PostgresDSN != "" {

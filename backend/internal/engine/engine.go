@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/divineshedrack33220/mailgeko/backend/internal/crypto"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/embed"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/sender"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
@@ -41,6 +42,7 @@ type Engine struct {
 	allowedFromDomains []string
 	embeds             *vector.Store
 	embedder           embed.Embedder
+	enc                *crypto.Encryptor
 	httpClient         *http.Client
 }
 
@@ -127,6 +129,56 @@ func (e *Engine) WithEmbedding(embeds *vector.Store, embedder embed.Embedder) *E
 	e.embeds = embeds
 	e.embedder = embedder
 	return e
+}
+
+// WithEncryptor enables per-workspace BYO-SMTP. Without it, all marketing mail
+// is sent through the default Resend sender.
+func (e *Engine) WithEncryptor(enc *crypto.Encryptor) *Engine {
+	e.enc = enc
+	return e
+}
+
+// Encryptor returns the secret encryptor (nil when BYO-SMTP is disabled).
+func (e *Engine) Encryptor() *crypto.Encryptor {
+	return e.enc
+}
+
+// emailSender is satisfied by both the Resend client and the SMTP client.
+type emailSender interface {
+	Send(ctx context.Context, msg sender.Message) (*sender.SendResult, error)
+}
+
+// resolveSender returns the sender to use for a workspace's marketing mail.
+// When the workspace has an enabled SMTP config (and an encryptor is
+// configured) it returns a per-workspace SMTP client, otherwise the default
+// Resend client.
+func (e *Engine) resolveSender(ctx context.Context, workspaceID string) (emailSender, error) {
+	if e.enc == nil {
+		return e.sender, nil
+	}
+	cfg, err := e.store.GetWorkspaceSMTP(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return e.sender, nil
+		}
+		return nil, err
+	}
+	if !cfg.Enabled {
+		return e.sender, nil
+	}
+	plain, err := e.enc.Decrypt(cfg.PasswordCipher)
+	if err != nil {
+		return nil, fmt.Errorf("engine: decrypt smtp password: %w", err)
+	}
+	return sender.NewSMTPClient(sender.SMTPConfig{
+		Host:      cfg.Host,
+		Port:      cfg.Port,
+		Username:  cfg.Username,
+		Password:  string(plain),
+		FromName:  cfg.FromName,
+		FromEmail: cfg.FromEmail,
+		ReplyTo:   cfg.ReplyTo,
+	}), nil
 }
 
 func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
@@ -257,7 +309,19 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		SigningKey:       e.trackingSecret,
 	})
 
+	snd, err := e.resolveSender(ctx, campaign.WorkspaceID)
+	if err != nil {
+		_ = e.store.MarkRecipientFailed(ctx, campaign.ID, contact.ID, err.Error())
+		_ = e.maybeCompleteCampaign(ctx, campaign)
+		return err
+	}
+
 	from := e.resolveFrom(campaign.FromName, campaign.FromEmail)
+	replyTo := campaign.ReplyTo
+	if smtp, ok := snd.(*sender.SMTPClient); ok {
+		from = smtp.From()
+		replyTo = smtp.ReplyTo()
+	}
 
 	headers := map[string]string{
 		"X-Mailgeko-Campaign":  campaign.ID,
@@ -275,13 +339,13 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 	}
 
-	result, err := e.sender.Send(ctx, sender.Message{
+	result, err := snd.Send(ctx, sender.Message{
 		From:    from,
 		To:      contact.Email,
 		Subject: Substitute(campaign.Subject, contactVariables(contact)),
 		HTML:    html,
 		Text:    campaign.PlainText,
-		ReplyTo: campaign.ReplyTo,
+		ReplyTo: replyTo,
 		Headers: headers,
 		Tags: []sender.Tag{
 			{Name: "campaign", Value: campaign.ID},
@@ -439,7 +503,17 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		SigningKey:       e.trackingSecret,
 	})
 
+	snd, err := e.resolveSender(ctx, c.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
 	from := e.resolveFrom(c.FromName, c.FromEmail)
+	replyTo := c.ReplyTo
+	if smtp, ok := snd.(*sender.SMTPClient); ok {
+		from = smtp.From()
+		replyTo = smtp.ReplyTo()
+	}
 
 	headers := map[string]string{}
 	if u := UnsubscribeURL(RenderOptions{
@@ -453,13 +527,13 @@ func (e *Engine) SendTestEmail(ctx context.Context, c *store.Campaign, to string
 		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 	}
 
-	_, err := e.sender.Send(ctx, sender.Message{
+	_, err = snd.Send(ctx, sender.Message{
 		From:    from,
 		To:      to,
 		Subject: Substitute(c.Subject, vars),
 		HTML:    html,
 		Text:    c.PlainText,
-		ReplyTo: c.ReplyTo,
+		ReplyTo: replyTo,
 		Headers: headers,
 	})
 	return err
@@ -475,15 +549,25 @@ func (e *Engine) SendOneToOne(ctx context.Context, ws *store.Workspace, contact 
 	vars := contactVariables(contact)
 	htmlBody := textToHTML(Substitute(body, vars))
 
-	from := e.resolveFrom(ws.FromName, ws.FromEmail)
+	snd, err := e.resolveSender(ctx, ws.ID)
+	if err != nil {
+		return nil, err
+	}
 
-	return e.sender.Send(ctx, sender.Message{
+	from := e.resolveFrom(ws.FromName, ws.FromEmail)
+	replyTo := ws.ReplyTo
+	if smtp, ok := snd.(*sender.SMTPClient); ok {
+		from = smtp.From()
+		replyTo = smtp.ReplyTo()
+	}
+
+	return snd.Send(ctx, sender.Message{
 		From:    from,
 		To:      contact.Email,
 		Subject: Substitute(subject, vars),
 		HTML:    htmlBody,
 		Text:    Substitute(body, vars),
-		ReplyTo: ws.ReplyTo,
+		ReplyTo: replyTo,
 		Headers: map[string]string{
 			"X-Mailgeko-Workspace": ws.ID,
 			"X-Mailgeko-Contact":   contact.ID,

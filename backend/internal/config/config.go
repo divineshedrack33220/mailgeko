@@ -35,6 +35,10 @@ type Config struct {
 	// TrackingSecret signs email tracking links. Falls back to JWTSecret.
 	TrackingSecret string
 
+	// SecretKey encrypts secrets stored at rest (e.g. per-workspace SMTP
+	// passwords). When unset, the BYO-SMTP feature is disabled.
+	SecretKey string
+
 	// DefaultFromName/DefaultFromEmail is the from address used when no
 	// campaign or workspace sender is configured.
 	DefaultFromName  string
@@ -87,6 +91,7 @@ func Load() (*Config, error) {
 		RedisAddr:           getEnv("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:           getEnv("JWT_SECRET", ""),
 		TrackingSecret:      getEnv("TRACKING_SECRET", getEnv("JWT_SECRET", "")),
+		SecretKey:           os.Getenv("MAILGEKO_SECRET_KEY"),
 		DefaultFromName:     getEnv("DEFAULT_FROM_NAME", "Mailgeko"),
 		DefaultFromEmail:    getEnv("DEFAULT_FROM_EMAIL", "mailgeko@clawmark.online"),
 		AllowedFromDomains:  splitCSV(getEnv("ALLOWED_FROM_DOMAINS", "clawmark.online")),

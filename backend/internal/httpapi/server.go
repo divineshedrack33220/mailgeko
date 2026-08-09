@@ -247,6 +247,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleGetBrandVoice)))
 	mux.Handle("PUT /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleUpdateBrandVoice)))
 
+	mux.Handle("GET /api/v1/workspace/smtp", s.withAuth(http.HandlerFunc(s.handleGetSMTP)))
+	mux.Handle("PUT /api/v1/workspace/smtp", s.withAuth(http.HandlerFunc(s.handleUpsertSMTP)))
+	mux.Handle("DELETE /api/v1/workspace/smtp", s.withAuth(http.HandlerFunc(s.handleDeleteSMTP)))
+	mux.Handle("POST /api/v1/workspace/smtp/test", s.withAuth(http.HandlerFunc(s.handleTestSMTP)))
+
 	mux.Handle("POST /api/v1/ai/subject", s.withAuth(http.HandlerFunc(s.handleGenerateSubjects)))
 	mux.Handle("POST /api/v1/ai/campaign", s.withAuth(http.HandlerFunc(s.handleGenerateCampaign)))
 	mux.Handle("POST /api/v1/ai/chat", s.withAuth(http.HandlerFunc(s.handleChat)))

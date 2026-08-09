@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, User, Users, KeyRound, Bell, ShieldCheck, CreditCard } from "lucide-react";
+import { Settings, User, Users, KeyRound, Bell, ShieldCheck, CreditCard, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { isAdminRole } from "@/lib/permissions";
@@ -14,6 +14,7 @@ const tabs = [
   { title: "API keys", href: "/settings/api-keys", icon: KeyRound, adminOnly: true },
   { title: "Notifications", href: "/settings/notifications", icon: Bell },
   { title: "Security", href: "/settings/security", icon: ShieldCheck },
+  { title: "Sending", href: "/settings/sending", icon: Send, adminOnly: true },
   { title: "Billing", href: "/settings/billing", icon: CreditCard, adminOnly: true },
 ];
 
