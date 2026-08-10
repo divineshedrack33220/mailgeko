@@ -162,7 +162,7 @@ func (s *Store) RecipientEngaged(ctx context.Context, campaignID, contactID, kin
 	}
 	var at *time.Time
 	err := s.db.GetContext(ctx, &at,
-		`SELECT `+column+` FROM campaign_recipients WHERE campaign_id = ? AND contact_id = ?`,
+		`SELECT MAX(`+column+`) FROM campaign_recipients WHERE campaign_id = ? AND contact_id = ?`,
 		campaignID, contactID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
