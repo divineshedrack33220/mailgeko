@@ -52,6 +52,12 @@ const contactColumns = `id, workspace_id, email, first_name, last_name, company,
 	country, city, phone_number, custom_fields, tags, status,
 	last_engagement_at, created_at, updated_at`
 
+// contactColumnsPrefixed is contactColumns qualified with an alias, for
+// queries that join contacts with other tables that share column names.
+const contactColumnsPrefixed = `c.id, c.workspace_id, c.email, c.first_name, c.last_name, c.company, c.position,
+	c.country, c.city, c.phone_number, c.custom_fields, c.tags, c.status,
+	c.last_engagement_at, c.created_at, c.updated_at`
+
 type ContactFilter struct {
 	Query  string
 	Status string

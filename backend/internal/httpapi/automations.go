@@ -208,6 +208,35 @@ func (s *Server) handleRunAutomation(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"enrolled": enrolled})
 }
 
+// handleRestartFailedAutomationRuns re-enrolls only the contacts whose run
+// failed, so a failure is recoverable without re-running every contact.
+// Like "Run now", it sends email, so only owner/admin may trigger it.
+func (s *Server) handleRestartFailedAutomationRuns(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
+	automation, err := s.db.GetAutomation(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "automation not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load automation")
+		return
+	}
+	if s.engine == nil {
+		writeError(w, http.StatusInternalServerError, "internal", "execution is unavailable")
+		return
+	}
+	restarted, err := s.engine.RestartFailedRuns(r.Context(), automation.WorkspaceID, automation.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not restart failed runs")
+		return
+	}
+	writeOK(w, map[string]any{"restarted": restarted})
+}
+
 func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {

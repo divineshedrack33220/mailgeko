@@ -222,6 +222,32 @@ func (s *Store) ListAutomationRuns(ctx context.Context, workspaceID, automationI
 	return out, rows.Err()
 }
 
+// ListFailedRunContacts returns the contacts whose run for an automation is
+// marked failed, so the owner can re-enroll just those contacts ("restart
+// failed") instead of re-running the whole automation.
+func (s *Store) ListFailedRunContacts(ctx context.Context, workspaceID, automationID string) ([]*Contact, error) {
+	rows, err := s.db.QueryxContext(ctx, `
+		SELECT `+contactColumnsPrefixed+` FROM contacts c
+		JOIN automation_runs r ON r.contact_id = c.id
+		WHERE r.workspace_id = ? AND r.automation_id = ? AND r.status = ?
+		ORDER BY r.updated_at DESC`,
+		workspaceID, automationID, AutomationRunFailed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*Contact
+	for rows.Next() {
+		var r contactRow
+		if err := rows.StructScan(&r); err != nil {
+			return nil, err
+		}
+		out = append(out, r.toContact())
+	}
+	return out, rows.Err()
+}
+
 // AutomationRunStats returns per-status counts for an automation.
 func (s *Store) AutomationRunStats(ctx context.Context, automationID string) (*AutomationRunStats, error) {
 	var stats AutomationRunStats

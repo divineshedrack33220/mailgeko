@@ -29,6 +29,12 @@ func TestMySQLAutomationRunJoin(t *testing.T) {
 	s := New(db)
 
 	ws := "ws-" + t.Name()
+	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS automation_runs`); err != nil {
+		t.Fatalf("drop runs: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS contacts`); err != nil {
+		t.Fatalf("drop contacts: %v", err)
+	}
 	for _, stmt := range []string{
 		`CREATE TABLE IF NOT EXISTS contacts (
 			id VARCHAR(36) PRIMARY KEY,
@@ -36,9 +42,15 @@ func TestMySQLAutomationRunJoin(t *testing.T) {
 			email VARCHAR(255) NOT NULL,
 			first_name VARCHAR(120) NOT NULL DEFAULT '',
 			last_name VARCHAR(120) NOT NULL DEFAULT '',
-			company VARCHAR(120) NOT NULL DEFAULT '',
-			position VARCHAR(120) NOT NULL DEFAULT '',
+			company VARCHAR(180) NOT NULL DEFAULT '',
+			position VARCHAR(180) NOT NULL DEFAULT '',
+			country VARCHAR(120) NOT NULL DEFAULT '',
+			city VARCHAR(120) NOT NULL DEFAULT '',
+			phone_number VARCHAR(60) NOT NULL DEFAULT '',
+			custom_fields JSON NULL,
+			tags JSON NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'active',
+			last_engagement_at TIMESTAMP NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`,
 		`CREATE TABLE IF NOT EXISTS automation_runs (
@@ -100,5 +112,22 @@ func TestMySQLAutomationRunJoin(t *testing.T) {
 	}
 	if len(other) != 0 {
 		t.Fatalf("expected 0 runs for other workspace, got %d", len(other))
+	}
+
+	// ListFailedRunContacts returns the failed contact, joined through runs.
+	contacts, err := s.ListFailedRunContacts(ctx, ws, "a1")
+	if err != nil {
+		t.Fatalf("ListFailedRunContacts: %v", err)
+	}
+	if len(contacts) != 1 {
+		t.Fatalf("expected 1 failed contact, got %d", len(contacts))
+	}
+	if contacts[0].Email != "a@b.co" {
+		t.Errorf("failed contact email = %q, want a@b.co", contacts[0].Email)
+	}
+	if got, err := s.ListFailedRunContacts(ctx, "ws-nope", "a1"); err != nil {
+		t.Fatalf("ListFailedRunContacts(other): %v", err)
+	} else if len(got) != 0 {
+		t.Fatalf("expected 0 failed contacts for other workspace, got %d", len(got))
 	}
 }

@@ -116,6 +116,28 @@ func (e *Engine) EnrollAutomation(ctx context.Context, workspaceID, automationID
 	return enrolled, nil
 }
 
+// RestartFailedRuns re-enrolls only the contacts whose run for this automation
+// is marked failed. Re-enrollment resets the run to the start of the flow
+// (with the trigger delay applied), so a recoverable failure is not a
+// dead-end. Opted-out contacts are still skipped.
+func (e *Engine) RestartFailedRuns(ctx context.Context, workspaceID, automationID string) (int, error) {
+	automation, err := e.store.GetAutomation(ctx, workspaceID, automationID)
+	if err != nil {
+		return 0, err
+	}
+	contacts, err := e.store.ListFailedRunContacts(ctx, workspaceID, automationID)
+	if err != nil {
+		return 0, err
+	}
+	restarted := 0
+	for _, c := range contacts {
+		if err := e.enrollContact(ctx, automation, c, true); err == nil {
+			restarted++
+		}
+	}
+	return restarted, nil
+}
+
 // RunAutomationStep executes the next pending step of an automation run. The
 // worker dispatches runs here one step at a time; a delay step advances the
 // run's run_at instead of blocking.

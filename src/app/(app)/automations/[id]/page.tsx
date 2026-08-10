@@ -25,6 +25,7 @@ import {
   Check,
   Loader2,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import { canManage } from "@/lib/permissions";
+import { canManage, isAdminRole } from "@/lib/permissions";
 import type {
   Automation,
   AutomationRun,
@@ -443,7 +444,24 @@ export default function AutomationBuilderPage() {
         </div>
       </div>
 
-      {runsOpen && <RunsPanel runs={runs} totalSteps={nodes.length - 1} onClose={() => setRunsOpen(false)} />}
+      {runsOpen && (
+        <RunsPanel
+          runs={runs}
+          totalSteps={nodes.length - 1}
+          onClose={() => setRunsOpen(false)}
+          onRestartFailed={
+            isAdminRole(role)
+              ? async () => {
+                  const res = await api.post<{ restarted: number }>(
+                    `/api/v1/automations/${params.id}/restart-failed`
+                  );
+                  await loadRuns();
+                  return res.restarted;
+                }
+              : undefined
+          }
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <StepPalette
@@ -555,11 +573,16 @@ function RunsPanel({
   runs,
   totalSteps,
   onClose,
+  onRestartFailed,
 }: {
   runs: AutomationRun[];
   totalSteps: number;
   onClose: () => void;
+  onRestartFailed?: () => Promise<number>;
 }) {
+  const [restarting, setRestarting] = React.useState(false);
+  const failed = runs.filter((r) => r.status === "failed");
+
   if (runs.length === 0) {
     return (
       <div className="text-muted-foreground flex items-center justify-between border-b bg-muted/30 px-4 py-2 text-sm">
@@ -570,7 +593,6 @@ function RunsPanel({
       </div>
     );
   }
-  const failed = runs.filter((r) => r.status === "failed");
   return (
     <div className="border-b bg-muted/30">
       <div className="flex items-center justify-between px-4 py-1.5">
@@ -580,9 +602,37 @@ function RunsPanel({
             <span className="text-destructive"> · {failed.length} failed</span>
           )}
         </p>
-        <Button variant="ghost" size="sm" className="h-6" onClick={onClose}>
-          Hide
-        </Button>
+        <div className="flex items-center gap-1">
+          {failed.length > 0 && onRestartFailed && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive h-6 border-destructive/30 hover:bg-destructive/10"
+              disabled={restarting}
+              onClick={async () => {
+                setRestarting(true);
+                try {
+                  const n = await onRestartFailed();
+                  if (n > 0) {
+                    toast.success(`Restarted ${n} failed run${n === 1 ? "" : "s"}`);
+                  } else {
+                    toast.info("No failed runs to restart");
+                  }
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Could not restart failed runs");
+                } finally {
+                  setRestarting(false);
+                }
+              }}
+            >
+              {restarting ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
+              Restart failed
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-6" onClick={onClose}>
+            Hide
+          </Button>
+        </div>
       </div>
       <ScrollArea className="max-h-48">
         <ul className="divide-y px-4 pb-2">
