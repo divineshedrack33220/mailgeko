@@ -94,9 +94,17 @@ func campaignResponse(c *store.Campaign, stats *store.CampaignStats, recipientCo
 	}
 	recipients := stats.Recipients
 	sent := stats.Sent
-	if c.Type == "automated" && recipientCount > 0 {
-		recipients = recipientCount
-		sent = recipientCount
+	if c.Type == "automated" {
+		if recipientCount > 0 {
+			recipients = recipientCount
+			sent = recipientCount
+		}
+	} else {
+		// Regular campaigns never write automation sends to campaign_stats;
+		// they live in campaign_recipients with an automation_run_id. Pad so
+		// the card matches billing/workspace totals.
+		recipients += stats.AutoRecipients
+		sent += stats.AutoSent
 	}
 	var scheduleAt any
 	if c.ScheduleAt != nil {

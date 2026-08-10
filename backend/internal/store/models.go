@@ -119,6 +119,12 @@ type CampaignStats struct {
 	Unsubscribed int64  `db:"unsubscribed"`
 	UniqueOpens  int64  `db:"unique_opens"`
 	UniqueClicks int64  `db:"unique_clicks"`
+	// AutoRecipients/AutoSent count emails this campaign sent through
+	// automation runs (campaign_recipients rows with an automation_run_id).
+	// They are never written to campaign_stats, so they are surfaced here to
+	// keep a campaign's card consistent with billing/workspace totals.
+	AutoRecipients int64 `db:"auto_recipients"`
+	AutoSent       int64 `db:"auto_sent"`
 }
 
 type Automation struct {

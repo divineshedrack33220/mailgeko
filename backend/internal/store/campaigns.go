@@ -185,8 +185,18 @@ func (s *Store) EnsureCampaignStats(ctx context.Context, campaignID string) erro
 func (s *Store) GetCampaignStats(ctx context.Context, campaignID string) (*CampaignStats, error) {
 	var st CampaignStats
 	err := s.db.GetContext(ctx, &st,
-		`SELECT campaign_id, recipients, sent, delivered, opened, clicked, bounced, complained,
-			unsubscribed, unique_opens, unique_clicks FROM campaign_stats WHERE campaign_id = ?`, campaignID)
+		`SELECT cs.campaign_id, cs.recipients, cs.sent, cs.delivered, cs.opened, cs.clicked,
+		        cs.bounced, cs.complained, cs.unsubscribed, cs.unique_opens, cs.unique_clicks,
+		        COALESCE(a.auto_recipients, 0) AS auto_recipients,
+		        COALESCE(a.auto_sent, 0) AS auto_sent
+		 FROM campaign_stats cs
+		 LEFT JOIN (
+		    SELECT campaign_id, COUNT(*) AS auto_recipients, COUNT(sent_at) AS auto_sent
+		    FROM campaign_recipients
+		    WHERE automation_run_id IS NOT NULL
+		    GROUP BY campaign_id
+		 ) a ON a.campaign_id = cs.campaign_id
+		 WHERE cs.campaign_id = ?`, campaignID)
 	if err == sql.ErrNoRows {
 		return &CampaignStats{CampaignID: campaignID}, nil
 	}
