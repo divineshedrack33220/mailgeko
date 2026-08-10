@@ -61,3 +61,5 @@ jobs:
         run: pnpm exec eslint .
       - name: Typecheck
         run: pnpm exec tsc --noEmit
+      - name: Frontend unit tests
+        run: pnpm test
