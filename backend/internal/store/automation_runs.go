@@ -189,7 +189,8 @@ func (s *Store) BumpAutomationRunAttempts(ctx context.Context, id string) (int, 
 // detail page.
 func (s *Store) ListAutomationRuns(ctx context.Context, workspaceID, automationID string) ([]*AutomationRunWithContact, error) {
 	rows, err := s.db.QueryxContext(ctx, `
-		SELECT `+automationRunColumns+`,
+		SELECT r.id, r.workspace_id, r.automation_id, r.contact_id, r.step_index, r.run_at,
+			r.status, r.attempts, r.error, r.created_at, r.updated_at,
 			COALESCE(c.email, '') AS contact_email,
 			TRIM(CONCAT_WS(' ', COALESCE(c.first_name, ''), COALESCE(c.last_name, ''))) AS contact_name
 		FROM automation_runs r
