@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,30 +15,37 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// mysqlMigrations are the TiDB / MySQL compatible migrations, in order.
-var mysqlMigrations = []string{
-	"migrations/0001_init.sql",
-	"migrations/0002_domain.sql",
-	"migrations/0006_billing.sql",
-	"migrations/0007_settings.sql",
-	"migrations/0008_sending_defaults.sql",
-	"migrations/0009_notifications.sql",
-	"migrations/0010_uploads.sql",
-	"migrations/0011_ai_studio.sql",
-	"migrations/0012_two_factor.sql",
-	"migrations/0013_api_key_lookup.sql",
-	"migrations/0014_invitations_tokens.sql",
-	"migrations/0015_automation_runs.sql",
-	"migrations/0016_automation_run_attempts.sql",
-	"migrations/0017_workspace_smtp.sql",
-	"migrations/0018_cleanup_orphaned_automation_runs.sql",
-}
-
-// postgresMigrations are the Postgres / pgvector migrations, in order.
+// postgresMigrations are the Postgres / pgvector migrations, in order. They are
+// the only files excluded from the MySQL run; everything else in migrations/ is
+// applied to TiDB automatically.
 var postgresMigrations = []string{
 	"migrations/0003_analytics.sql",
 	"migrations/0004_analytics_enrichment.sql",
 	"migrations/0005_embeddings.sql",
+}
+
+// mysqlMigrations returns the TiDB / MySQL migration files in order. The list
+// is derived from the embedded filesystem, so a new migrations/NNNN_*.sql file
+// is picked up automatically — there is no registry to update by hand.
+func mysqlMigrations() ([]string, error) {
+	postgres := make(map[string]bool, len(postgresMigrations))
+	for _, n := range postgresMigrations {
+		postgres[n] = true
+	}
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		return nil, fmt.Errorf("list migrations: %w", err)
+	}
+	var out []string
+	for _, e := range entries {
+		name := "migrations/" + e.Name()
+		if postgres[name] {
+			continue
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // MigrateMySQL applies any not-yet-run MySQL migrations to the TiDB store.
@@ -50,7 +58,11 @@ func MigrateMySQL(ctx context.Context, db *sqlx.DB) error {
 	)`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-	for _, name := range mysqlMigrations {
+	migrations, err := mysqlMigrations()
+	if err != nil {
+		return err
+	}
+	for _, name := range migrations {
 		var applied int
 		if err := db.GetContext(ctx, &applied,
 			`SELECT COUNT(*) FROM schema_migrations WHERE name = ?`, name); err != nil {

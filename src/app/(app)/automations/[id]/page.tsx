@@ -24,6 +24,7 @@ import {
   Settings2,
   Check,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -116,6 +117,30 @@ let nodeCounter = 0;
 function nextNodeId(): string {
   nodeCounter += 1;
   return `node-${Date.now()}-${nodeCounter}`;
+}
+
+// stepWarning returns a human-readable explanation when a step is not fully
+// configured. Misconfigured steps are skipped at send time (the engine logs
+// them), so surfacing them on the canvas keeps misconfigurations visible.
+function stepWarning(node: CanvasNode): string | null {
+  const cfg = node.config ?? {};
+  switch (node.type) {
+    case "send-email":
+      return cfg.campaignId ? null : "No campaign selected — this step won't send";
+    case "delay":
+      return cfg.duration && cfg.unit ? null : "No duration set — defaults to 1 day";
+    case "condition":
+      return cfg.condition ? null : "No condition set — flow ends immediately";
+    case "unsubscribe":
+      return cfg.listId ? null : "Unsubscribes from all lists";
+    case "webhook":
+      return cfg.url ? null : "No URL set — step does nothing";
+    case "add-tag":
+    case "remove-tag":
+      return cfg.tag ? null : "No tag set — step does nothing";
+    default:
+      return null;
+  }
 }
 
 interface CanvasNode {
@@ -610,6 +635,7 @@ function WorkflowNode({
   }
 
   const meta = stepMeta[node.type];
+  const warning = stepWarning(node);
   return (
     <button
       onClick={onSelect}
@@ -631,6 +657,12 @@ function WorkflowNode({
           </div>
         </div>
       </div>
+      {warning && (
+        <div className="text-warning mt-3 flex items-start gap-1.5 rounded-lg border border-dashed px-2 py-1.5 text-[0.65rem] leading-snug">
+          <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+          <span>{warning}</span>
+        </div>
+      )}
     </button>
   );
 }

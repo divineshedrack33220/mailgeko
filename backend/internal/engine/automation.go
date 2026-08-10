@@ -167,6 +167,10 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 			return e.boundStepFailure(ctx, run, automation, step, contact, err)
 		}
 	case "delay":
+		if len(step.Config) == 0 {
+			log.Printf("automation %s: run %s delay step has no duration; using default 1 day",
+				automation.ID, run.ID)
+		}
 		nextRunAt = time.Now().UTC().Add(automationDelay(step.Config))
 	case "condition":
 		matches, err := e.conditionStep(ctx, contact, step.Config)
@@ -240,10 +244,16 @@ func (e *Engine) sendEmailStep(ctx context.Context, runID string, automation *st
 	}
 	campaignID, _ := cfg["campaignId"].(string)
 	if campaignID == "" {
+		// Not an error: an unconfigured send-email step is skipped so the flow
+		// continues. It is logged so misconfigured automations are audible.
+		log.Printf("automation %s: run %s step has no campaignId for %s; skipping", automation.ID, runID, contact.Email)
 		return nil
 	}
 	campaign, err := e.store.GetCampaign(ctx, automation.WorkspaceID, campaignID)
 	if err != nil {
+		// Skipping (rather than failing) keeps a stale campaign reference from
+		// stalling every run, but the reason is surfaced in the logs.
+		log.Printf("automation %s: run %s campaign %s not found for %s; skipping", automation.ID, runID, campaignID, contact.Email)
 		return nil
 	}
 	// Idempotency guard: if a retried step already sent this email for this
@@ -273,6 +283,8 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 		body = "<p>" + campaign.PlainText + "</p>"
 	}
 	if body == "" {
+		log.Printf("automation %s: campaign %s has no body (html or plain text); skipping send to %s",
+			automationID, campaign.ID, contact.Email)
 		return nil
 	}
 

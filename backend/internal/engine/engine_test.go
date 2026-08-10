@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
@@ -145,3 +146,37 @@ func TestResolveFromFallsBackOnUnverifiedDomain(t *testing.T) {
 		t.Fatalf("malformed sender should fall back to default, got %q", got)
 	}
 }
+
+func TestAutomationDelayDefault(t *testing.T) {
+	if d := automationDelay(nil); d != 24*time.Hour {
+		t.Fatalf("nil config should default to 1 day, got %v", d)
+	}
+	if d := automationDelay(map[string]any{}); d != 24*time.Hour {
+		t.Fatalf("empty config should default to 1 day, got %v", d)
+	}
+	if d := automationDelay(map[string]any{"duration": 0}); d != 24*time.Hour {
+		t.Fatalf("zero duration should default to 1 day, got %v", d)
+	}
+	if d := automationDelay(map[string]any{"duration": 3.0}); d != 3*24*time.Hour {
+		t.Fatalf("duration without unit should default to days, got %v", d)
+	}
+}
+
+func TestAutomationDelayUnits(t *testing.T) {
+	cases := []struct {
+		cfg  map[string]any
+		want time.Duration
+	}{
+		{map[string]any{"duration": 30.0, "unit": "minutes"}, 30 * time.Minute},
+		{map[string]any{"duration": 12.0, "unit": "hours"}, 12 * time.Hour},
+		{map[string]any{"duration": 5.0, "unit": "days"}, 5 * 24 * time.Hour},
+		{map[string]any{"duration": 2.0, "unit": "weeks"}, 14 * 24 * time.Hour},
+		{map[string]any{"duration": 1.5, "unit": "hour"}, 90 * time.Minute},
+	}
+	for _, tc := range cases {
+		if got := automationDelay(tc.cfg); got != tc.want {
+			t.Errorf("automationDelay(%v) = %v, want %v", tc.cfg, got, tc.want)
+		}
+	}
+}
+
