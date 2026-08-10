@@ -335,7 +335,7 @@ export default function ApiKeysSettingsPage() {
         <CardContent>
           <pre className="bg-muted/50 text-muted-foreground overflow-x-auto rounded-lg border p-4 font-mono text-xs leading-relaxed">
 {`curl -H "X-API-Key: mgk_live_..." \\
-     https://api.mailgeko.dev/api/v1/campaigns`}
+     https://clawmark.online/api/v1/campaigns`}
           </pre>
         </CardContent>
       </Card>
