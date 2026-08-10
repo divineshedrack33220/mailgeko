@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white"/>
-  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white"/>
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white"/>
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white"/>
   <img alt="Docker" src="https://img.shields.io/badge/Docker-one_image-2496ED?logo=docker&logoColor=white"/>
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-informational"/>
 </p>
@@ -35,6 +35,7 @@
   - [5.7 Analytics pipeline](#57-analytics-pipeline)
   - [5.8 AI studio](#58-ai-studio)
   - [5.9 Billing & sending limits](#59-billing--sending-limits)
+  - [5.10 Automation execution](#510-automation-execution)
 - [6. Technology stack](#6-technology-stack)
 - [7. Repository layout](#7-repository-layout)
 - [8. HTTP API reference](#8-http-api-reference)
@@ -76,7 +77,7 @@ delivery provider (or point it at a mock) without changing code.
 | **Lists & segments** | Static lists; dynamic segments (match all/any) over profile fields, tags, custom fields, engagement age |
 | **Templates** | MJML/HTML with `{{placeholder}}` variables, live preview |
 | **Campaigns** | Audience = lists ∪ segments, scheduling, per-recipient rendering, tracking + unsubscribe, stats, duplicates |
-| **Automations** | Visual workflow builder & stored automation triggers |
+| **Automations** | Visual workflow builder, executed per-contact by the scheduler+worker, per-run failure reasons, restart-failed |
 | **Analytics** | Overview, time-series, link click maps, devices/browsers, countries/cities, recipient trails |
 | **Vector search** | Semantic contact search via OpenAI embeddings + pgvector |
 | **AI studio** | Subject/copy generation (OpenAI-compatible), usage history |
@@ -607,6 +608,66 @@ sequenceDiagram
 Without Stripe credentials, a built-in **local gateway** is used instead, so
 self-hosters get the same plan/limit mechanics with zero external setup.
 
+### 5.10 Automation execution
+
+Automations are full workflows, not just stored triggers. A visual builder
+edits a node graph (send-email, delay, condition, add-tag, remove-tag,
+unsubscribe, webhook); the scheduler and worker execute it as a **per-contact
+state machine** in `automation_runs`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Builder/UI
+    participant A as API
+    participant S as Scheduler
+    participant R as Redis-asynq
+    participant W as Worker
+    participant DB as MySQL
+
+    B->>A: Save workflow (nodes + steps JSON)
+    A->>DB: persist automation (steps, trigger, delay)
+
+    Note over A,DB: Enrollment
+    B->>A: "Run now" or trigger / contact import
+    A->>W: EnrollContact (or EnrollAutomation / RestartFailedRuns)
+    W->>DB: upsert automation_runs (one row per automation+contact)
+    W->>DB: step_index=0, run_at=now+trigger_delay, status=active
+
+    Note over S,DB: Execution — driven by the queue, one step at a time
+    S->>DB: SELECT due runs (status active/processing, run_at <= now)
+    S->>DB: claim run (atomic UPDATE, leases crashed workers)
+    S->>R: enqueue task automation:run(runID)
+    W->>R: dequeue automation:run
+    W->>DB: load run + automation + contact
+    W->>W: execute current step (send-email/delay/condition/tag/unsubscribe/webhook)
+    alt step succeeded
+        W->>DB: advance run (step_index+1, next run_at; completed at last step)
+    else step failed < 10 attempts
+        W->>DB: bump attempts; run stays active and is retried
+    else step failed ≥ 10 attempts
+        W->>DB: mark run failed + persist error reason
+        W->>DB: notify owner ("Automation run stopped")
+    end
+```
+
+Key semantics:
+
+- **One row per (automation, contact).** Re-enrolling resets the run to the
+  start of the flow (new run id, step 0, `error` cleared, trigger delay
+  re-applied) instead of resuming where it left off.
+- **No silent failures.** A step that keeps failing is bounded at
+  `automationMaxStepAttempts = 10`, then the run is marked `failed` with the
+  reason persisted and an in-app notification sent. Unconfigured steps
+  (e.g. a send-email without a campaign) are logged and skipped so one
+  misconfigured node never stalls every run.
+- **Failure is visible and recoverable.** The runs panel lists per-contact
+  progress, status and failure reasons
+  (`GET /api/v1/automations/{id}/runs`); "Restart failed" re-enrolls only the
+  failed contacts (`POST /api/v1/automations/{id}/restart-failed`).
+- **Opted-out contacts are never enrolled.** Unsubscribed/bounced/spam
+  contacts are skipped and do not count as restarted.
+
 ---
 
 ## 6. Technology stack
@@ -614,7 +675,7 @@ self-hosters get the same plan/limit mechanics with zero external setup.
 | Layer | Technology |
 | --- | --- |
 | Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui, Recharts, MJML |
-| API | Go 1.22+, chi router, `jmoiron/sqlx`, `golang-jwt/jwt/v5`, `hibiken/asynq` |
+| API | Go 1.25, stdlib `net/http` mux (method routing), `jmoiron/sqlx`, `golang-jwt/jwt/v5`, `hibiken/asynq` |
 | Databases | TiDB/MySQL (primary), PostgreSQL + pgvector (analytics, embeddings) |
 | Queue / cache | Redis (`go-redis/v9`), asynq task queue |
 | Email | Resend-compatible REST client |
@@ -640,9 +701,9 @@ self-hosters get the same plan/limit mechanics with zero external setup.
 │       ├── billing/          # Stripe + local gateway
 │       ├── cloudinary/       # uploads
 │       ├── config/           # env-based configuration
-│       ├── database/         # connections + migrations (0001–0013)
+│       ├── database/         # connections + migrations (0001–0019)
 │       ├── embed/            # embedding provider (openai | static)
-│       ├── engine/           # render, tracking links, segments, import, send
+│       ├── engine/           # render, tracking links, segments, import, send, automation runs
 │       ├── httpapi/          # handlers, middleware, webhooks, tracking
 │       ├── oauth/            # Google / GitHub
 │       ├── queue/            # asynq tasks (campaign, recipient, event, import)
@@ -663,6 +724,7 @@ self-hosters get the same plan/limit mechanics with zero external setup.
 ├── docker-compose.yml        # app service (bring-your-own datastores)
 ├── docker-compose.full.yml   # self-contained stack (MariaDB + Redis + Postgres)
 ├── render.yaml               # Render blueprint
+├── .github/workflows/        # CI (build/vet/test + MySQL check + lint/tsc) and Render deploy
 └── .env.production.example   # documented production env reference
 ```
 
@@ -680,7 +742,7 @@ Everything under `/api/v1` is reverse-proxied from the web origin.
 | Lists / segments | `GET/POST /lists`, `/lists/:id/contacts`, `/segments` |
 | Templates | `GET/POST/PATCH/DELETE /templates/:id` |
 | Campaigns | `GET/POST /campaigns`, `GET/PATCH /campaigns/:id`, `/campaigns/:id/send`, `/campaigns/:id/stats` |
-| Automations | `GET/POST/PATCH/DELETE /automations/:id` |
+| Automations | `GET/POST/PATCH/DELETE /automations/:id`, `GET /automations/:id/runs` (per-contact progress + failure reasons), `POST /automations/:id/run` (run now), `POST /automations/:id/restart-failed` (re-enroll failed contacts), `POST /automations/:id/duplicate` |
 | Reports | `/reports/*` (overview, series, links, devices, countries) |
 | AI | `/ai/*` |
 | Billing | `/billing/*`, `/billing/webhook` |
@@ -828,19 +890,30 @@ flowchart LR
 ## 13. Testing
 
 ```bash
-cd backend && go test -timeout 120s ./...
-bash /tmp/opencode/run/smoke.sh     # end-to-end API smoke suite (57 checks)
-pnpm lint && npx tsc --noEmit        # frontend static checks
+# backend: unit tests across engine, httpapi and store (sqlmock-backed)
+cd backend && go build ./... && go vet ./... && go test -timeout 120s ./...
+
+# backend: opt-in MySQL integration check (runs against real MySQL in CI)
+# bootstrap a MySQL 8 and point the test at it:
+TEST_MYSQL_DSN='root:test@tcp(127.0.0.1:3306)/mailgeko_test?parseTime=true' \
+  go test -count=1 -run TestMySQLAutomationRunJoin -v ./internal/store/
+
+# frontend: static checks (what CI runs)
+pnpm exec eslint . && pnpm exec tsc --noEmit
 ```
+
+CI (`.github/workflows/ci.yml`) runs all of the above on every push to `main`:
+a backend job (build + vet + unit tests + the MySQL 8 integration check in a
+service container) and a frontend job (`pnpm install --frozen-lockfile`,
+`eslint .`, `tsc --noEmit`). `deploy.yml` then triggers the Render deploy.
 
 ---
 
 ## 14. Known limitations & roadmap
 
-- **Automation execution** is scaffolded (visual builder + stored workflows) but
-  not yet wired to the worker — scheduled sends are the supported path today.
-- **Segment conditions on opens/clicks** are stored but evaluate to `false`;
-  use the *last engagement* condition instead.
+- **Segment conditions on opens/clicks** require a campaign id on the
+  condition and are evaluated against real engagement data; use the *last
+  engagement* condition for a broader time-based match.
 - **Webhooks** are enabled only when `RESEND_WEBHOOK_SECRET` is set; no polling
   fallback yet.
 - **Billing** gates volume via Stripe; the built-in local gateway is the default

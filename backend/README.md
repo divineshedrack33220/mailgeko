@@ -1,107 +1,115 @@
 # Mailgeko Backend
 
-Go API + worker for Mailgeko. Go-native auth (argon2id + JWT), TiDB for
-transactions, Postgres for analytics/pgvector, Redis for cache/rate-limit/asynq,
-Resend for sending email.
+Go API + worker for Mailgeko. Go-native auth (Argon2id + purpose-scoped JWT),
+MySQL/TiDB for transactional data, Postgres for analytics/pgvector, Redis for
+cache/rate-limit/asynq, and a Resend-compatible client for sending email.
 
 ## Services
 
-| Service        | Role                                                              |
-| -------------- | ----------------------------------------------------------------- |
-| TiDB           | Main transactional store (OLTP)                                   |
-| Postgres       | pgvector + analytics (opens, clicks, segments)                    |
-| Redis          | Cache, rate limiting, asynq task queues                           |
-| Resend         | Transactional email with rotating API keys                        |
-| asynq          | Background job queue (campaign sends, CSV import, webhooks)       |
+| Service  | Role                                                            |
+| -------- | --------------------------------------------------------------- |
+| MySQL/TiDB | Main transactional store (OLTP), auto-migrated at API boot     |
+| Postgres | pgvector + analytics (opens, clicks, segments, embeddings)      |
+| Redis    | Cache, rate limiting, asynq task queues, session blacklist      |
+| Resend   | Transactional email with rotating API keys                      |
+| asynq    | Background jobs (campaign sends, CSV import, event record, automation runs) |
 
 ## Layout
 
 ```
-cmd/api        HTTP API server
-cmd/worker     asynq worker (campaign engine)
-internal/config   env-driven config
-internal/database TiDB / Postgres / Redis connections
-internal/auth     argon2id password hashing + JWT
-internal/httpapi  REST handlers, middleware, session blacklist
-internal/queue    asynq client + worker server
-internal/sender   Resend client (Phase 1)
-migrations        TiDB SQL migrations
+cmd/api        HTTP API server + scheduler (campaigns + automation runs)
+cmd/worker     asynq worker (campaign engine, automation steps, imports)
+internal/config    env-driven configuration
+internal/database  connections + embedded SQL migrations (0001–0019)
+internal/auth      argon2id, JWT, TOTP, recovery codes
+internal/httpapi   REST handlers, middleware, webhooks, tracking
+internal/engine    campaign rendering/sending, automation step execution
+internal/scheduler release loop for due campaigns and due automation runs
+internal/queue     asynq client + worker server (task types)
+internal/sender    Resend-compatible client
+internal/store     SQL queries over MySQL/TiDB
+internal/analytics report queries over Postgres email_events
+internal/vector    pgvector queries
+internal/track     signed link generation/verification
+internal/svix      webhook signature verification
+internal/embed     embedding provider (openai | static)
+internal/billing   Stripe + local gateway
+internal/oauth     Google / GitHub sign-in
+internal/cloudinary image uploads
 ```
 
 ## Running
 
 ```sh
-cp .env.example .env   # fill in TIDB_DSN, POSTGRES_DSN, REDIS_ADDR, JWT_SECRET, RESEND_API_KEYS
-make run-api           # API on :8080
-make run-worker        # asynq worker
+cp ../.env.example ../.env   # fill in TIDB_DSN, POSTGRES_DSN, REDIS_ADDR, JWT_SECRET, RESEND_API_KEYS
+go run ./cmd/api             # API on :8080 (applies migrations at boot)
+go run ./cmd/worker          # asynq worker
 ```
 
-Apply migrations before the first run:
-
-```sh
-mysql -h <tidb-host> -P 4000 -u <user> -p <database> < migrations/0001_init.sql
-```
+Migrations are **embedded** in `internal/database/migrations` and auto-apply
+when the API boots — a deploy needs no manual SQL. The frontend proxies
+`/api`, `/webhooks`, `/track` and `/ping` to `:8080` (see `../next.config.ts`).
 
 ## Configuration
 
-See `.env.example`. The API refuses to boot without `TIDB_DSN`, `JWT_SECRET`,
+See `../.env.example`. The API refuses to boot without `TIDB_DSN`, `JWT_SECRET`,
 and `RESEND_API_KEYS`. `POSTGRES_DSN` is optional: when set it enables the
-Reports/Analytics API and event enrichment; the worker records Postgres events
-only when it is present.
+analytics API, event enrichment and vector search; the worker records Postgres
+events only when it is present. `REDIS_ADDR` defaults to a Redis bundled inside
+the container image; set it to an external server to use a managed one.
 
 ## API
 
-| Method | Path                    | Description                    |
-| ------ | ----------------------- | ------------------------------ |
-| GET    | `/healthz`              | Liveness probe                 |
-| POST   | `/api/v1/auth/register` | Create account + workspace     |
-| POST   | `/api/v1/auth/login`    | Sign in, returns JWT           |
-| POST   | `/api/v1/auth/logout`   | Revoke token (Redis denylist)  |
-| GET    | `/api/v1/me`            | Current user + workspace       |
-| GET    | `/api/v1/analytics/campaigns/{id}` | Per-campaign stats + rates |
-| GET    | `/api/v1/analytics/overview` | Workspace totals, rates, series |
-| GET    | `/api/v1/analytics/series` | Daily/monthly opens + clicks |
-| GET    | `/api/v1/analytics/links` | Top clicked links             |
-| GET    | `/api/v1/analytics/devices` | Opens by device/platform    |
-| GET    | `/api/v1/analytics/countries` | Opens by country           |
-| GET    | `/api/v1/analytics/heatmap` | 24x7 open heatmap           |
-| GET    | `/api/v1/contacts/search?q=&k=` | Semantic contact search (pgvector) |
-| GET    | `/api/v1/contacts/{id}/similar?k=` | Contacts most similar to one contact |
-| POST   | `/api/v1/contacts/embed-all` | Backfill embeddings for all workspace contacts |
-| POST   | `/api/v1/contacts/{id}/embed` | (Re)embed a single contact   |
-| GET    | `/api/v1/billing/plans` | Plan catalog (starter/growth/scale) |
-| GET    | `/api/v1/billing` | Current plan, limits, and usage |
-| POST   | `/api/v1/billing/checkout` | Start subscription checkout (`{plan}`) |
-| POST   | `/api/v1/billing/portal` | Open Stripe billing portal |
-| POST   | `/webhooks/stripe` | Stripe webhook (checkout/subscription events) |
+Everything is under `/api/v1` unless noted. Interactive routes take
+`Authorization: Bearer <session JWT>`; machine-to-machine routes accept
+`X-API-Key: mgk_…`.
 
-Phase 1 adds contacts, lists, segments, templates, campaigns, automations,
-webhooks, and CSV import. Phase 2 adds the analytics API above (powered by the
-Postgres `email_events` table) with device/country enrichment on tracking
-pixels, pgvector semantic search, and billing. Analytics endpoints take
-`?range=7d|30d|90d|12m`.
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET    | `/healthz`, `/ping` | Liveness probes |
+| POST   | `/auth/register`, `/auth/login`, `/auth/logout` | Account lifecycle |
+| POST   | `/auth/forgot-password`, `/auth/reset-password`, `/auth/verify-email` | Email flows |
+| POST   | `/auth/2fa/verify`, `/auth/2fa/setup`, `/auth/2fa/enable`, `/auth/2fa/disable`, `/auth/2fa/recovery-codes` | TOTP 2FA |
+| GET    | `/me`, `/auth/sessions`, `/workspace`, `/workspaces`, `/workspace/switch` | Profile & workspaces |
+| GET/POST/PATCH/DELETE | `/contacts`, `/contacts/{id}` | Contact CRUD |
+| POST   | `/contacts/import`, `/contacts/{id}/send`, `/contacts/embed-all`, `/contacts/{id}/embed` | Contact actions |
+| GET    | `/contacts/search?q=&k=`, `/contacts/{id}/similar?k=` | pgvector search (503 when disabled) |
+| GET/POST | `/lists`, `/segments`, `/templates` | Organization resources |
+| GET/POST/PATCH/DELETE | `/campaigns`, `/campaigns/{id}` | Campaign CRUD |
+| POST   | `/campaigns/{id}/send`, `/campaigns/{id}/send-test`, `/campaigns/{id}/cancel` | Campaign actions |
+| GET    | `/campaigns/{id}/recipients` | Per-recipient status |
+| GET/POST/PATCH/DELETE | `/automations`, `/automations/{id}` | Automation CRUD |
+| GET    | `/automations/{id}/runs` | Per-contact run progress + failure reasons |
+| POST   | `/automations/{id}/run` | Run now against all contacts |
+| POST   | `/automations/{id}/restart-failed` | Re-enroll only failed contacts |
+| POST   | `/automations/{id}/duplicate` | Clone an automation |
+| GET    | `/analytics/overview`, `/analytics/series`, `/analytics/links`, `/analytics/devices`, `/analytics/countries`, `/analytics/heatmap`, `/analytics/campaigns/{id}` | Reports (`?range=7d|30d|90d|12m`) |
+| GET/POST | `/api-keys` | Scoped API keys (SHA-256 hashed) |
+| GET/PUT | `/notifications/prefs`; GET `/notifications`; POST `/notifications/read-all`, `/notifications/{id}/read` | In-app notifications |
+| GET/PUT | `/workspace/smtp`; POST `/workspace/smtp/test` | BYO-SMTP |
+| POST   | `/ai/subject`, `/ai/campaign`, `/ai/chat`; GET/DELETE `/ai/history` | AI studio |
+| GET    | `/billing/plans`, `/billing`; POST `/billing/checkout`, `/billing/portal` | Billing |
+| POST   | `/webhooks/stripe`, `/webhooks/resend` | Provider webhooks (signed) |
+| GET    | `/track/open`, `/track/click`, `/track/unsubscribe` | Signed tracking links (no auth) |
 
-Vector search embeds each contact's profile (name, company, position, country,
-city, industry, plan, tags) into Postgres `contact_embeddings` on create/update
-and powers `search`/`similar`. It requires `POSTGRES_DSN` plus `EMBED_PROVIDER`
-and `OPENAI_API_KEY` (or `EMBED_PROVIDER=static` for offline smoke tests);
-search returns 503 when embedding is disabled.
+## Automations
 
-Billing starts every workspace on `starter` (2,000 contacts / 10,000 emails per
-month). Contact create/import and campaign send check the plan limits and return
-`402` with a `contact_limit`/`email_limit` error when exceeded. With
-`BILLING_PROVIDER=stripe` a checkout redirects to Stripe and a webhook updates
-the workspace plan; `BILLING_PROVIDER=local` completes checkouts immediately for
-offline testing.
+Automations execute as a per-contact state machine in `automation_runs` (one
+row per automation+contact). The scheduler claims due runs and enqueues
+`automation:run` tasks; the worker runs one step at a time
+(send-email, delay, condition, add-tag, remove-tag, unsubscribe, webhook) and
+advances the run. A step that fails 10 times marks the run `failed` with the
+reason persisted and an in-app notification sent — no silent failures.
+`restart-failed` re-enrolls only failed contacts, resetting each run to the
+start of the flow.
 
 ## Development
 
 ```sh
-make vet test build
+go build ./... && go vet ./... && go test ./...
 ```
 
-## Roadmap
-
-- **Phase 0** (current): scaffolding, DB connections, auth, queue wiring.
-- **Phase 1**: domain REST API, Resend sender with key rotation, campaign engine.
-- **Phase 2**: CSV import, webhooks, analytics, pgvector search, billing.
+Opt-in MySQL integration check (runs in CI against a MySQL 8 service
+container): set `TEST_MYSQL_DSN` and run
+`go test -count=1 -run TestMySQLAutomationRunJoin -v ./internal/store/`.
+The store layer is otherwise unit-tested with `sqlmock`.
