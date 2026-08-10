@@ -33,21 +33,26 @@ const automationMaxStepAttempts = 10
 // The automation's trigger delay is applied as the initial wait. Inactive
 // automations and opted-out contacts are skipped.
 func (e *Engine) EnrollContact(ctx context.Context, automation *store.Automation, contact *store.Contact) error {
-	return e.enrollContact(ctx, automation, contact, false)
+	_, err := e.enrollContact(ctx, automation, contact, false)
+	return err
 }
 
-func (e *Engine) enrollContact(ctx context.Context, automation *store.Automation, contact *store.Contact, force bool) error {
+// enrollContact starts an automation for one contact and reports whether a run
+// was actually created (false for skips: inactive automation or an opted-out
+// contact). The boolean lets bulk paths count real enrollments without treating
+// a skip as either an error or an enrollment.
+func (e *Engine) enrollContact(ctx context.Context, automation *store.Automation, contact *store.Contact, force bool) (bool, error) {
 	if !force && automation.Status != "active" {
-		return nil
+		return false, nil
 	}
 	if contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam {
-		return nil
+		return false, nil
 	}
 	runAt := time.Now().UTC()
 	if automation.TriggerDelay != nil && *automation.TriggerDelay > 0 {
 		runAt = runAt.Add(time.Duration(*automation.TriggerDelay) * time.Hour)
 	}
-	return e.store.CreateAutomationRun(ctx, &store.AutomationRun{
+	err := e.store.CreateAutomationRun(ctx, &store.AutomationRun{
 		ID:           uuid.NewString(),
 		WorkspaceID:  automation.WorkspaceID,
 		AutomationID: automation.ID,
@@ -56,6 +61,7 @@ func (e *Engine) enrollContact(ctx context.Context, automation *store.Automation
 		RunAt:        runAt,
 		Status:       store.AutomationRunActive,
 	})
+	return err == nil, err
 }
 
 // filterWelcomeAutomations returns the welcome-triggered automations from a
@@ -109,7 +115,7 @@ func (e *Engine) EnrollAutomation(ctx context.Context, workspaceID, automationID
 	}
 	enrolled := 0
 	for _, c := range contacts {
-		if err := e.enrollContact(ctx, automation, c, true); err == nil {
+		if ok, err := e.enrollContact(ctx, automation, c, true); err == nil && ok {
 			enrolled++
 		}
 	}
@@ -131,7 +137,7 @@ func (e *Engine) RestartFailedRuns(ctx context.Context, workspaceID, automationI
 	}
 	restarted := 0
 	for _, c := range contacts {
-		if err := e.enrollContact(ctx, automation, c, true); err == nil {
+		if ok, err := e.enrollContact(ctx, automation, c, true); err == nil && ok {
 			restarted++
 		}
 	}
