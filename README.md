@@ -857,7 +857,7 @@ Production notes:
 
 ```mermaid
 flowchart LR
-    subgraph H["Defense in depth"]
+    subgraph DI["Defense in depth"]
         A["🔑 Argon2id passwords<br/>+ unique salts"]
         B["🎟 Purpose-scoped JWTs<br/>+ Redis token blacklist"]
         C["🧮 TOTP 2FA<br/>+ hashed recovery codes"]
