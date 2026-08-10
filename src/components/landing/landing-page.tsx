@@ -721,18 +721,29 @@ export function LandingPage({ fonts }: LandingPageProps) {
           </nav>
 
           <div className="flex items-center gap-5">
-            <Link
-              href="/login"
-              className="lg-nav-link hidden sm:inline-block"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase rounded-full px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
-            >
-              Get Started
-            </Link>
+            {visitorName ? (
+              <Link
+                href="/dashboard"
+                className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase rounded-full px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
+              >
+                Go to dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="lg-nav-link hidden sm:inline-block"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  className="bg-[var(--lg-accent)] font-heading text-xs tracking-[0.2em] text-[var(--lg-primary-foreground)] uppercase rounded-full px-5 py-2.5 transition-colors hover:bg-[var(--lg-accent-bright)]"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
