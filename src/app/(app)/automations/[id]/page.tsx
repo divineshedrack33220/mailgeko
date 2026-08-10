@@ -53,7 +53,13 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { canManage } from "@/lib/permissions";
-import type { Automation, AutomationStatus, AutomationStep, AutomationStepType } from "@/lib/types";
+import type {
+  Automation,
+  AutomationRun,
+  AutomationStatus,
+  AutomationStep,
+  AutomationStepType,
+} from "@/lib/types";
 
 const stepMeta: Record<
   AutomationStepType,
@@ -176,6 +182,25 @@ export default function AutomationBuilderPage() {
   const [flashNodeId, setFlashNodeId] = React.useState<string | null>(null);
 
   const [nodes, setNodes] = React.useState<CanvasNode[]>([]);
+
+  const [runs, setRuns] = React.useState<AutomationRun[]>([]);
+  const [runsOpen, setRunsOpen] = React.useState(false);
+
+  const loadRuns = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ runs: AutomationRun[] }>(`/api/v1/automations/${params.id}/runs`);
+      setRuns(res.runs ?? []);
+    } catch {
+      setRuns([]);
+    }
+  }, [params.id]);
+
+  const toggleRuns = () => {
+    setRunsOpen((open) => !open);
+    if (runs.length === 0) loadRuns();
+  };
+
+  const failedCount = automation?.failedCount ?? runs.filter((r) => r.status === "failed").length;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -393,7 +418,15 @@ export default function AutomationBuilderPage() {
         <Badge variant={status === "active" ? "success" : status === "paused" ? "warning" : "secondary"} className="hidden sm:inline-flex">
           {status === "active" ? "Active" : status === "paused" ? "Paused" : "Draft"}
         </Badge>
+        {failedCount > 0 && (
+          <Badge variant="destructive">
+            <AlertTriangle /> {failedCount} failed
+          </Badge>
+        )}
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={toggleRuns} aria-expanded={runsOpen}>
+            {runsOpen ? "Hide runs" : "Runs"}
+          </Button>
           {status !== "active" ? (
             <Button variant="outline" size="sm" onClick={toggleStatus} disabled={saving}>
               <Play /> Activate
@@ -409,6 +442,8 @@ export default function AutomationBuilderPage() {
           </Button>
         </div>
       </div>
+
+      {runsOpen && <RunsPanel runs={runs} totalSteps={nodes.length - 1} onClose={() => setRunsOpen(false)} />}
 
       <div className="flex min-h-0 flex-1">
         <StepPalette
@@ -514,6 +549,86 @@ export default function AutomationBuilderPage() {
       </div>
     </div>
   );
+}
+
+function RunsPanel({
+  runs,
+  totalSteps,
+  onClose,
+}: {
+  runs: AutomationRun[];
+  totalSteps: number;
+  onClose: () => void;
+}) {
+  if (runs.length === 0) {
+    return (
+      <div className="text-muted-foreground flex items-center justify-between border-b bg-muted/30 px-4 py-2 text-sm">
+        <span>No contacts have run this automation yet.</span>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Hide
+        </Button>
+      </div>
+    );
+  }
+  const failed = runs.filter((r) => r.status === "failed");
+  return (
+    <div className="border-b bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-1.5">
+        <p className="text-muted-foreground text-xs font-medium">
+          {runs.length} contact{runs.length === 1 ? "" : "s"}
+          {failed.length > 0 && (
+            <span className="text-destructive"> · {failed.length} failed</span>
+          )}
+        </p>
+        <Button variant="ghost" size="sm" className="h-6" onClick={onClose}>
+          Hide
+        </Button>
+      </div>
+      <ScrollArea className="max-h-48">
+        <ul className="divide-y px-4 pb-2">
+          {runs.map((run) => {
+            const name = run.contact.name || run.contact.email;
+            return (
+              <li key={run.id} className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium">{name}</p>
+                    <RunStatusChip status={run.status} />
+                  </div>
+                  <p className="text-muted-foreground truncate text-xs">
+                    Step {run.stepIndex + 1} of {totalSteps} · updated{" "}
+                    {new Date(run.updatedAt).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {run.status === "failed" && run.error && (
+                    <p className="text-destructive mt-0.5 flex items-start gap-1 text-xs">
+                      <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                      <span className="line-clamp-2">{run.error}</span>
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function RunStatusChip({ status }: { status: AutomationRun["status"] }) {
+  const map: Record<AutomationRun["status"], { label: string; variant: "success" | "warning" | "info" | "destructive" }> = {
+    active: { label: "In flow", variant: "warning" },
+    processing: { label: "Processing", variant: "info" },
+    completed: { label: "Completed", variant: "success" },
+    failed: { label: "Failed", variant: "destructive" },
+  };
+  const m = map[status] ?? { label: status, variant: "info" as const };
+  return <Badge variant={m.variant}>{m.label}</Badge>;
 }
 
 function StepPalette({

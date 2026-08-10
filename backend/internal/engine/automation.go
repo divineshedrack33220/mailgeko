@@ -230,7 +230,7 @@ func (e *Engine) boundStepFailure(ctx context.Context, run *store.AutomationRun,
 			automation.ID, step.Label, contact.Email, attempts, automationMaxStepAttempts, err)
 		return err
 	}
-	_ = e.store.AdvanceAutomationRun(ctx, run.ID, store.AutomationRunFailed, run.StepIndex, run.RunAt)
+	_ = e.store.FailAutomationRun(ctx, run.ID, err.Error(), run.StepIndex)
 	_ = e.notify(ctx, run.WorkspaceID, "automation-failed",
 		"Automation run stopped",
 		"The step \""+step.Label+"\" in \""+automation.Name+"\" kept failing for "+contact.Email+". The run was stopped and will not retry.",

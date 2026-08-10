@@ -122,11 +122,18 @@ func TestAutomationRunRowToRun(t *testing.T) {
 		RunAt:        now,
 		Status:       AutomationRunActive,
 		Attempts:     3,
+		Error:        sql.NullString{String: "smtp refused", Valid: true},
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}).toAutomationRun()
 	if run.ID != "r1" || run.StepIndex != 2 || run.Attempts != 3 || run.Status != AutomationRunActive {
 		t.Fatalf("run conversion wrong: %+v", run)
+	}
+	if run.Error != "smtp refused" {
+		t.Fatalf("error not mapped, got %q", run.Error)
+	}
+	if nullErr := (automationRunRow{ID: "r2"}).toAutomationRun().Error; nullErr != "" {
+		t.Fatalf("null error should map to empty, got %q", nullErr)
 	}
 }
 

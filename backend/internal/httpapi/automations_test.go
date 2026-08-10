@@ -9,6 +9,35 @@ import (
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
 
+func TestAutomationRunResponse(t *testing.T) {
+	now := time.Now()
+	run := &store.AutomationRunWithContact{
+		AutomationRun: store.AutomationRun{
+			ID:        "r1",
+			Status:    store.AutomationRunFailed,
+			ContactID: "c1",
+			StepIndex: 2,
+			Attempts:  10,
+			Error:     "smtp: connection refused",
+			RunAt:     now,
+			UpdatedAt: now,
+		},
+		ContactEmail: "a@b.co",
+		ContactName:  "Ada Lovelace",
+	}
+	resp := automationRunResponse(run)
+	if resp["status"] != store.AutomationRunFailed || resp["error"] != "smtp: connection refused" {
+		t.Fatalf("status/error wrong: %v", resp)
+	}
+	c := resp["contact"].(map[string]any)
+	if c["email"] != "a@b.co" || c["name"] != "Ada Lovelace" {
+		t.Fatalf("contact wrong: %v", c)
+	}
+	if resp["attempts"] != 10 || resp["stepIndex"] != 2 {
+		t.Fatalf("step/attempts wrong: %v", resp)
+	}
+}
+
 func intPtr(v int) *int { return &v }
 
 func TestNormalizeSteps(t *testing.T) {

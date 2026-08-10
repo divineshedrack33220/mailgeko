@@ -137,6 +137,47 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"automation": automationResponseWithStats(a, stats)})
 }
 
+// handleListAutomationRuns returns per-contact progress and failure reasons
+// for an automation, so a failed run is never invisible to the owner.
+func (s *Server) handleListAutomationRuns(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if _, err := s.db.GetAutomation(r.Context(), claims.GetWorkspaceID(), r.PathValue("id")); err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "automation not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load automation")
+		return
+	}
+	runs, err := s.db.ListAutomationRuns(r.Context(), claims.GetWorkspaceID(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not list automation runs")
+		return
+	}
+	out := make([]map[string]any, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, automationRunResponse(run))
+	}
+	writeOK(w, map[string]any{"runs": out})
+}
+
+func automationRunResponse(r *store.AutomationRunWithContact) map[string]any {
+	return map[string]any{
+		"id":     r.ID,
+		"status": r.Status,
+		"contact": map[string]any{
+			"id":    r.ContactID,
+			"email": r.ContactEmail,
+			"name":  r.ContactName,
+		},
+		"stepIndex": r.StepIndex,
+		"attempts":  r.Attempts,
+		"error":     r.Error,
+		"runAt":     r.RunAt.UTC().Format(time.RFC3339),
+		"updatedAt": r.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
 // handleRunAutomation manually enrolls every contact in the workspace into
 // the automation flow ("Run now"). It runs even a paused or draft automation
 // (the user asked explicitly); only owner/admin may trigger it (it sends

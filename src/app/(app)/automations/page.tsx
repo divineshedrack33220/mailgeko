@@ -405,6 +405,11 @@ export default function AutomationsPage() {
                     {automation.status === "active"
                       ? `${automation.contacts ?? 0} in flow · ${automation.completedCount ?? 0} completed`
                       : "Not running"}
+                    {(automation.failedCount ?? 0) > 0 && (
+                      <span className="text-destructive ml-1 inline-flex items-center gap-0.5 font-medium">
+                        · {automation.failedCount} failed
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="text-right">

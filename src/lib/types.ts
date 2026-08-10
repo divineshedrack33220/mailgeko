@@ -178,6 +178,21 @@ export interface Automation {
   updatedAt: string;
 }
 
+export interface AutomationRun {
+  id: string;
+  status: "active" | "processing" | "completed" | "failed";
+  contact: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  stepIndex: number;
+  attempts: number;
+  error?: string;
+  runAt: string;
+  updatedAt: string;
+}
+
 export type TemplateCategory =
   | "Newsletter"
   | "Promotional"
