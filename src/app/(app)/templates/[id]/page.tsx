@@ -479,10 +479,10 @@ export default function TemplateEditorPage() {
           mode === "design"
             ? "grid grid-cols-1"
             : cn(
-                "grid grid-cols-1",
+                "grid grid-cols-1 overflow-hidden",
                 variablesOpen
-                  ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_240px]"
-                  : "lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)]"
+                  ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_240px]"
+                  : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
               )
         )}
       >
@@ -596,7 +596,7 @@ export default function TemplateEditorPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 w-full flex-col lg:w-[46rem]">
+        <div className="flex min-h-0 min-w-0 flex-col">
           <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-xs font-medium">Preview</span>
