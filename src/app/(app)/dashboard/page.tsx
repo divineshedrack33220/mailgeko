@@ -208,7 +208,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat cards with stagger animation */}
-      <div className="stagger-in grid gap-4 sm:grid-cols-2 xl:grid-cols-4" key={`stats-${refreshKey}`}>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" key={`stats-${refreshKey}`}>
         <StatCard
           label="Subscribers"
           value={formatNumber(overview?.subscribers ?? 0)}
@@ -364,10 +364,9 @@ export default function DashboardPage() {
                       key={campaign.id}
                       href={`/campaigns/${campaign.id}`}
                       className={cn(
-                        "hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors slide-in-row",
+                        "hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors",
                         isSending && "bg-info/5"
                       )}
-                      style={{ animationDelay: `${i * 80}ms` }}
                     >
                       <span className={cn(
                         "flex size-9 shrink-0 items-center justify-center rounded-lg",
@@ -501,8 +500,7 @@ export default function DashboardPage() {
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.id}`}
-                  className="hover:bg-muted/40 slide-in-row flex items-center gap-4 px-6 py-4 transition-colors"
-                  style={{ animationDelay: `${i * 80}ms` }}
+                  className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
                 >
                   <span className="bg-info/10 text-info flex size-9 items-center justify-center rounded-lg">
                     <Clock className="size-4" />
