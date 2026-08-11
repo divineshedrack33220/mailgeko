@@ -12,6 +12,9 @@ import {
   Sparkles,
   TrendingUp,
   Clock,
+  Radio,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +31,10 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiStore } from "@/stores/ui-store";
 import { canManage, isAdminRole } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 import type { Campaign, CampaignStats } from "@/lib/types";
+
+const REFRESH_INTERVAL = 30_000;
 
 const EMPTY_STATS: CampaignStats = {
   recipients: 0,
@@ -81,6 +87,9 @@ export default function DashboardPage() {
   const [overview, setOverview] = React.useState<OverviewResponse | null>(null);
   const [devices, setDevices] = React.useState<{ name: string; count: number }[]>([]);
   const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+  const [refreshKey, setRefreshKey] = React.useState(0);
+  const [lastRefresh, setLastRefresh] = React.useState<Date>(new Date());
+  const [now, setNow] = React.useState(() => Date.now());
 
   const loadOverview = React.useCallback(async () => {
     try {
@@ -90,6 +99,7 @@ export default function DashboardPage() {
       ]);
       setOverview(overviewRes);
       setDevices(devicesRes.devices ?? []);
+      setLastRefresh(new Date());
     } catch (err) {
       console.error("Failed to load dashboard analytics", err);
     }
@@ -111,6 +121,16 @@ export default function DashboardPage() {
     run();
   }, [loadOverview]);
 
+  // Auto-refresh every 30 seconds
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      loadOverview();
+      setRefreshKey((k) => k + 1);
+      setNow(Date.now());
+    }, REFRESH_INTERVAL);
+    return () => clearInterval(id);
+  }, [loadOverview]);
+
   const firstName = user?.name?.split(" ")[0] ?? "there";
 
   const seriesData = (overview?.series ?? []).map((p) => ({
@@ -130,17 +150,45 @@ export default function DashboardPage() {
     .slice(0, 4);
 
   const scheduledCampaigns = campaigns.filter((c) => c.status === "scheduled");
+  const sendingCampaigns = campaigns.filter((c) => c.status === "sending");
+
+  const timeAgo = React.useMemo(() => {
+    const diff = Math.floor((now - lastRefresh.getTime()) / 1000);
+    if (diff < 5) return "just now";
+    if (diff < 60) return `${diff}s ago`;
+    return `${Math.floor(diff / 60)}m ago`;
+  }, [lastRefresh, now]);
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Header with live indicator */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{greetingForTime()}, {firstName}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight">{greetingForTime()}, {firstName}</h2>
+            <span className="live-pulse relative inline-flex items-center gap-1.5 rounded-full border bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <Radio className="size-3" />
+              LIVE
+            </span>
+          </div>
           <p className="text-muted-foreground mt-1 text-sm">
             Here&apos;s what&apos;s happening across your audience today.
+            <span className="text-muted-foreground/60 ml-2 text-xs">Updated {timeAgo}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => {
+              loadOverview();
+              setRefreshKey((k) => k + 1);
+            }}
+            title="Refresh data"
+          >
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
           <Select value={range} onValueChange={setRange}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -161,7 +209,35 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Sending campaign banner */}
+      {sendingCampaigns.length > 0 && (
+        <Card className="border-info/30 bg-info/5 shimmer overflow-hidden">
+          <CardContent className="flex items-center gap-4 py-4">
+            <span className="bg-info/15 text-info flex size-10 shrink-0 items-center justify-center rounded-xl">
+              <Send className="size-5 animate-pulse" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {sendingCampaigns.length === 1
+                  ? `"${sendingCampaigns[0].name}" is sending now`
+                  : `${sendingCampaigns.length} campaigns sending now`}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Emails are being delivered in the background
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-info/15 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-info">
+                <Zap className="size-3 animate-pulse" />
+                Active
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stat cards with stagger animation */}
+      <div className="stagger-in grid gap-4 sm:grid-cols-2 xl:grid-cols-4" key={`stats-${refreshKey}`}>
         <StatCard
           label="Subscribers"
           value={formatNumber(overview?.subscribers ?? 0)}
@@ -306,19 +382,29 @@ export default function DashboardPage() {
               />
             ) : (
               <div className="divide-y">
-                {recentCampaigns.map((campaign) => {
+                {recentCampaigns.map((campaign, i) => {
                   const stats = campaign.stats ?? EMPTY_STATS;
                   const rateBase = stats.delivered > 0 ? stats.delivered : stats.sent;
                   const openRate = rateBase ? (stats.uniqueOpens / rateBase) * 100 : 0;
                   const clickRate = rateBase ? (stats.uniqueClicks / rateBase) * 100 : 0;
+                  const isSending = campaign.status === "sending";
                   return (
                     <Link
                       key={campaign.id}
                       href={`/campaigns/${campaign.id}`}
-                      className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
+                      className={cn(
+                        "hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors slide-in-row",
+                        isSending && "bg-info/5"
+                      )}
+                      style={{ animationDelay: `${i * 80}ms` }}
                     >
-                      <span className="bg-secondary text-secondary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-                        <Send className="size-4" />
+                      <span className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                        isSending
+                          ? "bg-info/15 text-info breathe"
+                          : "bg-secondary text-secondary-foreground"
+                      )}>
+                        <Send className={cn("size-4", isSending && "animate-pulse")} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{campaign.name}</p>
@@ -348,7 +434,7 @@ export default function DashboardPage() {
         </Card>
 
         <div className="flex flex-col gap-4">
-          <Card className="bg-sidebar border-sidebar-border">
+          <Card className="bg-sidebar border-sidebar-border breathe">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <span className="bg-primary/15 text-primary flex size-8 items-center justify-center rounded-lg">
@@ -440,11 +526,12 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {scheduledCampaigns.map((campaign) => (
+              {scheduledCampaigns.map((campaign, i) => (
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.id}`}
-                  className="hover:bg-muted/40 flex items-center gap-4 px-6 py-4 transition-colors"
+                  className="hover:bg-muted/40 slide-in-row flex items-center gap-4 px-6 py-4 transition-colors"
+                  style={{ animationDelay: `${i * 80}ms` }}
                 >
                   <span className="bg-info/10 text-info flex size-9 items-center justify-center rounded-lg">
                     <Clock className="size-4" />

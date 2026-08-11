@@ -214,6 +214,12 @@
   .animate-row-flash,
   .animate-grow-y,
   .animate-dot-pop,
+  .live-pulse::before,
+  .shimmer,
+  .stat-update-pop,
+  .breathe,
+  .stagger-in > *,
+  .slide-in-row,
   .chart-grow .recharts-bar-rectangle rect,
   .chart-grow .recharts-bar-rectangle path,
   .chart-draw .recharts-area-curve,
@@ -400,6 +406,88 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.14);
     }
+  }
+
+  /* Live indicator pulse ring */
+  .live-pulse {
+    position: relative;
+  }
+  .live-pulse::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    background: oklch(0.65 0.19 145);
+    opacity: 0;
+    animation: live-ring 2s ease-in-out infinite;
+  }
+  @keyframes live-ring {
+    0%, 100% { opacity: 0; transform: scale(0.9); }
+    50% { opacity: 0.3; transform: scale(1.2); }
+  }
+
+  /* Dashboard data refresh flash */
+  .data-refresh-flash {
+    animation: refresh-flash 0.6s ease-out;
+  }
+  @keyframes refresh-flash {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+
+  /* Stagger children fade-in */
+  .stagger-in > * {
+    animation: fade-in-up 0.4s ease-out both;
+  }
+  .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger-in > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger-in > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger-in > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger-in > *:nth-child(6) { animation-delay: 300ms; }
+
+  /* Sending progress shimmer */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(0.65 0.19 145 / 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Stat value update pop */
+  .stat-update-pop {
+    animation: stat-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
+  }
+  @keyframes stat-pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+
+  /* Breathing glow for active elements */
+  .breathe {
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 0 oklch(0.65 0.19 145 / 0); }
+    50% { box-shadow: 0 0 0 4px oklch(0.65 0.19 145 / 0.1); }
+  }
+
+  /* Row slide-in for list items */
+  .slide-in-row {
+    animation: slide-in-row 0.35s ease-out both;
+  }
+  @keyframes slide-in-row {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
   }
   .chart-grow .recharts-bar-rectangle rect,
   .chart-grow .recharts-bar-rectangle path {
