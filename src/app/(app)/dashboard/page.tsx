@@ -149,6 +149,8 @@ export default function DashboardPage() {
     .slice(0, 4);
 
   const scheduledCampaigns = campaigns.filter((c) => c.status === "scheduled");
+  const sendingCampaigns = campaigns.filter((c) => c.status === "sending");
+  const isLive = sendingCampaigns.length > 0;
 
   const timeAgo = React.useMemo(() => {
     const diff = Math.floor((now - lastRefresh.getTime()) / 1000);
@@ -164,10 +166,12 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-semibold tracking-tight">{greetingForTime()}, {firstName}</h2>
-            <span className="live-pulse relative inline-flex items-center gap-1.5 rounded-full border bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-              <Radio className="size-3" />
-              LIVE
-            </span>
+            {isLive && (
+              <span className="live-pulse relative inline-flex items-center gap-1.5 rounded-full border bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                <Radio className="size-3" />
+                LIVE
+              </span>
+            )}
           </div>
           <p className="text-muted-foreground mt-1 text-sm">
             Here&apos;s what&apos;s happening across your audience today.
