@@ -14,7 +14,6 @@ import {
   Clock,
   Radio,
   RefreshCw,
-  Zap,
 } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,7 +149,6 @@ export default function DashboardPage() {
     .slice(0, 4);
 
   const scheduledCampaigns = campaigns.filter((c) => c.status === "scheduled");
-  const sendingCampaigns = campaigns.filter((c) => c.status === "sending");
 
   const timeAgo = React.useMemo(() => {
     const diff = Math.floor((now - lastRefresh.getTime()) / 1000);
@@ -208,33 +206,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Sending campaign banner */}
-      {sendingCampaigns.length > 0 && (
-        <Card className="border-info/30 bg-info/5 shimmer overflow-hidden">
-          <CardContent className="flex items-center gap-4 py-4">
-            <span className="bg-info/15 text-info flex size-10 shrink-0 items-center justify-center rounded-xl">
-              <Send className="size-5 animate-pulse" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {sendingCampaigns.length === 1
-                  ? `"${sendingCampaigns[0].name}" is sending now`
-                  : `${sendingCampaigns.length} campaigns sending now`}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Emails are being delivered in the background
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="bg-info/15 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-info">
-                <Zap className="size-3 animate-pulse" />
-                Active
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Stat cards with stagger animation */}
       <div className="stagger-in grid gap-4 sm:grid-cols-2 xl:grid-cols-4" key={`stats-${refreshKey}`}>
