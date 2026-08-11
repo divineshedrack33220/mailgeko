@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
@@ -72,13 +73,25 @@ export default function NewTemplatePage() {
         subject: string;
         variables: string[];
       }>("/api/v1/templates/generate", { prompt: aiPrompt, brandVoice: "" });
+      let compiledHtml = gen.mjml;
+      try {
+        const res = await fetch("/api/preview/mjml", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mjml: gen.mjml }),
+        });
+        const result = await res.json();
+        if (res.ok) compiledHtml = result.html ?? gen.mjml;
+      } catch {
+        // fall back to MJML string
+      }
       const res = await api.post<{ template: Template }>("/api/v1/templates", {
         name: gen.name,
         description: gen.subject,
         category: aiCategory,
         thumbnail: "newsletter",
         mjml: gen.mjml,
-        html: gen.html,
+        html: compiledHtml,
         variables: gen.variables,
         tags: [],
         isFavorite: false,
@@ -101,19 +114,32 @@ export default function NewTemplatePage() {
     }
     setSaving(true);
     try {
-      const res = await api.post<{ template: Template }>("/api/v1/templates", {
+      let html = "";
+      try {
+        const res = await fetch("/api/preview/mjml", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mjml: initialMjml }),
+        });
+        const result = await res.json();
+        if (res.ok) html = result.html ?? "";
+      } catch {
+        // fall back to MJML string if rendering fails
+        html = initialMjml;
+      }
+      const apiRes = await api.post<{ template: Template }>("/api/v1/templates", {
         name,
         description: String(data.get("description") ?? "").trim(),
         category: String(data.get("category") ?? "Newsletter"),
         thumbnail: "newsletter",
         mjml: initialMjml,
-        html: initialMjml,
+        html,
         variables: ["first_name", "company", "cta_url", "unsubscribe_url"],
         tags: [],
         isFavorite: false,
       });
       toast.success("Template created");
-      router.push(`/templates/${res.template.id}`);
+      router.push(`/templates/${apiRes.template.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create template");
       setSaving(false);
@@ -162,18 +188,18 @@ export default function NewTemplatePage() {
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex w-56 flex-col gap-2">
                 <Label htmlFor="ai-category">Category</Label>
-                <select
-                  id="ai-category"
-                  value={aiCategory}
-                  onChange={(e) => setAiCategory(e.target.value as TemplateCategory)}
-                  className="border-input bg-background ring-offset-background focus-visible:ring-ring h-9 rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                <Select value={aiCategory} onValueChange={(v) => setAiCategory(v as TemplateCategory)}>
+                  <SelectTrigger id="ai-category" className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <Button onClick={generateWithAi} disabled={aiGenerating}>
                 {aiGenerating ? <Loader2 className="animate-spin" /> : <Sparkles />}

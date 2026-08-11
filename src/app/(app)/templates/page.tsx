@@ -194,6 +194,18 @@ export default function TemplatesPage() {
         variables: string[];
         subject: string;
       }>("/api/v1/templates/generate", { prompt: aiPrompt.trim(), brandVoice: "" });
+      let compiledHtml = draft.mjml;
+      try {
+        const res = await fetch("/api/preview/mjml", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mjml: draft.mjml }),
+        });
+        const result = await res.json();
+        if (res.ok) compiledHtml = result.html ?? draft.mjml;
+      } catch {
+        // fall back to MJML string
+      }
       const thumbnail =
         draft.category === "Welcome"
           ? "welcome"
@@ -210,7 +222,7 @@ export default function TemplatesPage() {
         category: draft.category,
         thumbnail,
         mjml: draft.mjml,
-        html: draft.html,
+        html: compiledHtml,
         variables: draft.variables,
         tags: ["ai"],
         isFavorite: false,
