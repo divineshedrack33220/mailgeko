@@ -195,6 +195,15 @@ func (s *Store) UpdateContactStatus(ctx context.Context, workspaceID, id, status
 	return err
 }
 
+// UpdateContactTags updates only the tags field of a contact, used by bulk
+// tag operations to avoid overwriting other fields.
+func (s *Store) UpdateContactTags(ctx context.Context, c *Contact) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE contacts SET tags = ?, updated_at = NOW() WHERE workspace_id = ? AND id = ?`,
+		marshalJSON(c.Tags), c.WorkspaceID, c.ID)
+	return err
+}
+
 func (s *Store) MarkContactEngagement(ctx context.Context, workspaceID, contactID string, at time.Time) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE contacts SET last_engagement_at = GREATEST(COALESCE(last_engagement_at, ?), ?)

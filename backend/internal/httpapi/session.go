@@ -59,24 +59,32 @@ func (s *SessionStore) Create(ctx context.Context, userID, tokenID, device, loca
 }
 
 func (s *SessionStore) List(ctx context.Context, userID string) ([]SessionInfo, error) {
-	keys, err := s.rdb.Keys(ctx, "session:"+userID+":*").Result()
-	if err != nil {
-		return nil, err
-	}
-	sessions := make([]SessionInfo, 0, len(keys))
-	for _, key := range keys {
-		raw, err := s.rdb.Get(ctx, key).Result()
-		if err == redis.Nil {
-			continue
-		}
+	var cursor uint64
+	pattern := "session:" + userID + ":*"
+	var sessions []SessionInfo
+	for {
+		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
 			return nil, err
 		}
-		var meta SessionInfo
-		if err := json.Unmarshal([]byte(raw), &meta); err != nil {
-			continue
+		for _, key := range keys {
+			raw, err := s.rdb.Get(ctx, key).Result()
+			if err == redis.Nil {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			var meta SessionInfo
+			if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+				continue
+			}
+			sessions = append(sessions, meta)
 		}
-		sessions = append(sessions, meta)
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
 	}
 	return sessions, nil
 }
@@ -91,51 +99,67 @@ func (s *SessionStore) Revoke(ctx context.Context, userID, tokenID string, ttl t
 // RevokeAll signs out every device of a user by blacklisting each of their
 // live session tokens.
 func (s *SessionStore) RevokeAll(ctx context.Context, userID string, ttl time.Duration) error {
-	keys, err := s.rdb.Keys(ctx, "session:"+userID+":*").Result()
-	if err != nil {
-		return err
-	}
-	for _, key := range keys {
-		raw, err := s.rdb.Get(ctx, key).Result()
+	var cursor uint64
+	pattern := "session:" + userID + ":*"
+	for {
+		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
-			continue
-		}
-		var meta SessionInfo
-		if err := json.Unmarshal([]byte(raw), &meta); err != nil {
-			continue
-		}
-		if err := s.rdb.Del(ctx, key).Err(); err != nil {
 			return err
 		}
-		if err := s.Blacklist(ctx, meta.TokenID, ttl); err != nil {
-			return err
+		for _, key := range keys {
+			raw, err := s.rdb.Get(ctx, key).Result()
+			if err != nil {
+				continue
+			}
+			var meta SessionInfo
+			if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+				continue
+			}
+			if err := s.rdb.Del(ctx, key).Err(); err != nil {
+				return err
+			}
+			if err := s.Blacklist(ctx, meta.TokenID, ttl); err != nil {
+				return err
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
 		}
 	}
 	return nil
 }
 
 func (s *SessionStore) RevokeAllExcept(ctx context.Context, userID, keepTokenID string, ttl time.Duration) error {
-	keys, err := s.rdb.Keys(ctx, "session:"+userID+":*").Result()
-	if err != nil {
-		return err
-	}
-	for _, key := range keys {
-		raw, err := s.rdb.Get(ctx, key).Result()
+	var cursor uint64
+	pattern := "session:" + userID + ":*"
+	for {
+		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
-			continue
-		}
-		var meta SessionInfo
-		if err := json.Unmarshal([]byte(raw), &meta); err != nil {
-			continue
-		}
-		if meta.TokenID == keepTokenID {
-			continue
-		}
-		if err := s.rdb.Del(ctx, key).Err(); err != nil {
 			return err
 		}
-		if err := s.Blacklist(ctx, meta.TokenID, ttl); err != nil {
-			return err
+		for _, key := range keys {
+			raw, err := s.rdb.Get(ctx, key).Result()
+			if err != nil {
+				continue
+			}
+			var meta SessionInfo
+			if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+				continue
+			}
+			if meta.TokenID == keepTokenID {
+				continue
+			}
+			if err := s.rdb.Del(ctx, key).Err(); err != nil {
+				return err
+			}
+			if err := s.Blacklist(ctx, meta.TokenID, ttl); err != nil {
+				return err
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
 		}
 	}
 	return nil

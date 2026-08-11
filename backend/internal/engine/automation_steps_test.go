@@ -174,7 +174,7 @@ func TestWebhookStepPostsContact(t *testing.T) {
 		Position:  "Analyst",
 		Tags:      []string{"vip"},
 	}
-	e.webhookStep(context.Background(), map[string]any{"url": srv.URL, "method": "post"}, contact)
+	e.webhookStep(context.Background(), "test-run-id", map[string]any{"url": srv.URL, "method": "post"}, contact)
 	select {
 	case <-received:
 	case <-time.After(5 * time.Second):
@@ -196,7 +196,7 @@ func TestWebhookStepSkipsWithoutURL(t *testing.T) {
 	}))
 	defer srv.Close()
 	e := &Engine{httpClient: http.DefaultClient}
-	e.webhookStep(context.Background(), map[string]any{"url": ""}, &store.Contact{Email: "a@b.co"})
+	e.webhookStep(context.Background(), "test-run-id", map[string]any{"url": ""}, &store.Contact{Email: "a@b.co"})
 	// Malformed URL must not panic or hang.
-	e.webhookStep(context.Background(), map[string]any{"url": "://bad"}, &store.Contact{Email: "a@b.co"})
+	e.webhookStep(context.Background(), "test-run-id", map[string]any{"url": "://bad"}, &store.Contact{Email: "a@b.co"})
 }

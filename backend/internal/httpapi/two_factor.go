@@ -203,18 +203,25 @@ func (s *Server) handleVerifyTwoFactor(w http.ResponseWriter, r *http.Request) {
 
 	verified := auth.ValidateTOTP(req.Code, user.TOTPSecret)
 	if !verified && user.TOTPRecovery != "" {
-		var matched bool
-		var remaining []string
-		matched, remaining = auth.ConsumeRecoveryCode(req.Code, user.TOTPRecovery)
-		if matched {
-			if len(remaining) > 0 {
-				if raw, err := json.Marshal(remaining); err == nil {
-					_ = s.db.UpdateRecoveryCodes(r.Context(), user.ID, string(raw))
+		// Use a Redis lock to prevent TOCTOU race on recovery code consumption.
+		// Without this, two concurrent logins could both consume the same code.
+		lockKey := "recovery_lock:" + user.ID
+		locked, _ := s.session.rdb.SetNX(context.Background(), lockKey, "1", 10*time.Second).Result()
+		if locked {
+			var matched bool
+			var remaining []string
+			matched, remaining = auth.ConsumeRecoveryCode(req.Code, user.TOTPRecovery)
+			if matched {
+				if len(remaining) > 0 {
+					if raw, err := json.Marshal(remaining); err == nil {
+						_ = s.db.UpdateRecoveryCodes(r.Context(), user.ID, string(raw))
+					}
+				} else {
+					_ = s.db.UpdateRecoveryCodes(r.Context(), user.ID, "[]")
 				}
-			} else {
-				_ = s.db.UpdateRecoveryCodes(r.Context(), user.ID, "[]")
+				verified = true
 			}
-			verified = true
+			_ = s.session.rdb.Del(context.Background(), lockKey).Err()
 		}
 	}
 	if !verified {

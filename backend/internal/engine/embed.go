@@ -67,27 +67,37 @@ func (e *Engine) EmbedWorkspace(ctx context.Context, workspaceID string) error {
 	if !e.EmbeddingEnabled() {
 		return ErrEmbeddingNotConfigured
 	}
-	contacts, err := e.store.ListContacts(ctx, workspaceID, store.ContactFilter{Limit: 500})
-	if err != nil {
-		return err
-	}
-	if len(contacts) == 0 {
-		return nil
-	}
 
-	texts := make([]string, len(contacts))
-	for i, c := range contacts {
-		texts[i] = contactText(c)
-	}
-	vecs, err := e.embedder.Embed(ctx, texts)
-	if err != nil {
-		return err
-	}
-	for i, c := range contacts {
-		if i < len(vecs) {
-			if err := e.embeds.Upsert(ctx, workspaceID, c.ID, vecs[i]); err != nil {
-				return err
+	const batchSize = 500
+	offset := 0
+	for {
+		contacts, err := e.store.ListContacts(ctx, workspaceID, store.ContactFilter{Limit: batchSize, Offset: offset})
+		if err != nil {
+			return err
+		}
+		if len(contacts) == 0 {
+			break
+		}
+
+		texts := make([]string, len(contacts))
+		for i, c := range contacts {
+			texts[i] = contactText(c)
+		}
+		vecs, err := e.embedder.Embed(ctx, texts)
+		if err != nil {
+			return err
+		}
+		for i, c := range contacts {
+			if i < len(vecs) {
+				if err := e.embeds.Upsert(ctx, workspaceID, c.ID, vecs[i]); err != nil {
+					return err
+				}
 			}
+		}
+
+		offset += len(contacts)
+		if len(contacts) < batchSize {
+			break
 		}
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -80,6 +81,23 @@ func (s *Store) MarkRecipientSent(ctx context.Context, campaignID, contactID, me
 		 WHERE campaign_id = ? AND contact_id = ?`,
 		messageID, time.Now().UTC(), campaignID, contactID)
 	return err
+}
+
+// RecipientAlreadySent reports whether a campaign recipient has already been
+// sent (or is in a terminal state like bounced/complained/unsubscribed). Used
+// as an idempotency guard to prevent duplicate sends on worker retries.
+func (s *Store) RecipientAlreadySent(ctx context.Context, campaignID, contactID string) (bool, error) {
+	var status string
+	err := s.db.GetContext(ctx, &status,
+		`SELECT status FROM campaign_recipients WHERE campaign_id = ? AND contact_id = ?`,
+		campaignID, contactID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return status == "sent" || status == "bounced" || status == "complained" || status == "unsubscribed", nil
 }
 
 func (s *Store) MarkRecipientFailed(ctx context.Context, campaignID, contactID, errMsg string) error {
@@ -278,6 +296,14 @@ func (s *Store) ListCampaignRecipients(ctx context.Context, campaignID string) (
 }
 
 func (s *Store) SetCampaignStatsField(ctx context.Context, campaignID, field string, delta int64) error {
+	allowedFields := map[string]bool{
+		"recipients": true, "sent": true, "delivered": true, "opened": true,
+		"clicked": true, "bounced": true, "complained": true, "unsubscribed": true,
+		"unique_opens": true, "unique_clicks": true,
+	}
+	if !allowedFields[field] {
+		return fmt.Errorf("store: invalid campaign_stats field: %s", field)
+	}
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE campaign_stats SET `+field+` = `+field+` + ? WHERE campaign_id = ?`, delta, campaignID)
 	return err

@@ -170,6 +170,23 @@ func (s *Store) MarkCampaignScheduled(ctx context.Context, id string) (bool, err
 	return n > 0, err
 }
 
+// RecoverStuckSendingCampaigns resets campaigns that have been stuck in
+// 'sending' status beyond the given timeout. This handles the case where a
+// worker crashed mid-send: the campaign is left in 'sending' with no active
+// worker to complete it. Stuck campaigns are reset to 'failed' so the user
+// can retry.
+func (s *Store) RecoverStuckSendingCampaigns(ctx context.Context, now time.Time, timeout time.Duration) (int64, error) {
+	cutoff := now.Add(-timeout)
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE campaigns SET status = 'failed', updated_at = ?
+		 WHERE status = 'sending' AND updated_at < ?`,
+		now.UTC(), cutoff.UTC())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (s *Store) DeleteCampaign(ctx context.Context, workspaceID, id string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM campaigns WHERE workspace_id = ? AND id = ?`, workspaceID, id)

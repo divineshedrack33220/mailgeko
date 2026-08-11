@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -393,7 +394,8 @@ func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) 
 	}
 	for _, email := range req.Emails {
 		if err := s.engine.SendTestEmail(r.Context(), c, email); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", "could not send test: "+err.Error())
+			log.Printf("campaigns: send test to %s: %v", email, err)
+			writeError(w, http.StatusInternalServerError, "internal", "could not send test email")
 			return
 		}
 	}

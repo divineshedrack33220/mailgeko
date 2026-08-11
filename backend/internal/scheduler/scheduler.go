@@ -39,9 +39,26 @@ func (s *Scheduler) Run(ctx context.Context) {
 			log.Println("campaign scheduler stopped")
 			return
 		case now := <-t.C:
+			s.recoverStuckCampaigns(ctx, now)
 			s.releaseDue(ctx, now)
 			s.releaseDueAutomationRuns(ctx, now)
 		}
+	}
+}
+
+// recoverStuckCampaigns resets campaigns stuck in 'sending' for longer than
+// the timeout. This handles worker crashes mid-send: the campaign is left in
+// 'sending' with no active worker, and the scheduler would never pick it up
+// again. Resetting to 'failed' lets the user retry.
+func (s *Scheduler) recoverStuckCampaigns(ctx context.Context, now time.Time) {
+	const stuckTimeout = 30 * time.Minute
+	n, err := s.db.RecoverStuckSendingCampaigns(ctx, now, stuckTimeout)
+	if err != nil {
+		log.Printf("scheduler: recover stuck campaigns: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("scheduler: recovered %d stuck campaign(s)", n)
 	}
 }
 
@@ -73,7 +90,7 @@ func (s *Scheduler) releaseDue(ctx context.Context, now time.Time) {
 // once the lease expires.
 func (s *Scheduler) releaseDueAutomationRuns(ctx context.Context, now time.Time) {
 	const (
-		lease        = 5 * time.Minute
+		lease        = 15 * time.Minute
 		maxBatchSize = 1000
 	)
 	due, err := s.db.ListDueAutomationRuns(ctx, now, maxBatchSize)

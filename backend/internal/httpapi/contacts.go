@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -242,7 +243,8 @@ func (s *Server) handleSendOneToOne(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.engine.SendOneToOne(r.Context(), ws, contact, req.Subject, req.Body)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "send_failed", "could not send email: "+err.Error())
+		log.Printf("contacts: send one-to-one to %s: %v", contact.Email, err)
+		writeError(w, http.StatusBadGateway, "send_failed", "could not send email")
 		return
 	}
 	writeOK(w, map[string]any{"messageId": result.MessageID})
@@ -342,6 +344,13 @@ func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not load contacts")
 		return
 	}
+
+	type contactUpdate struct {
+		id   string
+		tags []string
+	}
+	var updates []contactUpdate
+
 	for _, c := range contacts {
 		have := make(map[string]struct{}, len(c.Tags)+len(clean))
 		for _, t := range c.Tags {
@@ -354,11 +363,16 @@ func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
 				merged = append(merged, t)
 			}
 		}
-		c.Tags = merged
-		if err := s.db.UpdateContact(r.Context(), c); err != nil {
+		updates = append(updates, contactUpdate{id: c.ID, tags: merged})
+	}
+
+	for _, u := range updates {
+		c := &store.Contact{ID: u.id, WorkspaceID: claims.GetWorkspaceID(), Tags: u.tags}
+		if err := s.db.UpdateContactTags(r.Context(), c); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", "could not update contacts")
 			return
 		}
 	}
-	writeOK(w, map[string]any{"updated": len(contacts)})
+
+	writeOK(w, map[string]any{"updated": len(updates)})
 }

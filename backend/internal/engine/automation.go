@@ -227,7 +227,7 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 			}
 		}
 	case "webhook":
-		e.webhookStep(ctx, step.Config, contact)
+		e.webhookStep(ctx, run.ID, step.Config, contact)
 	default:
 		log.Printf("automation %s: unknown step type %q, skipping", automation.ID, step.Type)
 	}
@@ -446,7 +446,7 @@ func (e *Engine) removeTagStep(ctx context.Context, contact *store.Contact, cfg 
 	return e.store.UpdateContact(ctx, contact)
 }
 
-func (e *Engine) webhookStep(ctx context.Context, cfg map[string]any, contact *store.Contact) {
+func (e *Engine) webhookStep(ctx context.Context, runID string, cfg map[string]any, contact *store.Contact) {
 	url, _ := cfg["url"].(string)
 	if url == "" {
 		return
@@ -462,6 +462,7 @@ func (e *Engine) webhookStep(ctx context.Context, cfg map[string]any, contact *s
 		"company":   contact.Company,
 		"position":  contact.Position,
 		"tags":      contact.Tags,
+		"runId":     runID,
 	})
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -472,6 +473,7 @@ func (e *Engine) webhookStep(ctx context.Context, cfg map[string]any, contact *s
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Idempotency-Key", runID)
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		log.Printf("automation: webhook to %s failed: %v", url, err)

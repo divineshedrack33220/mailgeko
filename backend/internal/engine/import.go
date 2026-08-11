@@ -46,13 +46,15 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 		welcome = filterWelcomeAutomations(automations)
 	}
 
+	var importErr error
 	for {
 		row, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return imported, updated, err
+			importErr = err
+			break
 		}
 
 		get := func(names ...string) string {
@@ -132,6 +134,9 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 		}
 	}
 
+	if importErr != nil {
+		return imported, updated, importErr
+	}
 	return imported, updated, nil
 }
 

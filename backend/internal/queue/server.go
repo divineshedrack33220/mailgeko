@@ -27,7 +27,8 @@ func NewServer(redisAddr string) *Server {
 			RetryDelayFunc: func(n int, e error, t *asynq.Task) time.Duration {
 				return time.Duration(n*n) * 15 * time.Second
 			},
-			Logger: asynqLogger{},
+			ShutdownTimeout: 30 * time.Second,
+			Logger:          asynqLogger{},
 		},
 	)
 	return &Server{Server: srv, mux: asynq.NewServeMux()}

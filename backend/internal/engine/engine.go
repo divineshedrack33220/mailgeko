@@ -219,10 +219,16 @@ func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
 		return err
 	}
 
+	failedEnqueues := 0
 	for _, contactID := range ids {
 		if err := e.queue.EnqueueRecipientSend(ctx, campaign.ID, contactID); err != nil {
 			log.Printf("engine: enqueue recipient %s: %v", contactID, err)
+			_ = e.store.MarkRecipientFailed(ctx, campaign.ID, contactID, "enqueue failed: "+err.Error())
+			failedEnqueues++
 		}
+	}
+	if failedEnqueues > 0 {
+		log.Printf("engine: campaign %s: %d/%d recipients failed to enqueue", campaign.ID, failedEnqueues, len(ids))
 	}
 	return nil
 }
@@ -298,6 +304,15 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 	contact, err := e.store.GetContactByID(ctx, contactID)
 	if err != nil {
 		return err
+	}
+
+	// Idempotency guard: if a retried task already sent this email, skip it.
+	alreadySent, err := e.store.RecipientAlreadySent(ctx, campaignID, contactID)
+	if err != nil {
+		return err
+	}
+	if alreadySent {
+		return e.maybeCompleteCampaign(ctx, campaign)
 	}
 
 	if contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam {
