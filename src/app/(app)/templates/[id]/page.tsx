@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
@@ -255,11 +254,12 @@ export default function TemplateEditorPage() {
         category: template.category,
         thumbnail: template.thumbnail,
         mjml: saveSource,
-        html: html || saveSource,
+        html,
         variables: saveVariables,
         tags: template.tags,
         isFavorite: template.isFavorite,
       });
+      setTemplate({ ...template, name, mjml: saveSource, html, variables: saveVariables });
       setSaved(true);
       setDirty(false);
       toast.success("Template saved");
@@ -272,17 +272,34 @@ export default function TemplateEditorPage() {
   }, [template, saving, name, mode, designBlocks, designSettings, code, renderRaw]);
 
   React.useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void handleSave();
       } else if (e.key === "Escape") {
+        if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
         router.push("/templates");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, handleSave]);
+  }, [router, handleSave, dirty]);
+
+  const navigateAway = React.useCallback(() => {
+    if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
+    router.push("/templates");
+  }, [dirty, router]);
 
   const onCodeChange = React.useCallback((value: string) => {
     setCode(value);
@@ -434,10 +451,8 @@ export default function TemplateEditorPage() {
   return (
     <div className="bg-background fixed inset-0 z-[60] flex flex-col">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-        <Button variant="ghost" size="icon-sm" asChild aria-label="Close editor">
-          <Link href="/templates">
-            <X />
-          </Link>
+        <Button variant="ghost" size="icon-sm" onClick={() => void navigateAway()} aria-label="Close editor">
+          <X />
         </Button>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <Input

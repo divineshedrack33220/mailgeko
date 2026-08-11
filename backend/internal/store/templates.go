@@ -85,7 +85,7 @@ func (s *Store) ListTemplates(ctx context.Context, workspaceID string) ([]*Templ
 func (s *Store) UpdateTemplate(ctx context.Context, t *Template) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE templates SET name = ?, description = ?, category = ?, thumbnail = ?, mjml = ?,
-			html = ?, variables = ?, tags = ?, is_favorite = ? WHERE workspace_id = ? AND id = ?`,
+			html = ?, variables = ?, tags = ?, is_favorite = ?, updated_at = NOW() WHERE workspace_id = ? AND id = ?`,
 		t.Name, t.Description, t.Category, t.Thumbnail, t.MJML, t.HTML,
 		marshalJSON(t.Variables), marshalJSON(t.Tags), t.IsFavorite, t.WorkspaceID, t.ID)
 	return err
