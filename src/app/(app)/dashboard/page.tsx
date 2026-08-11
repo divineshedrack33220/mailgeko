@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { CampaignStatusBadge } from "@/components/shared/status-badges";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime, formatNumber, formatPercent, greetingForTime } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -81,7 +80,6 @@ export default function DashboardPage() {
   const role = useAuthStore((s) => s.role);
   const manage = canManage(role);
   const [range, setRange] = React.useState("7d");
-  const [metric, setMetric] = React.useState<"opens" | "clicks">("opens");
   const [loading, setLoading] = React.useState(true);
   const [overview, setOverview] = React.useState<OverviewResponse | null>(null);
   const [devices, setDevices] = React.useState<{ name: string; count: number }[]>([]);
@@ -251,12 +249,6 @@ export default function DashboardPage() {
                 <CardTitle>Email performance</CardTitle>
                 <CardDescription>Opens and clicks over time</CardDescription>
               </div>
-              <Tabs value={metric} onValueChange={(v) => setMetric(v as "opens" | "clicks")}>
-                <TabsList className="h-8">
-                  <TabsTrigger value="opens">Opens</TabsTrigger>
-                  <TabsTrigger value="clicks">Clicks</TabsTrigger>
-                </TabsList>
-              </Tabs>
             </div>
           </CardHeader>
           <CardContent>
@@ -270,11 +262,10 @@ export default function DashboardPage() {
               <AreaChart
                 data={seriesData}
                 height={280}
-                series={
-                  metric === "opens"
-                    ? [{ key: "opens", name: "Opens", color: "var(--chart-1)" }]
-                    : [{ key: "clicks", name: "Clicks", color: "var(--chart-2)" }]
-                }
+                series={[
+                  { key: "opens", name: "Opens", color: "var(--chart-1)" },
+                  { key: "clicks", name: "Clicks", color: "var(--chart-2)" },
+                ]}
               />
             )}
           </CardContent>
