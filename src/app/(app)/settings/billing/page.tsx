@@ -55,8 +55,8 @@ export default function BillingSettingsPage() {
     const run = async () => {
       try {
         const [limitsRes, plansRes] = await Promise.all([
-          api.get<{ limits: Limits }>("/api/v1/billing/current"),
-          api.get<{ plans: Plan[] }>("/api/v1/billing/plans"),
+          api.get<{ limits: BillingLimits }>("/api/v1/billing/current"),
+          api.get<{ plans: BillingPlan[] }>("/api/v1/billing/plans"),
         ]);
         if (!cancelled) {
           setLimits(limitsRes.limits);
