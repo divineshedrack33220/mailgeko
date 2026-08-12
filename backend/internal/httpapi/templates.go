@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"regexp"
 	"sort"
