@@ -1,0 +1,1 @@
+ALTER TABLE workspaces ADD COLUMN block_vpn TINYINT(1) NOT NULL DEFAULT 0;

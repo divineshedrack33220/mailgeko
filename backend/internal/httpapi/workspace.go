@@ -152,6 +152,25 @@ func (s *Server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"workspace": workspaceResponse(ws)})
 }
 
+func (s *Server) handleUpdateBlockVPN(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if !s.requireMemberRole(w, r, "owner", "admin") {
+		return
+	}
+	var req struct {
+		BlockVPN bool `json:"blockVpn"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if err := s.db.UpdateWorkspaceBlockVPN(r.Context(), claims.GetWorkspaceID(), req.BlockVPN); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not update VPN setting")
+		return
+	}
+	writeOK(w, map[string]any{"blockVpn": req.BlockVPN})
+}
+
 func workspaceResponse(ws *store.Workspace) map[string]any {
 	return map[string]any{
 		"id":        ws.ID,
@@ -160,5 +179,6 @@ func workspaceResponse(ws *store.Workspace) map[string]any {
 		"fromEmail": ws.FromEmail,
 		"replyTo":   ws.ReplyTo,
 		"logoUrl":   ws.LogoURL,
+		"blockVpn":  ws.BlockVPN,
 	}
 }

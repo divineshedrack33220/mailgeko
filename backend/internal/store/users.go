@@ -34,6 +34,7 @@ type Workspace struct {
 	ReplyTo                  string     `db:"reply_to"`
 	LogoURL                  string     `db:"logo_url"`
 	BrandVoice               string     `db:"brand_voice"`
+	BlockVPN                 bool       `db:"block_vpn"`
 	CreatedAt                time.Time  `db:"created_at"`
 }
 
@@ -226,6 +227,7 @@ func (s *Store) GetWorkspace(ctx context.Context, workspaceID string) (*Workspac
 		        COALESCE(reply_to, '') AS reply_to,
 		        COALESCE(logo_url, '') AS logo_url,
 		        COALESCE(brand_voice, '') AS brand_voice,
+		        COALESCE(block_vpn, 0) AS block_vpn,
 		        created_at
 		 FROM workspaces WHERE id = ?`, workspaceID)
 	if err != nil {
@@ -256,6 +258,12 @@ func (s *Store) UpdateWorkspaceLogo(ctx context.Context, workspaceID, logoURL st
 func (s *Store) UpdateWorkspaceBrandVoice(ctx context.Context, workspaceID, brandVoice string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE workspaces SET brand_voice = ? WHERE id = ?`, nullIfEmpty(brandVoice), workspaceID)
+	return err
+}
+
+func (s *Store) UpdateWorkspaceBlockVPN(ctx context.Context, workspaceID string, block bool) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE workspaces SET block_vpn = ? WHERE id = ?`, block, workspaceID)
 	return err
 }
 

@@ -35,6 +35,7 @@ type Server struct {
 	uploads        *cloudinary.Client
 	oauth          *oauth.Manager
 	trackingSecret string
+	httpClient     *http.Client
 }
 
 type Config struct {
@@ -110,6 +111,7 @@ func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssu
 		uploads:        cfg.Cloudinary,
 		oauth:          cfg.OAuth,
 		trackingSecret: cfg.TrackingSecret,
+		httpClient:     &http.Client{Timeout: 5 * time.Second},
 	}
 }
 
@@ -245,6 +247,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleGetWorkspace)))
 	mux.Handle("PATCH /api/v1/workspace", s.withAuth(http.HandlerFunc(s.handleUpdateWorkspace)))
+	mux.Handle("PATCH /api/v1/workspace/vpn", s.withAuth(http.HandlerFunc(s.handleUpdateBlockVPN)))
 	mux.Handle("GET /api/v1/workspaces", s.withAuth(http.HandlerFunc(s.handleListWorkspaces)))
 	mux.Handle("POST /api/v1/workspace/switch", s.withAuth(http.HandlerFunc(s.handleSwitchWorkspace)))
 	mux.Handle("GET /api/v1/workspace/brand-voice", s.withAuth(http.HandlerFunc(s.handleGetBrandVoice)))
@@ -375,6 +378,18 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		}
 		ctx := context.WithValue(r.Context(), claimsKey, claims)
 		s.refreshSessionActivity(ctx, claims)
+
+		// VPN blocking: check if workspace has it enabled.
+		if s.db != nil {
+			if ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil && ws.BlockVPN {
+				ip := extractIP(r)
+				if blocked, err := isVPN(r.Context(), s.httpClient, ip); err == nil && blocked {
+					writeError(w, http.StatusForbidden, "vpn_blocked", "access denied: VPN or proxy connection detected")
+					return
+				}
+			}
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

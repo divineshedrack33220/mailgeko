@@ -9,6 +9,7 @@ import {
   Save,
   Store,
   Loader2,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
 import { roleLabel } from "@/lib/permissions";
@@ -39,6 +41,8 @@ export default function ProfileSettingsPage() {
   const [sendingSaving, setSendingSaving] = React.useState(false);
   const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
   const [uploadingLogo, setUploadingLogo] = React.useState(false);
+  const [blockVpn, setBlockVpn] = React.useState(false);
+  const [vpnSaving, setVpnSaving] = React.useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement>(null);
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [saved, setSaved] = React.useState(false);
@@ -47,19 +51,33 @@ export default function ProfileSettingsPage() {
     const run = async () => {
       try {
         const res = await api.get<{
-          workspace: { id: string; name: string; fromName?: string; fromEmail?: string; replyTo?: string; logoUrl?: string };
+          workspace: { id: string; name: string; fromName?: string; fromEmail?: string; replyTo?: string; logoUrl?: string; blockVpn?: boolean };
         }>("/api/v1/workspace");
         setWorkspaceName(res.workspace?.name ?? "");
         setFromName(res.workspace?.fromName ?? "");
         setFromEmail(res.workspace?.fromEmail ?? "");
         setReplyTo(res.workspace?.replyTo ?? "");
         setLogoUrl(res.workspace?.logoUrl ?? "");
+        setBlockVpn(res.workspace?.blockVpn ?? false);
       } catch {
         // Keep the input editable; the save action will surface errors.
       }
     };
     run();
   }, []);
+
+  const toggleBlockVpn = async (checked: boolean) => {
+    setVpnSaving(true);
+    try {
+      await api.patch("/api/v1/workspace/vpn", { blockVpn: checked });
+      setBlockVpn(checked);
+      toast.success(checked ? "VPN blocking enabled" : "VPN blocking disabled");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update VPN setting");
+    } finally {
+      setVpnSaving(false);
+    }
+  };
 
   React.useEffect(() => {
     const run = async () => {
@@ -309,6 +327,30 @@ export default function ProfileSettingsPage() {
               {sendingSaving && <Loader2 className="animate-spin" />}
               Save changes
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="text-primary size-4" /> Security
+          </CardTitle>
+          <CardDescription>Protect your workspace from unauthorized access.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <Label>Block VPN connections</Label>
+              <p className="text-muted-foreground text-sm">
+                Prevent dashboard access when users connect through a VPN or proxy.
+              </p>
+            </div>
+            <Switch
+              checked={blockVpn}
+              onCheckedChange={toggleBlockVpn}
+              disabled={vpnSaving}
+            />
           </div>
         </CardContent>
       </Card>
