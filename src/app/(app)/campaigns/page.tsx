@@ -11,7 +11,6 @@ import {
   Pencil,
   Trash2,
   Pause,
-  ArrowUpDown,
   Mail,
   Loader2,
 } from "lucide-react";
@@ -47,7 +46,6 @@ import {
 } from "@/components/ui/select";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -270,11 +268,7 @@ export default function CampaignsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6">
-                    <button className="hover:text-foreground flex cursor-pointer items-center gap-1 transition-colors">
-                      Campaign <ArrowUpDown className="size-3" />
-                  </button>
-                </TableHead>
+                  <TableHead className="pl-6">Campaign</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Recipients</TableHead>
                 <TableHead className="text-right">Open rate</TableHead>
@@ -407,9 +401,9 @@ export default function CampaignsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+            <Button variant="destructive" onClick={handleDelete}>
               Delete campaign
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

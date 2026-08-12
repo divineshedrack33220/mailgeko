@@ -157,7 +157,6 @@ func (s *Server) handleGenerateTemplate(w http.ResponseWriter, r *http.Request) 
 	s.recordAIHistory(r.Context(), claims.GetWorkspaceID(), "template", req.Prompt, d.Subject+"\n"+d.Heading+"\n"+d.Body)
 	writeOK(w, map[string]any{
 		"mjml":      mjml,
-		"html":      mjml,
 		"name":      d.Name,
 		"category":  category,
 		"subject":   d.Subject,

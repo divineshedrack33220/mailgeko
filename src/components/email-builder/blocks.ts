@@ -116,7 +116,7 @@ export const blockLabels: Record<BlockType, string> = {
   social: "Social icons",
 };
 
-const newId = () =>
+export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;

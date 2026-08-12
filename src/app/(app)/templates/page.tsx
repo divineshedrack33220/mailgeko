@@ -190,7 +190,6 @@ export default function TemplatesPage() {
         name: string;
         category: TemplateCategory;
         mjml: string;
-        html: string;
         variables: string[];
         subject: string;
       }>("/api/v1/templates/generate", { prompt: aiPrompt.trim(), brandVoice: "" });

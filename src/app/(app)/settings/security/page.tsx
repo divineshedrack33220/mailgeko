@@ -388,7 +388,7 @@ export default function SecuritySettingsPage() {
           </div>
           {twoFactorEnabled && (
             <div className="bg-muted/50 mt-3 rounded-lg border px-4 py-3">
-              <p className="text-muted-foreground text-xs leading-relaxed">
+              <div className="text-muted-foreground text-xs leading-relaxed">
                 Recovery codes can get you back in if you lose your device.{" "}
                 <button
                   className="text-primary font-medium hover:underline"
@@ -396,7 +396,7 @@ export default function SecuritySettingsPage() {
                 >
                   Generate new codes
                 </button>
-              </p>
+              </div>
             </div>
           )}
         </CardContent>
@@ -605,13 +605,17 @@ export default function SecuritySettingsPage() {
               Enter a current code from your authenticator app to confirm.
             </DialogDescription>
           </DialogHeader>
-          <Input
-            inputMode="numeric"
-            placeholder="••••••"
-            className="tracking-[0.4em]"
-            value={disableCode}
-            onChange={(e) => setDisableCode(e.target.value)}
-          />
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="disable-code">Authentication code</Label>
+            <Input
+              id="disable-code"
+              inputMode="numeric"
+              placeholder="••••••"
+              className="tracking-[0.4em]"
+              value={disableCode}
+              onChange={(e) => setDisableCode(e.target.value)}
+            />
+          </div>
           <DialogFooter>
             <Button
               variant="destructive"
@@ -657,10 +661,13 @@ export default function SecuritySettingsPage() {
           )}
           <DialogFooter>
             {regenerateStep === "confirm" && (
-              <Button variant="destructive" onClick={regenerateCodes} disabled={busy}>
-                {busy && <Loader2 className="animate-spin" />}
-                Generate new codes
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setRegenerateOpen(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={regenerateCodes} disabled={busy}>
+                  {busy && <Loader2 className="animate-spin" />}
+                  Generate new codes
+                </Button>
+              </>
             )}
             {regenerateStep === "codes" && (
               <Button onClick={() => setRegenerateOpen(false)}>Done</Button>

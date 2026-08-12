@@ -126,7 +126,7 @@ export default function NewCampaignPage() {
 
   const canContinue = React.useMemo(() => {
     if (step === 1) return selectedLists.length > 0;
-    if (step === 2) return subject.trim().length > 0 && fromName.trim().length > 0 && fromEmail.includes("@") && template.length > 0;
+    if (step === 2) return subject.trim().length > 0 && fromName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail.trim()) && template.length > 0;
     if (step === 3) {
       if (scheduleMode === "later") return scheduleDate.length > 0;
       return true;

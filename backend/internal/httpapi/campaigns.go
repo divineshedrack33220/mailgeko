@@ -394,11 +394,22 @@ func (s *Server) handleSendTestCampaign(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusUnprocessableEntity, "validation", "at least one email is required")
 		return
 	}
+	validEmails := make([]string, 0, len(req.Emails))
+	for _, email := range req.Emails {
+		email = strings.TrimSpace(email)
+		if email != "" && strings.Contains(email, "@") && strings.Contains(email, ".") {
+			validEmails = append(validEmails, email)
+		}
+	}
+	if len(validEmails) == 0 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "no valid email addresses provided")
+		return
+	}
 	if s.engine == nil {
 		writeError(w, http.StatusInternalServerError, "internal", "sending is not configured")
 		return
 	}
-	for _, email := range req.Emails {
+	for _, email := range validEmails {
 		if err := s.engine.SendTestEmail(r.Context(), c, email); err != nil {
 			log.Printf("campaigns: send test to %s: %v", email, err)
 			writeError(w, http.StatusInternalServerError, "internal", "could not send test email")

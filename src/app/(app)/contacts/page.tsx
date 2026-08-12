@@ -360,6 +360,7 @@ export default function ContactsPage() {
                 className="h-9 w-full pl-9 sm:w-64"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search contacts"
               />
             </div>
             <Select value={status} onValueChange={(v) => setStatus(v as "all" | ContactStatus)}>
@@ -606,7 +607,7 @@ export default function ContactsPage() {
               of <span className="font-medium text-foreground">{formatNumber(filtered.length)}</span>
             </p>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon-sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+              <Button variant="outline" size="icon-sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">
                 <ChevronLeft />
               </Button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -624,7 +625,7 @@ export default function ContactsPage() {
                     </Button>
                   </React.Fragment>
                 ))}
-              <Button variant="outline" size="icon-sm" disabled={safePage === totalPages} onClick={() => setPage((p) => p + 1)}>
+              <Button variant="outline" size="icon-sm" disabled={safePage === totalPages} onClick={() => setPage((p) => p + 1)} aria-label="Next page">
                 <ChevronRight />
               </Button>
             </div>

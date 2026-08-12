@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { xml } from "@codemirror/lang-xml";
+import { html } from "@codemirror/lang-html";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import {
@@ -603,7 +604,7 @@ export default function TemplateEditorPage() {
                 style={{ height: "100%" }}
                 editable={false}
                 theme={isDark ? oneDark : undefined}
-                extensions={[xml(), editorTheme]}
+                extensions={[html(), editorTheme]}
                 basicSetup={{ lineNumbers: true, foldGutter: true, autocompletion: false }}
               />
             ) : (

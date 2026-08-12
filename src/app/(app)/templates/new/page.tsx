@@ -67,7 +67,6 @@ export default function NewTemplatePage() {
     try {
       const gen = await api.post<{
         mjml: string;
-        html: string;
         name: string;
         category: string;
         subject: string;

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -211,7 +212,8 @@ func (s *Server) handleTestSMTP(w http.ResponseWriter, r *http.Request) {
 		Text:    "If you're reading this, your SMTP settings work.",
 	})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "smtp_test_failed", err.Error())
+		log.Printf("smtp test failed: %v", err)
+		writeError(w, http.StatusBadRequest, "smtp_test_failed", "SMTP connection failed — check host, port, and credentials")
 		return
 	}
 	writeOK(w, map[string]bool{"ok": true})

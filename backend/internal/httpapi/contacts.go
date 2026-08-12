@@ -132,7 +132,10 @@ func (s *Server) handleListContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, _ := s.db.CountContacts(r.Context(), claims.GetWorkspaceID())
+	count, err := s.db.CountContacts(r.Context(), claims.GetWorkspaceID())
+	if err != nil {
+		count = int64(len(contacts))
+	}
 
 	out := make([]map[string]any, 0, len(contacts))
 	for _, c := range contacts {

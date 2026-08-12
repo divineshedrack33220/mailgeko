@@ -53,6 +53,7 @@ import {
   SOCIAL_PLATFORMS,
   blockLabels,
   makeBlock,
+  newId,
 } from "./blocks";
 
 export type Device = "desktop" | "tablet" | "mobile";
@@ -68,11 +69,6 @@ interface EmailBuilderProps {
   onModeChange: (mode: "design" | "code" | "html") => void;
   emptyHint?: string;
 }
-
-const newId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 const deviceWidth: Record<Device, number> = {
   desktop: 640,

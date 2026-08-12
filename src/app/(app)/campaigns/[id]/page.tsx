@@ -194,11 +194,13 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
   const sendTest = async () => {
     const emails = testEmails
       .split(",")
       .map((e) => e.trim())
-      .filter(Boolean);
+      .filter(isValidEmail);
     if (emails.length === 0) return;
     setBusy(true);
     try {
@@ -731,7 +733,6 @@ export default function CampaignDetailPage() {
             <div className="divide-y">
               {[
                 { action: "Campaign created", detail: "by your workspace", time: campaign.createdAt },
-                { action: "Content updated", detail: "Subject line finalized", time: campaign.updatedAt },
                 ...(isSending
                   ? [{ action: "Started sending", detail: "Queued for delivery", time: campaign.updatedAt }]
                   : []),
@@ -781,7 +782,7 @@ export default function CampaignDetailPage() {
             <Button variant="outline" onClick={() => setTestOpen(false)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={sendTest} disabled={busy || !testEmails.includes("@")}>
+            <Button onClick={sendTest} disabled={busy || !testEmails.split(",").some((e) => isValidEmail(e.trim()))}>
               {busy && <Loader2 className="animate-spin" />}
               Send test
             </Button>
