@@ -120,8 +120,9 @@ export default function ContactDetailPage() {
       toast.success("Contact deleted");
       router.replace("/contacts");
     } catch (err) {
-      setDeleting(false);
       toast.error(err instanceof Error ? err.message : "Could not delete contact");
+    } finally {
+      setDeleting(false);
     }
   };
 

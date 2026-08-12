@@ -113,12 +113,13 @@ export default function ProfileSettingsPage() {
   const saveSending = async () => {
     setSendingSaving(true);
     try {
-      await api.patch("/api/v1/workspace", {
-        name: workspaceName.trim() || "Mailgeko Workspace",
+      const payload: Record<string, string> = {
         fromName: fromName.trim(),
         fromEmail: fromEmail.trim(),
         replyTo: replyTo.trim(),
-      });
+      };
+      if (workspaceName.trim()) payload.name = workspaceName.trim();
+      await api.patch("/api/v1/workspace", payload);
       toast.success("Sending defaults saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save sending defaults");

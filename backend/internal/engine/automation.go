@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -447,8 +449,23 @@ func (e *Engine) removeTagStep(ctx context.Context, contact *store.Contact, cfg 
 }
 
 func (e *Engine) webhookStep(ctx context.Context, runID string, cfg map[string]any, contact *store.Contact) {
-	url, _ := cfg["url"].(string)
-	if url == "" {
+	rawURL, _ := cfg["url"].(string)
+	if rawURL == "" {
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		log.Printf("automation: webhook invalid URL: %s", rawURL)
+		return
+	}
+	host := parsed.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() {
+			log.Printf("automation: webhook blocked private IP: %s", host)
+			return
+		}
+	} else if strings.HasSuffix(host, ".local") || host == "localhost" {
+		log.Printf("automation: webhook blocked local host: %s", host)
 		return
 	}
 	method := "POST"
@@ -467,7 +484,7 @@ func (e *Engine) webhookStep(ctx context.Context, runID string, cfg map[string]a
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, bytes.NewReader(payload))
 	if err != nil {
 		log.Printf("automation: webhook request: %v", err)
 		return
@@ -476,7 +493,7 @@ func (e *Engine) webhookStep(ctx context.Context, runID string, cfg map[string]a
 	req.Header.Set("X-Idempotency-Key", runID)
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		log.Printf("automation: webhook to %s failed: %v", url, err)
+		log.Printf("automation: webhook to %s failed: %v", rawURL, err)
 		return
 	}
 	_ = resp.Body.Close()

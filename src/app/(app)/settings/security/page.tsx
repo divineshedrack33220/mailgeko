@@ -6,6 +6,7 @@ import {
   KeyRound,
   Smartphone,
   Check,
+  X,
   Lock,
   LogOut,
   Monitor,
@@ -328,9 +329,14 @@ export default function SecuritySettingsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {["8+ characters", "Mixed case", "Number", "Symbol"].map((rule) => (
-              <Badge key={rule} variant="secondary" className="gap-1">
-                <Check className="size-3" /> {rule}
+            {[
+              { label: "8+ characters", met: newPassword.length >= 8 },
+              { label: "Mixed case", met: /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword) },
+              { label: "Number", met: /[0-9]/.test(newPassword) },
+              { label: "Symbol", met: /[^a-zA-Z0-9]/.test(newPassword) },
+            ].map(({ label, met }) => (
+              <Badge key={label} variant="secondary" className={`gap-1 ${met ? "text-green-600" : "text-muted-foreground"}`}>
+                {met ? <Check className="size-3" /> : <X className="size-3" />} {label}
               </Badge>
             ))}
           </div>

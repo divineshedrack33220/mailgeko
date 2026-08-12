@@ -182,7 +182,8 @@ export default function DashboardPage() {
             size="icon"
             className="size-8"
             onClick={() => {
-              loadOverview();
+              setLoading(true);
+              loadOverview().finally(() => setLoading(false));
               setRefreshKey((k) => k + 1);
             }}
             title="Refresh data"

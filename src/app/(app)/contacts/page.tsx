@@ -158,12 +158,19 @@ export default function ContactsPage() {
     );
   };
 
+  const escapeCsvField = (val: string) => {
+    if (/[",\n\r]/.test(val)) return `"${val.replace(/"/g, '""')}"`;
+    return val;
+  };
+
   const exportCsv = () => {
     const rows = filtered;
     const header = "email,first_name,last_name,company,position,country,city,status,tags";
     const body = rows
       .map((c) =>
-        [c.email, c.firstName ?? "", c.lastName ?? "", c.company ?? "", c.position ?? "", c.country ?? "", c.city ?? "", c.status, (c.tags ?? []).join(";")].join(",")
+        [c.email, c.firstName ?? "", c.lastName ?? "", c.company ?? "", c.position ?? "", c.country ?? "", c.city ?? "", c.status, (c.tags ?? []).join(";")]
+          .map(escapeCsvField)
+          .join(",")
       )
       .join("\n");
     const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });

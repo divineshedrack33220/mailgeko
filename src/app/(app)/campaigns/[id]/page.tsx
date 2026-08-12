@@ -214,32 +214,35 @@ export default function CampaignDetailPage() {
   };
 
   const updateSetting = async (key: "trackOpens" | "trackClicks" | "allowUnsubscribe", value: boolean) => {
-    if (!campaign) return;
-    const next = {
-      ...campaign,
-      settings: { ...(campaign.settings ?? { trackOpens: true, trackClicks: true, allowUnsubscribe: true }), [key]: value },
-    };
-    setCampaign(next);
-    try {
-      await api.patch(`/api/v1/campaigns/${campaign.id}`, {
-        name: campaign.name,
-        subject: campaign.subject,
-        templateId: campaign.templateId,
-        previewText: campaign.previewText,
-        plainText: campaign.plainText,
-        htmlContent: campaign.htmlContent,
-        status: campaign.status,
-        type: campaign.type,
-        listIds: campaign.listIds,
-        segmentIds: campaign.segmentIds,
-        sender: campaign.sender,
+    setCampaign((prev) => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        settings: { ...(prev.settings ?? { trackOpens: true, trackClicks: true, allowUnsubscribe: true }), [key]: value },
+      };
+      const payload = {
+        name: prev.name,
+        subject: prev.subject,
+        templateId: prev.templateId,
+        previewText: prev.previewText,
+        plainText: prev.plainText,
+        htmlContent: prev.htmlContent,
+        status: prev.status,
+        type: prev.type,
+        listIds: prev.listIds,
+        segmentIds: prev.segmentIds,
+        sender: prev.sender,
         settings: next.settings,
-      });
-      toast.success("Settings updated");
-    } catch (err) {
-      setCampaign(campaign);
-      toast.error(err instanceof Error ? err.message : "Could not update settings");
-    }
+      };
+      api.patch(`/api/v1/campaigns/${prev.id}`, payload).then(
+        () => toast.success("Settings updated"),
+        (err) => {
+          setCampaign((cur) => (cur?.id === prev.id ? { ...prev } : cur));
+          toast.error(err instanceof Error ? err.message : "Could not update settings");
+        }
+      );
+      return next;
+    });
   };
 
   if (loading) {
@@ -260,7 +263,7 @@ export default function CampaignDetailPage() {
   const clickRate = rateBase ? (stats.uniqueClicks / rateBase) * 100 : 0;
   const bounceRate = stats.sent ? (stats.bounced / stats.sent) * 100 : 0;
   const sendProgress = stats.sent
-    ? (stats.sent / Math.max(stats.recipients, 1)) * 100
+    ? Math.min(100, (stats.sent / Math.max(stats.recipients, 1)) * 100)
     : 0;
 
   const isSending = campaign.status === "sending";

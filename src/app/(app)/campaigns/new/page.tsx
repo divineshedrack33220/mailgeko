@@ -132,7 +132,7 @@ export default function NewCampaignPage() {
       return true;
     }
     return true;
-  }, [step, selectedLists.length, subject, fromName, fromEmail, scheduleMode, scheduleDate]);
+  }, [step, selectedLists.length, subject, fromName, fromEmail, template, scheduleMode, scheduleDate]);
 
   const finish = async () => {
     setSending(true);

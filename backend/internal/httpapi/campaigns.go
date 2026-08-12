@@ -55,7 +55,13 @@ func (r *campaignRequest) apply(c *store.Campaign) {
 		c.HTMLContent = r.HTMLContent
 	}
 	if r.Status != "" {
-		c.Status = r.Status
+		allowedStatuses := map[string]bool{
+			"draft": true, "scheduled": true, "sending": true,
+			"sent": true, "completed": true, "failed": true, "paused": true,
+		}
+		if allowedStatuses[r.Status] {
+			c.Status = r.Status
+		}
 	}
 	if r.Type != "" {
 		c.Type = r.Type

@@ -70,6 +70,9 @@ func (s *Server) handleCreateList(w http.ResponseWriter, r *http.Request) {
 	}
 	added := 0
 	for _, id := range req.ContactIDs {
+		if _, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), id); err != nil {
+			continue
+		}
 		if err := s.db.AddContactToList(r.Context(), l.ID, id); err == nil {
 			added++
 		}
@@ -162,6 +165,9 @@ func (s *Server) handleAddContactsToList(w http.ResponseWriter, r *http.Request)
 
 	added := 0
 	for _, id := range req.ContactIDs {
+		if _, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), id); err != nil {
+			continue
+		}
 		if err := s.db.AddContactToList(r.Context(), listID, id); err == nil {
 			added++
 		}
@@ -179,10 +185,21 @@ func (s *Server) handleAddContactsToList(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleRemoveContactFromList(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
 	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
 		return
 	}
-	if err := s.db.RemoveContactFromList(r.Context(), r.PathValue("id"), r.PathValue("contactId")); err != nil {
+	listID := r.PathValue("id")
+	if _, err := s.db.GetList(r.Context(), claims.GetWorkspaceID(), listID); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "list not found")
+		return
+	}
+	contactID := r.PathValue("contactId")
+	if _, err := s.db.GetContact(r.Context(), claims.GetWorkspaceID(), contactID); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "contact not found")
+		return
+	}
+	if err := s.db.RemoveContactFromList(r.Context(), listID, contactID); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not remove contact")
 		return
 	}

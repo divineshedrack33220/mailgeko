@@ -174,6 +174,9 @@ func (s *Server) handleCreateContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, listID := range req.ListIDs {
+		if _, err := s.db.GetList(r.Context(), claims.GetWorkspaceID(), listID); err != nil {
+			continue
+		}
 		_ = s.db.AddContactToList(r.Context(), listID, c.ID)
 	}
 	s.maybeEnqueueEmbed(r, claims.GetWorkspaceID(), c.ID)
