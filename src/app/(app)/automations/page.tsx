@@ -84,6 +84,9 @@ export default function AutomationsPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<Automation | null>(null);
   const [runTarget, setRunTarget] = React.useState<Automation | null>(null);
   const [running, setRunning] = React.useState(false);
+  const [togglingStatus, setTogglingStatus] = React.useState<string | null>(null);
+  const [duplicating, setDuplicating] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState<string | null>(null);
   const canRun = role === "owner" || role === "admin";
 
   const load = React.useCallback(async () => {
@@ -129,6 +132,7 @@ export default function AutomationsPage() {
   });
 
   const toggleStatus = async (automation: Automation) => {
+    setTogglingStatus(automation.id);
     const next: AutomationStatus = automation.status === "active" ? "paused" : "active";
     try {
       await api.patch(`/api/v1/automations/${automation.id}`, payloadFor(automation, next));
@@ -140,26 +144,34 @@ export default function AutomationsPage() {
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update automation");
+    } finally {
+      setTogglingStatus(null);
     }
   };
 
   const duplicateAutomation = async (automation: Automation) => {
+    setDuplicating(automation.id);
     try {
       await api.post(`/api/v1/automations/${automation.id}/duplicate`, {});
       toast.success(`"${automation.name}" duplicated`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not duplicate automation");
+    } finally {
+      setDuplicating(null);
     }
   };
 
   const deleteAutomation = async (automation: Automation) => {
+    setDeleting(automation.id);
     try {
       await api.delete(`/api/v1/automations/${automation.id}`);
       toast.success(`"${automation.name}" deleted`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete automation");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -288,26 +300,28 @@ export default function AutomationsPage() {
                   <Workflow className="size-5" />
                 </span>
                 <div className="flex items-center gap-1">
-                  {manage && automation.status === "active" && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => toggleStatus(automation)}
-                      aria-label="Pause automation"
-                    >
-                      <Pause />
-                    </Button>
-                  )}
-                  {manage && automation.status !== "active" && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => toggleStatus(automation)}
-                      aria-label="Activate automation"
-                    >
-                      <Play />
-                    </Button>
-                  )}
+{manage && automation.status === "active" && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => toggleStatus(automation)}
+                  aria-label="Pause automation"
+                  disabled={togglingStatus === automation.id}
+                >
+                  {togglingStatus === automation.id ? <Loader2 className="animate-spin" /> : <Pause />}
+                </Button>
+              )}
+              {manage && automation.status !== "active" && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => toggleStatus(automation)}
+                  aria-label="Activate automation"
+                  disabled={togglingStatus === automation.id}
+                >
+                  {togglingStatus === automation.id ? <Loader2 className="animate-spin" /> : <Play />}
+                </Button>
+              )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon-sm" aria-label="Automation actions">
@@ -329,26 +343,28 @@ export default function AutomationsPage() {
                           <Play /> Run now
                         </DropdownMenuItem>
                       )}
-                      {manage && (
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => duplicateAutomation(automation)}
-                        >
-                          <Copy /> Duplicate
-                        </DropdownMenuItem>
-                      )}
-                      {manage && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            variant="destructive"
-                            onClick={() => setDeleteTarget(automation)}
-                          >
-                            <Trash2 /> Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
+{manage && (
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onClick={() => duplicateAutomation(automation)}
+                    disabled={duplicating === automation.id}
+                  >
+                    {duplicating === automation.id ? <Loader2 className="animate-spin" /> : <Copy />} Duplicate
+                  </DropdownMenuItem>
+                )}
+{manage && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      variant="destructive"
+                      onClick={() => setDeleteTarget(automation)}
+                      disabled={deleting === automation.id}
+                    >
+                      {deleting === automation.id ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
