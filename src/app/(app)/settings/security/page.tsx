@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/format";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface SetupResponse {
@@ -58,7 +58,6 @@ function sessionIcon(device: string) {
   if (/macos|windows|linux/i.test(device)) return Monitor;
   return Globe;
 }
-
 export default function SecuritySettingsPage() {
   const [currentPassword, setCurrentPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
@@ -86,12 +85,17 @@ export default function SecuritySettingsPage() {
   const [sessions, setSessions] = React.useState<SessionRow[]>([]);
   const [sessionsLoading, setSessionsLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState(false);
 
   const refreshSessions = React.useCallback(async () => {
     try {
       const res = await api.get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions");
       setSessions(res.sessions);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthError(true);
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Could not load sessions");
     }
   }, []);
@@ -103,16 +107,25 @@ export default function SecuritySettingsPage() {
       .then((res) => {
         if (active) setTwoFactorEnabled(Boolean(res.user.twoFactorEnabled));
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthError(true);
+        }
+      })
       .finally(() => {
         if (active) setStatusLoading(false);
       });
+
     api
       .get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions")
       .then((res) => {
         if (active) setSessions(res.sessions);
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthError(true);
+        }
+      })
       .finally(() => {
         if (active) setSessionsLoading(false);
       });
@@ -254,6 +267,17 @@ export default function SecuritySettingsPage() {
       toast.error(err instanceof Error ? err.message : "Could not revoke sessions");
     }
   };
+
+  if (authError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[240px] gap-3 text-center">
+        <KeyRound className="size-6 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Your session has expired. Redirecting to sign in…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
