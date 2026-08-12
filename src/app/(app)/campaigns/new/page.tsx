@@ -126,7 +126,7 @@ export default function NewCampaignPage() {
 
   const canContinue = React.useMemo(() => {
     if (step === 1) return selectedLists.length > 0;
-    if (step === 2) return subject.trim().length > 0 && fromName.trim().length > 0 && fromEmail.includes("@");
+    if (step === 2) return subject.trim().length > 0 && fromName.trim().length > 0 && fromEmail.includes("@") && template.length > 0;
     if (step === 3) {
       if (scheduleMode === "later") return scheduleDate.length > 0;
       return true;
@@ -535,7 +535,10 @@ function ContentStep({
         <div className="px-6">
           <Label>Email template</Label>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {templates.slice(0, 4).map((t) => (
+            {templates.length === 0 ? (
+              <p className="text-muted-foreground col-span-full text-sm">No templates yet — create one in the Templates section.</p>
+            ) : (
+              templates.map((t) => (
               <button
                 type="button"
                 key={t.id}
@@ -555,7 +558,8 @@ function ContentStep({
                   {t.category}
                 </span>
               </button>
-            ))}
+            ))
+            )}
           </div>
         </div>
 

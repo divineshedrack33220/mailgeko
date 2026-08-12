@@ -133,16 +133,24 @@ function TextField({
 }
 
 function ColorField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const safeValue = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
   return (
     <div className="flex items-center gap-2">
       <input
         type="color"
-        value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000"}
+        value={safeValue}
         onChange={(e) => onChange(e.target.value)}
         className="size-8 shrink-0 cursor-pointer rounded-md border"
         aria-label="Pick color"
       />
-      <TextField value={value} onChange={onChange} className="font-mono" />
+      <TextField
+        value={value}
+        onChange={(v) => {
+          if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onChange(v);
+        }}
+        placeholder="#000000"
+        className="font-mono"
+      />
     </div>
   );
 }
@@ -242,7 +250,7 @@ function HeroPreview({ p }: { p: HeroProps }) {
     >
       {p.headline.trim() && (
         <div
-          style={{ color: p.headlineColor, fontSize: "30px", fontWeight: 700, lineHeight: 1.3 }}
+          style={{ color: p.headlineColor, fontSize: "32px", fontWeight: 700, lineHeight: 1.3 }}
         >
           {p.headline}
         </div>
