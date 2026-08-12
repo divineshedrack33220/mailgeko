@@ -165,7 +165,7 @@ func TestWebhookStepPostsContact(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	e := &Engine{httpClient: http.DefaultClient}
+	e := &Engine{httpClient: http.DefaultClient, allowPrivateHooks: true}
 	contact := &store.Contact{
 		Email:     "a@b.co",
 		FirstName: "Ada",

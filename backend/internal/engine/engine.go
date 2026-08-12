@@ -44,6 +44,7 @@ type Engine struct {
 	embedder           embed.Embedder
 	enc                *crypto.Encryptor
 	httpClient         *http.Client
+	allowPrivateHooks  bool
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {

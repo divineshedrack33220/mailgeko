@@ -458,15 +458,17 @@ func (e *Engine) webhookStep(ctx context.Context, runID string, cfg map[string]a
 		log.Printf("automation: webhook invalid URL: %s", rawURL)
 		return
 	}
-	host := parsed.Hostname()
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() {
-			log.Printf("automation: webhook blocked private IP: %s", host)
+	if !e.allowPrivateHooks {
+		host := parsed.Hostname()
+		if ip := net.ParseIP(host); ip != nil {
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() {
+				log.Printf("automation: webhook blocked private IP: %s", host)
+				return
+			}
+		} else if strings.HasSuffix(host, ".local") || host == "localhost" {
+			log.Printf("automation: webhook blocked local host: %s", host)
 			return
 		}
-	} else if strings.HasSuffix(host, ".local") || host == "localhost" {
-		log.Printf("automation: webhook blocked local host: %s", host)
-		return
 	}
 	method := "POST"
 	if m, ok := cfg["method"].(string); ok && m != "" {
