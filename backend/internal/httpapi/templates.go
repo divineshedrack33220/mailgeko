@@ -78,12 +78,16 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
 		return
 	}
+	category := req.Category
+	if !templateCategories[category] {
+		category = "Newsletter"
+	}
 	t := &store.Template{
 		ID:          newID(),
 		WorkspaceID: claims.GetWorkspaceID(),
 		Name:        req.Name,
 		Description: req.Description,
-		Category:    req.Category,
+		Category:    category,
 		Thumbnail:   req.Thumbnail,
 		MJML:        req.MJML,
 		HTML:        req.HTML,
@@ -222,12 +226,20 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
+	if strings.TrimSpace(req.Name) == "" {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
+		return
+	}
+	category := req.Category
+	if !templateCategories[category] {
+		category = "Newsletter"
+	}
 	t := &store.Template{
 		ID:          id,
 		WorkspaceID: claims.GetWorkspaceID(),
 		Name:        req.Name,
 		Description: req.Description,
-		Category:    req.Category,
+		Category:    category,
 		Thumbnail:   req.Thumbnail,
 		MJML:        req.MJML,
 		HTML:        req.HTML,
@@ -313,7 +325,7 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 		if err := s.engine.SendTestEmail(r.Context(), c, email); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", "could not send test: "+err.Error())
+			writeError(w, http.StatusInternalServerError, "internal", "could not send test email")
 			return
 		}
 	}

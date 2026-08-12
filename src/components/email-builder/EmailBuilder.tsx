@@ -479,7 +479,12 @@ export function EmailBuilder({
   const duplicateBlock = (id: string) => {
     const i = blocks.findIndex((b) => b.id === id);
     if (i < 0) return;
-    const copy = { ...blocks[i], id: newId() };
+    const original = blocks[i];
+    const copy = {
+      ...original,
+      id: newId(),
+      props: JSON.parse(JSON.stringify(original.props)) as Block["props"],
+    };
     const next = [...blocks];
     next.splice(i + 1, 0, copy);
     onChange(next, settings);
