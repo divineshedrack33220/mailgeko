@@ -359,7 +359,11 @@ export default function CampaignsPage() {
                               {send && canCancel && (
                                 <DropdownMenuItem
                                   className="cursor-pointer"
-                                  onClick={() => cancelCampaign(campaign)}
+                                  onClick={() => {
+                                    if (window.confirm(`Cancel "${campaign.name}"? This cannot be undone.`)) {
+                                      cancelCampaign(campaign);
+                                    }
+                                  }}
                                 >
                                   <Pause /> Cancel campaign
                                 </DropdownMenuItem>

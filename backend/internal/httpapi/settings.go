@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
@@ -444,17 +445,23 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusInternalServerError, "internal", "could not verify membership")
 			return
 		}
-		if err := s.db.AddWorkspaceMember(r.Context(), inv.WorkspaceID, claims.GetUserID(), inv.Role); err != nil {
+		if err := s.db.WithTx(r.Context(), func(tx *sqlx.Tx) error {
+			if _, err := tx.ExecContext(r.Context(), `INSERT IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)`, inv.WorkspaceID, claims.GetUserID(), inv.Role); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(r.Context(), `DELETE FROM invitations WHERE workspace_id = ? AND id = ?`, inv.WorkspaceID, inv.ID); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
 			var mysqlErr *mysql.MySQLError
 			if !(errors.As(err, &mysqlErr) && mysqlErr.Number == 1062) {
 				writeError(w, http.StatusInternalServerError, "internal", "could not join workspace")
 				return
 			}
 		}
-	}
-
-	if err := s.db.DeleteInvitation(r.Context(), inv.WorkspaceID, inv.ID); err != nil {
-		log.Printf("httpapi: could not clear accepted invitation %s: %v", inv.ID, err)
+	} else {
+		_ = s.db.DeleteInvitation(r.Context(), inv.WorkspaceID, inv.ID)
 	}
 
 	user, err := s.db.UserByID(r.Context(), claims.GetUserID())

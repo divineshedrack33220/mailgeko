@@ -80,7 +80,9 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const [tagSaving, setTagSaving] = React.useState(false);
+  const [listSaving, setListSaving] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [tagOpen, setTagOpen] = React.useState(false);
   const [listOpen, setListOpen] = React.useState(false);
@@ -134,7 +136,7 @@ export default function ContactDetailPage() {
       toast.error("Email is required");
       return;
     }
-    setSaving(true);
+    setProfileSaving(true);
     try {
       const res = await api.patch<{ contact: Contact }>(`/api/v1/contacts/${params.id}`, {
         email,
@@ -153,7 +155,7 @@ export default function ContactDetailPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update contact");
     } finally {
-      setSaving(false);
+      setProfileSaving(false);
     }
   };
 
@@ -171,7 +173,7 @@ export default function ContactDetailPage() {
   };
 
   const saveTags = async () => {
-    setSaving(true);
+    setTagSaving(true);
     try {
       const res = await api.patch<{ contact: Contact }>(`/api/v1/contacts/${params.id}`, {
         email: contact?.email,
@@ -183,7 +185,7 @@ export default function ContactDetailPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update tags");
     } finally {
-      setSaving(false);
+      setTagSaving(false);
     }
   };
 
@@ -203,7 +205,7 @@ export default function ContactDetailPage() {
       toast.error("Select a list");
       return;
     }
-    setSaving(true);
+    setListSaving(true);
     try {
       await api.post(`/api/v1/lists/${listId}/contacts`, { contactIds: [params.id] });
       toast.success("Added to list");
@@ -211,7 +213,7 @@ export default function ContactDetailPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add to list");
     } finally {
-      setSaving(false);
+      setListSaving(false);
     }
   };
 
@@ -479,8 +481,8 @@ export default function ContactDetailPage() {
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="animate-spin" />}
+              <Button type="submit" disabled={profileSaving}>
+                {profileSaving && <Loader2 className="animate-spin" />}
                 Save changes
               </Button>
             </DialogFooter>
@@ -534,8 +536,8 @@ export default function ContactDetailPage() {
             <Button type="button" variant="outline" onClick={() => setTagOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={saveTags} disabled={saving}>
-              {saving && <Loader2 className="animate-spin" />}
+            <Button type="button" onClick={saveTags} disabled={tagSaving}>
+              {tagSaving && <Loader2 className="animate-spin" />}
               Save tags
             </Button>
           </DialogFooter>
@@ -572,8 +574,8 @@ export default function ContactDetailPage() {
             <Button type="button" variant="outline" onClick={() => setListOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={addToList} disabled={saving || lists.length === 0}>
-              {saving && <Loader2 className="animate-spin" />}
+            <Button type="button" onClick={addToList} disabled={listSaving || lists.length === 0}>
+              {listSaving && <Loader2 className="animate-spin" />}
               Add to list
             </Button>
           </DialogFooter>

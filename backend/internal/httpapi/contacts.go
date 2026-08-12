@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
 )
@@ -372,12 +373,20 @@ func (s *Server) handleBulkTagContacts(w http.ResponseWriter, r *http.Request) {
 		updates = append(updates, contactUpdate{id: c.ID, tags: merged})
 	}
 
-	for _, u := range updates {
-		c := &store.Contact{ID: u.id, WorkspaceID: claims.GetWorkspaceID(), Tags: u.tags}
-		if err := s.db.UpdateContactTags(r.Context(), c); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", "could not update contacts")
-			return
+	if err := s.db.WithTx(r.Context(), func(tx *sqlx.Tx) error {
+		for _, u := range updates {
+			tagsJSON, err := json.Marshal(u.tags)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(r.Context(), `UPDATE contacts SET tags = ?, updated_at = NOW() WHERE id = ? AND workspace_id = ?`, tagsJSON, u.id, claims.GetWorkspaceID()); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not update contacts")
+		return
 	}
 
 	writeOK(w, map[string]any{"updated": len(updates)})

@@ -701,6 +701,7 @@ function ScheduleStep({
                 id="date"
                 type="date"
                 value={scheduleDate}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => onScheduleDateChange(e.target.value)}
               />
             </div>

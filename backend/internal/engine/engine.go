@@ -451,13 +451,17 @@ func (e *Engine) RecordEvent(ctx context.Context, in EventInput) error {
 		if err := e.store.MarkRecipientDelivered(ctx, in.CampaignID, in.ContactID); err != nil {
 			return err
 		}
-		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "delivered", 1)
+		if err := e.store.SetCampaignStatsField(ctx, in.CampaignID, "delivered", 1); err != nil {
+			log.Printf("engine: update delivered stats: %v", err)
+		}
 	case "opened":
 		first, err := e.store.MarkRecipientOpened(ctx, in.CampaignID, in.ContactID)
 		if err != nil {
 			return err
 		}
-		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "opened", 1)
+		if err := e.store.SetCampaignStatsField(ctx, in.CampaignID, "opened", 1); err != nil {
+			log.Printf("engine: update opened stats: %v", err)
+		}
 		if first {
 			_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "unique_opens", 1)
 		}
@@ -467,21 +471,29 @@ func (e *Engine) RecordEvent(ctx context.Context, in EventInput) error {
 		if err != nil {
 			return err
 		}
-		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "clicked", 1)
+		if err := e.store.SetCampaignStatsField(ctx, in.CampaignID, "clicked", 1); err != nil {
+			log.Printf("engine: update clicked stats: %v", err)
+		}
 		if first {
 			_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "unique_clicks", 1)
 		}
 		_ = e.store.MarkContactEngagement(ctx, in.WorkspaceID, in.ContactID, now())
 	case "bounced":
-		_ = e.store.MarkRecipientBounced(ctx, in.CampaignID, in.ContactID, in.URL)
+		if err := e.store.MarkRecipientBounced(ctx, in.CampaignID, in.ContactID, in.URL); err != nil {
+			log.Printf("engine: mark bounced: %v", err)
+		}
 		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "bounced", 1)
 		_ = e.store.UpdateContactStatus(ctx, in.WorkspaceID, in.ContactID, store.ContactBounced)
 	case "complained":
-		_ = e.store.MarkRecipientComplained(ctx, in.CampaignID, in.ContactID)
+		if err := e.store.MarkRecipientComplained(ctx, in.CampaignID, in.ContactID); err != nil {
+			log.Printf("engine: mark complained: %v", err)
+		}
 		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "complained", 1)
 		_ = e.store.UpdateContactStatus(ctx, in.WorkspaceID, in.ContactID, store.ContactSpam)
 	case "unsubscribed":
-		_ = e.store.MarkRecipientUnsubscribed(ctx, in.CampaignID, in.ContactID)
+		if err := e.store.MarkRecipientUnsubscribed(ctx, in.CampaignID, in.ContactID); err != nil {
+			log.Printf("engine: mark unsubscribed: %v", err)
+		}
 		_ = e.store.SetCampaignStatsField(ctx, in.CampaignID, "unsubscribed", 1)
 		_ = e.store.UpdateContactStatus(ctx, in.WorkspaceID, in.ContactID, store.ContactUnsubscribed)
 	}

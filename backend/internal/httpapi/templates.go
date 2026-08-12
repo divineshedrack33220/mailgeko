@@ -220,6 +220,14 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if _, err := s.db.GetTemplate(r.Context(), claims.GetWorkspaceID(), id); err != nil {
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusNotFound, "not_found", "template not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "could not load template")
+		return
+	}
 	var req templateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -227,6 +235,10 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.Name) == "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
+		return
+	}
+	if len(req.MJML) > 512*1024 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "MJML content exceeds 512KB limit")
 		return
 	}
 	category := req.Category
@@ -318,15 +330,17 @@ func (s *Server) handleSendTestTemplate(w http.ResponseWriter, r *http.Request) 
 		c.FromEmail = ws.FromEmail
 		c.ReplyTo = ws.ReplyTo
 	}
+	sent := 0
 	for _, email := range req.Emails {
 		email = strings.TrimSpace(email)
-		if email == "" {
+		if email == "" || !strings.Contains(email, "@") {
 			continue
 		}
 		if err := s.engine.SendTestEmail(r.Context(), c, email); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", "could not send test email")
-			return
+			log.Printf("templates: send test to %s: %v", email, err)
+			continue
 		}
+		sent++
 	}
-	writeOK(w, map[string]any{"sent": true})
+	writeOK(w, map[string]any{"sent": sent})
 }

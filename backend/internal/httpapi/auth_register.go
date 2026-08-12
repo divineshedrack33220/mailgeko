@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
@@ -74,11 +75,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		ID:   newID(),
 		Name: req.Name + "'s workspace",
 	}
-	if err := s.db.CreateWorkspace(r.Context(), workspace); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not create workspace")
-		return
-	}
-	if err := s.db.AddWorkspaceMember(r.Context(), workspace.ID, user.ID, "owner"); err != nil {
+	if err := s.db.WithTx(r.Context(), func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(r.Context(), `INSERT INTO workspaces (id, name) VALUES (?, ?)`, workspace.ID, workspace.Name); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(r.Context(), `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)`, workspace.ID, user.ID, "owner"); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not create workspace")
 		return
 	}

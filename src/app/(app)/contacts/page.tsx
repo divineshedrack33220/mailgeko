@@ -106,10 +106,20 @@ export default function ContactsPage() {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
     const run = async () => {
-      await load();
+      setLoading(true);
+      try {
+        const res = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?limit=5000");
+        if (!cancelled) setContacts(res.contacts ?? []);
+      } catch (err) {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load contacts");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-    run();
+    void run();
+    return () => { cancelled = true; };
   }, [load]);
 
   const pageSize = 8;
@@ -305,8 +315,14 @@ export default function ContactsPage() {
   const bulkDelete = async () => {
     const ids = [...selected];
     setSelected([]);
-    await Promise.allSettled(ids.map((id) => api.delete(`/api/v1/contacts/${id}`)));
-    toast.success(`${ids.length} contacts deleted`);
+    const results = await Promise.allSettled(ids.map((id) => api.delete(`/api/v1/contacts/${id}`)));
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    if (failed > 0) {
+      toast.warning(`${succeeded} deleted, ${failed} failed`);
+    } else {
+      toast.success(`${succeeded} contacts deleted`);
+    }
     load();
   };
 

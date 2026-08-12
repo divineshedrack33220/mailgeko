@@ -225,6 +225,10 @@ export default function SecuritySettingsPage() {
 
   const copyCodes = () => {
     if (!recoveryCodes) return;
+    if (!navigator.clipboard) {
+      toast.error("Clipboard not available — use HTTPS for clipboard access");
+      return;
+    }
     navigator.clipboard
       .writeText(recoveryCodes.join("\n"))
       .then(() => toast.success("Recovery codes copied"))
@@ -563,9 +567,9 @@ export default function SecuritySettingsPage() {
           {setupStep === "codes" && recoveryCodes && (
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-2">
-                {recoveryCodes.map((code) => (
+                {recoveryCodes.map((code, i) => (
                   <div
-                    key={code}
+                    key={`setup-${i}`}
                     className="rounded-lg bg-muted px-4 py-2 font-mono text-sm tracking-widest"
                   >
                     {code}
@@ -645,9 +649,9 @@ export default function SecuritySettingsPage() {
           {regenerateStep === "codes" && recoveryCodes && (
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-2">
-                {recoveryCodes.map((code) => (
+                {recoveryCodes.map((code, i) => (
                   <div
-                    key={code}
+                    key={`regen-${i}`}
                     className="rounded-lg bg-muted px-4 py-2 font-mono text-sm tracking-widest"
                   >
                     {code}

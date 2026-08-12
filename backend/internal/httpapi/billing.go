@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/billing"
@@ -88,7 +89,7 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "billing_unavailable", "billing is not configured")
 		return
 	}
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 2<<20))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "could not read body")
 		return
@@ -98,7 +99,8 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_signature", "webhook signature verification failed")
 			return
 		}
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		log.Printf("stripe webhook error: %v", err)
+		writeError(w, http.StatusBadRequest, "invalid_request", "webhook processing failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"received": true})

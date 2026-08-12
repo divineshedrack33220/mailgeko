@@ -103,19 +103,23 @@ export default function DashboardPage() {
   }, [range]);
 
   React.useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       setLoading(true);
       try {
         await loadOverview();
+        if (cancelled) return;
         const campRes = await api.get<{ campaigns: Campaign[] }>("/api/v1/campaigns");
+        if (cancelled) return;
         setCampaigns(campRes.campaigns ?? []);
       } catch (err) {
         console.error("Failed to load dashboard data", err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    run();
+    void run();
+    return () => { cancelled = true; };
   }, [loadOverview]);
 
   // Auto-refresh every 30 seconds

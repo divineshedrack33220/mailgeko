@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -220,6 +221,9 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 		}
 	case "unsubscribe":
 		if listID, ok := step.Config["listId"].(string); ok && listID != "" && listID != "all" {
+			if _, err := e.store.GetList(ctx, contact.WorkspaceID, listID); err != nil {
+				return e.boundStepFailure(ctx, run, automation, step, contact, fmt.Errorf("list not found in workspace"))
+			}
 			if err := e.store.RemoveContactFromList(ctx, listID, contact.ID); err != nil {
 				return e.boundStepFailure(ctx, run, automation, step, contact, err)
 			}

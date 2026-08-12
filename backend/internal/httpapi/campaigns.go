@@ -220,6 +220,7 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.db.EnsureCampaignStats(r.Context(), c.ID); err != nil {
+		_ = s.db.DeleteCampaign(r.Context(), c.WorkspaceID, c.ID)
 		writeError(w, http.StatusInternalServerError, "internal", "could not create campaign")
 		return
 	}
@@ -314,7 +315,12 @@ func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := s.db.SetCampaignStatus(r.Context(), claims.GetWorkspaceID(), c.ID, store.CampaignSending); err != nil {
+		writeError(w, http.StatusConflict, "invalid_state", "campaign is already being sent")
+		return
+	}
 	if err := s.queue.EnqueueCampaignSend(r.Context(), c.ID); err != nil {
+		_ = s.db.SetCampaignStatus(r.Context(), claims.GetWorkspaceID(), c.ID, c.Status)
 		writeError(w, http.StatusInternalServerError, "internal", "could not queue campaign")
 		return
 	}

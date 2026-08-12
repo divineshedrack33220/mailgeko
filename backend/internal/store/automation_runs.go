@@ -175,12 +175,13 @@ func (s *Store) FailAutomationRun(ctx context.Context, id, error string, stepInd
 // BumpAutomationRunAttempts increments the run's failure counter and returns
 // the new count, used to bound how many times a failing step is retried.
 func (s *Store) BumpAutomationRunAttempts(ctx context.Context, id string) (int, error) {
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE automation_runs SET attempts = attempts + 1 WHERE id = ?`, id); err != nil {
+	var n int
+	err := s.db.GetContext(ctx, &n,
+		`UPDATE automation_runs SET attempts = attempts + 1 WHERE id = ?`, id)
+	if err != nil {
 		return 0, err
 	}
-	var n int
-	err := s.db.GetContext(ctx, &n, `SELECT attempts FROM automation_runs WHERE id = ?`, id)
+	err = s.db.GetContext(ctx, &n, `SELECT attempts FROM automation_runs WHERE id = ?`, id)
 	return n, err
 }
 

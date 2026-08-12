@@ -108,14 +108,12 @@ export default function CampaignDetailPage() {
     try {
       const res = await api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${params.id}`);
       setCampaign(res.campaign);
-      api
-        .get<{ stats?: CampaignStats }>(`/api/v1/analytics/campaigns/${params.id}`)
-        .then((a) => setLiveStats(a.stats ?? null))
-        .catch(() => {});
-      api
-        .get<{ recipients: CampaignRecipient[] }>(`/api/v1/campaigns/${params.id}/recipients`)
-        .then((r) => setRecipients(r.recipients ?? []))
-        .catch(() => {});
+      const [a, r] = await Promise.all([
+        api.get<{ stats?: CampaignStats }>(`/api/v1/analytics/campaigns/${params.id}`).catch(() => null),
+        api.get<{ recipients: CampaignRecipient[] }>(`/api/v1/campaigns/${params.id}/recipients`).catch(() => null),
+      ]);
+      if (a) setLiveStats(a.stats ?? null);
+      if (r) setRecipients(r.recipients ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not load campaign");
       router.replace("/campaigns");
@@ -239,7 +237,10 @@ export default function CampaignDetailPage() {
       api.patch(`/api/v1/campaigns/${prev.id}`, payload).then(
         () => toast.success("Settings updated"),
         (err) => {
-          setCampaign((cur) => (cur?.id === prev.id ? { ...prev } : cur));
+          api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${prev.id}`).then(
+            (res) => setCampaign(res.campaign),
+            () => {}
+          );
           toast.error(err instanceof Error ? err.message : "Could not update settings");
         }
       );

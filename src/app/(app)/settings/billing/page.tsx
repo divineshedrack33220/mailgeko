@@ -51,11 +51,26 @@ export default function BillingSettingsPage() {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
     const run = async () => {
-      await load();
+      try {
+        const [limitsRes, plansRes] = await Promise.all([
+          api.get<{ limits: Limits }>("/api/v1/billing/current"),
+          api.get<{ plans: Plan[] }>("/api/v1/billing/plans"),
+        ]);
+        if (!cancelled) {
+          setLimits(limitsRes.limits);
+          setPlans(plansRes.plans);
+        }
+      } catch (err) {
+        console.error("Failed to load billing data", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-    run();
-  }, [load]);
+    void run();
+    return () => { cancelled = true; };
+  }, []);
 
   const currentPlan = limits?.plan;
 
@@ -63,7 +78,12 @@ export default function BillingSettingsPage() {
     setWorking("portal");
     try {
       const res = await api.post<{ url: string }>("/api/v1/billing/portal", {});
-      window.location.assign(res.url);
+      if (res.url && (res.url.startsWith("https://billing.stripe.com") || res.url.startsWith("https://checkout.stripe.com"))) {
+        window.location.assign(res.url);
+      } else {
+        toast.error("Invalid billing URL");
+        setWorking(null);
+      }
     } catch (err) {
       setWorking(null);
       toast.error(err instanceof Error ? err.message : "Could not open billing portal");
@@ -71,10 +91,16 @@ export default function BillingSettingsPage() {
   };
 
   const switchPlan = async (planId: string) => {
+    if (!window.confirm(`Switch to this plan? You will be redirected to Stripe checkout.`)) return;
     setWorking(planId);
     try {
       const res = await api.post<{ url: string }>("/api/v1/billing/checkout", { plan: planId });
-      window.location.assign(res.url);
+      if (res.url && (res.url.startsWith("https://checkout.stripe.com") || res.url.startsWith("https://billing.stripe.com"))) {
+        window.location.assign(res.url);
+      } else {
+        toast.error("Invalid checkout URL");
+        setWorking(null);
+      }
     } catch (err) {
       setWorking(null);
       toast.error(err instanceof Error ? err.message : "Could not start checkout");
@@ -140,7 +166,7 @@ export default function BillingSettingsPage() {
                         <span className="text-muted-foreground"> / {row.limit.toLocaleString()}</span>
                       </span>
                     </div>
-                    <Progress value={pct} className="h-2" indicatorClassName={near ? "bg-warning" : undefined} />
+                    <Progress value={pct} className="h-2" indicatorClassName={near ? "bg-warning" : undefined} aria-label={`${row.label}: ${row.used.toLocaleString()} of ${row.limit.toLocaleString()}`} />
                   </div>
                 );
               })}

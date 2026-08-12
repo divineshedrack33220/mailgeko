@@ -100,6 +100,10 @@ func (s *Server) handleCreateAutomation(w http.ResponseWriter, r *http.Request) 
 	if status == "" {
 		status = "draft"
 	}
+	allowedAutomationStatuses := map[string]bool{"draft": true, "active": true, "paused": true}
+	if !allowedAutomationStatuses[status] {
+		status = "draft"
+	}
 	a := &store.Automation{
 		ID:                newID(),
 		WorkspaceID:       claims.GetWorkspaceID(),
@@ -267,7 +271,10 @@ func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) 
 		existing.Steps = normalizeSteps(req.Steps)
 	}
 	if req.Status != "" {
-		existing.Status = req.Status
+		allowedAutomationStatuses := map[string]bool{"draft": true, "active": true, "paused": true}
+		if allowedAutomationStatuses[req.Status] {
+			existing.Status = req.Status
+		}
 	}
 	if err := s.db.UpdateAutomation(r.Context(), existing); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update automation")
