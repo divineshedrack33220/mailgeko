@@ -419,6 +419,11 @@ export function parseMjml(src: string): {
     const ff = all.getAttribute("font-family");
     if (ff) settings.fontFamily = ff;
   }
+  const firstSection = body.getElementsByTagName("mj-section")[0];
+  if (firstSection) {
+    const sectionBg = firstSection.getAttribute("background-color");
+    if (sectionBg) settings.contentBgColor = sectionBg;
+  }
 
   const blocks: Block[] = [];
   let n = 0;

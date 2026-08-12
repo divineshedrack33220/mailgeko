@@ -614,11 +614,13 @@ export function EmailBuilder({
                       onDragOver={(e) => {
                         if (dragIndex !== null) {
                           e.preventDefault();
+                          e.stopPropagation();
                           setOverIndex(i);
                         }
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         if (dragIndex !== null) moveBlock(dragIndex, i);
                         setDragIndex(null);
                         setOverIndex(null);

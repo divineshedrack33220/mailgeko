@@ -159,6 +159,7 @@ export default function TemplateEditorPage() {
 
   const editorRef = React.useRef<EditorView | null>(null);
   const loadedRef = React.useRef(false);
+  const savedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const detectedVariables = React.useMemo(() => extractVariables(code), [code]);
   const availableBuiltIns = builtInVariables.filter(
@@ -263,7 +264,8 @@ export default function TemplateEditorPage() {
       setSaved(true);
       setDirty(false);
       toast.success("Template saved");
-      setTimeout(() => setSaved(false), 2000);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save template");
     } finally {
@@ -295,6 +297,12 @@ export default function TemplateEditorPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [router, handleSave, dirty]);
+
+  React.useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   const navigateAway = React.useCallback(() => {
     if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;

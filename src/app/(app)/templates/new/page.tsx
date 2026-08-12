@@ -100,6 +100,7 @@ export default function NewTemplatePage() {
       router.push(`/templates/${res.template.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not generate template");
+    } finally {
       setAiGenerating(false);
     }
   };
@@ -124,8 +125,7 @@ export default function NewTemplatePage() {
         const result = await res.json();
         if (res.ok) html = result.html ?? "";
       } catch {
-        // fall back to MJML string if rendering fails
-        html = initialMjml;
+        // rendering failed — continue without HTML
       }
       const apiRes = await api.post<{ template: Template }>("/api/v1/templates", {
         name,
@@ -134,7 +134,7 @@ export default function NewTemplatePage() {
         thumbnail: "newsletter",
         mjml: initialMjml,
         html,
-        variables: ["first_name", "company", "cta_url", "unsubscribe_url"],
+        variables: ["first_name", "cta_url", "unsubscribe_url"],
         tags: [],
         isFavorite: false,
       });
@@ -142,6 +142,7 @@ export default function NewTemplatePage() {
       router.push(`/templates/${apiRes.template.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create template");
+    } finally {
       setSaving(false);
     }
   };
