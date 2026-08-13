@@ -3,8 +3,11 @@ package httpapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -36,6 +39,11 @@ type Server struct {
 	oauth          *oauth.Manager
 	trackingSecret string
 	httpClient     *http.Client
+
+	logger         *slog.Logger
+	metrics        *Metrics
+	trustedProxies *TrustedProxies
+	vpn            *vpnLookup
 }
 
 type Config struct {
@@ -44,6 +52,13 @@ type Config struct {
 	TokenTTL  time.Duration
 	HTTPAddr  string
 	BaseURL   string
+
+	// TrustedProxyCIDRs lists the CIDRs whose forwarded-identity headers are
+	// honoured. See TrustedProxies.
+	TrustedProxyCIDRs []string
+
+	// Logger receives structured request/panic logs. Nil uses slog.Default().
+	Logger *slog.Logger
 
 	// AllowedOrigins is the CORS allowlist. Origins not listed receive no
 	// Access-Control-Allow-Origin header. Empty disables cross-origin access.
@@ -96,6 +111,16 @@ type CampaignEnqueuer interface {
 }
 
 func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssuer, session *SessionStore, queue CampaignEnqueuer, eng *engine.Engine, searcher ContactSearcher, biller Biller, rateLimit *RateLimiter) *Server {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	trusted, err := NewTrustedProxies(cfg.TrustedProxyCIDRs)
+	if err != nil {
+		// Misconfigured proxies are a deployment error; fail fast rather than
+		// silently keying rate limits on the socket address.
+		log.Fatalf("trusted proxies: %v", err)
+	}
 	return &Server{
 		cfg:            cfg,
 		db:             db,
@@ -112,6 +137,10 @@ func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssu
 		oauth:          cfg.OAuth,
 		trackingSecret: cfg.TrackingSecret,
 		httpClient:     &http.Client{Timeout: 5 * time.Second},
+		logger:         logger,
+		metrics:        newMetrics(),
+		trustedProxies: trusted,
+		vpn:            newVPNLookup(&http.Client{Timeout: 5 * time.Second}),
 	}
 }
 
@@ -120,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /ping", s.handlePing)
+	mux.Handle("GET /metrics", s.metrics.Handle())
 
 	mux.HandleFunc("POST /api/v1/auth/register", s.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
@@ -268,13 +298,79 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
+	// Order matters: later wrappers are outermost. Security headers are
+	// outermost so even OPTIONS and error responses get them; recovery is
+	// innermost so it catches panics from handlers (and logs them).
+	next = s.withRecovery(next)
 	next = s.withLogging(next)
 	if s.rateLimit != nil {
-		next = s.rateLimit.Middleware(next)
+		next = s.withRateLimit(next)
 	}
 	next = s.withCORS(next)
-	next = s.withSecurityHeaders(next)
-	return next
+	return s.withSecurityHeaders(next)
+}
+
+// withRecovery catches handler panics, logs them with a stack trace and returns
+// a 500 instead of crashing the process.
+func (s *Server) withRecovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				s.metrics.Panics()
+				s.logger.Error("panic recovered",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"error", fmt.Sprint(rec),
+					"stack", string(debug.Stack()),
+				)
+				writeError(w, http.StatusInternalServerError, "internal", "internal server error")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// withLogging records structured request logs plus latency and status metrics.
+func (s *Server) withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		s.metrics.Begin()
+		rec := &statusRecorder{ResponseWriter: w}
+		defer func() {
+			status := rec.status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			s.metrics.Record(r.Method, r.URL.Path, status, time.Since(start))
+			s.logger.Info("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", status,
+				"duration_ms", float64(time.Since(start).Microseconds())/1000.0,
+				"ip", s.clientIP(r),
+			)
+		}()
+		next.ServeHTTP(rec, r)
+	})
+}
+
+// withRateLimit applies the sliding-window limiter keyed on the (trusted)
+// client IP and request path.
+func (s *Server) withRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ok, _ := s.rateLimit.Allow(r.Context(), s.rateLimitKey(r))
+		if !ok {
+			s.metrics.RateLimited()
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// rateLimitKey scopes the global limiter to a client and endpoint.
+func (s *Server) rateLimitKey(r *http.Request) string {
+	return "ip:" + s.clientIP(r) + ":" + r.URL.Path
 }
 
 // withSecurityHeaders hardens every response. It is the outermost middleware so
@@ -291,14 +387,6 @@ func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
 			h.Set("Strict-Transport-Security", "max-age=31536000")
 		}
 		next.ServeHTTP(w, r)
-	})
-}
-
-func (s *Server) withLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
 	})
 }
 
@@ -377,19 +465,31 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			}
 		}
 		ctx := context.WithValue(r.Context(), claimsKey, claims)
-		s.refreshSessionActivity(ctx, claims)
 
-		// VPN blocking: check if workspace has it enabled.
+		// Per-user rate limiting: shares the limit fairly between users behind
+		// the same NAT, and is immune to IP spoofing.
+		if s.rateLimit != nil {
+			if ok := s.rateLimit.AllowFixed(r.Context(), "u:"+claims.GetUserID()+":"+r.URL.Path); !ok {
+				s.metrics.RateLimited()
+				writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests")
+				return
+			}
+		}
+
+		// VPN blocking: check if the workspace has it enabled. The lookup is
+		// cached and never blocks on network I/O (cache misses run in the
+		// background and fail open).
 		if s.db != nil {
 			if ws, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil && ws.BlockVPN {
-				ip := extractIP(r)
-				if blocked, err := isVPN(r.Context(), s.httpClient, ip); err == nil && blocked {
+				if s.vpn.isVPNBlocked(s.clientIP(r)) {
+					s.metrics.VPNBlocked()
 					writeError(w, http.StatusForbidden, "vpn_blocked", "access denied: VPN or proxy connection detected")
 					return
 				}
 			}
 		}
 
+		s.refreshSessionActivity(ctx, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
 
-// vpnCache caches IP lookups to avoid hammering the API.
+// vpnCache caches IP lookups to avoid hammering the external provider. The
+// cache is bounded by pruning expired entries when it grows large.
 type vpnCache struct {
 	mu    sync.RWMutex
 	items map[string]vpnEntry
@@ -22,7 +22,9 @@ type vpnEntry struct {
 	expires time.Time
 }
 
-var cache = &vpnCache{items: make(map[string]vpnEntry)}
+func newVPNCache() *vpnCache {
+	return &vpnCache{items: make(map[string]vpnEntry)}
+}
 
 func (c *vpnCache) get(ip string) (isVPN, ok bool) {
 	c.mu.RLock()
@@ -37,67 +39,94 @@ func (c *vpnCache) get(ip string) (isVPN, ok bool) {
 func (c *vpnCache) set(ip string, isVPN bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.items) > 4096 {
+		now := time.Now()
+		for k, e := range c.items {
+			if now.After(e.expires) {
+				delete(c.items, k)
+			}
+		}
+	}
 	c.items[ip] = vpnEntry{isVPN: isVPN, expires: time.Now().Add(1 * time.Hour)}
 }
 
 // ipAPIResponse is the shape returned by ip-api.com.
 type ipAPIResponse struct {
-	Status    string `json:"status"`
-	Proxy     bool   `json:"proxy"`
-	Hosting   bool   `json:"hosting"`
-	Query     string `json:"query"`
+	Status  string `json:"status"`
+	Proxy   bool   `json:"proxy"`
+	Hosting bool   `json:"hosting"`
 }
 
-// isVPN checks whether the given IP is a known VPN/proxy endpoint.
-// Returns (isVPN, error). Uses ip-api.com with a local cache.
-func isVPN(ctx context.Context, client *http.Client, ip string) (bool, error) {
-	// Skip private / loopback — those are never VPN exit nodes.
-	if parsed := net.ParseIP(ip); parsed != nil {
-		if parsed.IsLoopback() || parsed.IsPrivate() || parsed.IsUnspecified() {
-			return false, nil
-		}
-	}
+// vpnLookup resolves whether an IP is a known VPN/proxy endpoint using
+// ip-api.com. It never blocks the auth hot path: cache misses trigger a
+// background, deduplicated lookup and fail open.
+type vpnLookup struct {
+	client   *http.Client
+	cache    *vpnCache
+	inflight sync.Map // ip -> struct{}
+}
 
-	if cached, ok := cache.get(ip); ok {
-		return cached, nil
-	}
+func newVPNLookup(client *http.Client) *vpnLookup {
+	return &vpnLookup{client: client, cache: newVPNCache()}
+}
 
-	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=proxy,hosting", ip)
+// isVPNBlocked reports whether the given IP is a known VPN/proxy endpoint.
+// It performs no synchronous network I/O: on a cache miss it starts a single
+// background lookup per IP and returns false. Lookup and provider failures also
+// fail open so availability never depends on ip-api.com.
+func (v *vpnLookup) isVPNBlocked(ip string) bool {
+	if v == nil {
+		return false
+	}
+	if isBypassAddress(ip) {
+		return false
+	}
+	if cached, ok := v.cache.get(ip); ok {
+		return cached
+	}
+	if _, loaded := v.inflight.LoadOrStore(ip, struct{}{}); loaded {
+		return false
+	}
+	go func() {
+		defer v.inflight.Delete(ip)
+		v.cache.set(ip, v.lookup(ip))
+	}()
+	return false
+}
+
+// lookup performs the blocking external call. Only called from the background
+// goroutine spawned in isVPNBlocked.
+func (v *vpnLookup) lookup(ip string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,proxy,hosting", ip)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false, err
+		return false
 	}
-
-	resp, err := client.Do(req)
+	resp, err := v.client.Do(req)
 	if err != nil {
-		return false, err
+		return false
 	}
 	defer resp.Body.Close()
 
 	var data ipAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return false, err
+		return false
 	}
-
-	isVPN := data.Proxy || data.Hosting
-	cache.set(ip, isVPN)
-	return isVPN, nil
+	return data.Status == "success" && (data.Proxy || data.Hosting)
 }
 
-// extractIP gets the real client IP from headers or RemoteAddr.
-func extractIP(r *http.Request) string {
-	// Check common proxy headers first.
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+// isBypassAddress reports whether the IP can never be a VPN exit node (loopback,
+// private, link-local, multicast or unspecified). The check is lenient: invalid
+// strings are treated as bypass so the VPN feature cannot break misconfigured
+// deployments.
+func isBypassAddress(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return true
 	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	// Fall back to RemoteAddr.
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return parsed.IsLoopback() || parsed.IsPrivate() || parsed.IsUnspecified() ||
+		parsed.IsLinkLocalUnicast() || parsed.IsMulticast() || parsed.IsLinkLocalMulticast()
 }

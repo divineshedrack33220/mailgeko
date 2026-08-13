@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,12 +27,16 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	tiDB, err := database.ConnectTiDB(cfg.TiDBDSN)
 	if err != nil {
-		log.Fatalf("tidb: %v", err)
+		logger.Error("connect tidb", "error", err)
+		os.Exit(1)
 	}
 	defer tiDB.Close()
 
@@ -44,24 +49,26 @@ func main() {
 	if enc, err := crypto.New(cfg.SecretKey); err == nil {
 		eng.WithEncryptor(enc)
 	} else if cfg.SecretKey != "" {
-		log.Fatalf("crypto: %v", err)
+		logger.Error("crypto", "error", err)
+		os.Exit(1)
 	} else {
-		log.Println("MAILGEKO_SECRET_KEY unset; BYO-SMTP disabled")
+		logger.Info("MAILGEKO_SECRET_KEY unset; BYO-SMTP disabled")
 	}
 
 	var eventLog *analytics.Store
 	if cfg.PostgresDSN != "" {
 		pg, err := database.ConnectPostgres(ctx, cfg.PostgresDSN)
 		if err != nil {
-			log.Fatalf("postgres: %v", err)
+			logger.Error("connect postgres", "error", err)
+			os.Exit(1)
 		}
 		defer pg.Close()
 		eventLog = analytics.New(pg)
-		log.Println("postgres analytics connected")
+		logger.Info("postgres analytics connected")
 
 		if em := embed.FromConfig(cfg.EmbedProvider, cfg.EmbedBaseURL, cfg.OpenAIKey, cfg.EmbedModel, cfg.EmbedDims); em != nil {
 			eng.WithEmbedding(vector.New(pg), em)
-			log.Printf("vector search enabled (provider=%s)", cfg.EmbedProvider)
+			logger.Info("vector search enabled", "provider", cfg.EmbedProvider)
 		}
 	}
 
@@ -99,10 +106,10 @@ func main() {
 	srv.HandleImportCSV(func(ctx context.Context, p queue.ImportCSVPayload) error {
 		imported, updated, err := eng.ImportCSV(ctx, p.WorkspaceID, p.ListID, p.Path)
 		if err != nil {
-			log.Printf("import %s failed: %v", p.ImportID, err)
+			logger.Error("csv import failed", "import_id", p.ImportID, "error", err)
 			return err
 		}
-		log.Printf("import %s done: %d imported, %d updated", p.ImportID, imported, updated)
+		logger.Info("csv import complete", "import_id", p.ImportID, "imported", imported, "updated", updated)
 		if eng.EmbeddingEnabled() {
 			_ = queueClient.EnqueueEmbedWorkspace(ctx, queue.EmbedWorkspacePayload{WorkspaceID: p.WorkspaceID})
 		}
@@ -112,14 +119,14 @@ func main() {
 	if eng.EmbeddingEnabled() {
 		srv.HandleEmbedContact(func(ctx context.Context, p queue.EmbedContactPayload) error {
 			if err := eng.EmbedContact(ctx, p.WorkspaceID, p.ContactID); err != nil {
-				log.Printf("embed %s failed: %v", p.ContactID, err)
+				logger.Error("embed contact failed", "contact_id", p.ContactID, "error", err)
 				return err
 			}
 			return nil
 		})
 		srv.HandleEmbedWorkspace(func(ctx context.Context, p queue.EmbedWorkspacePayload) error {
 			if err := eng.EmbedWorkspace(ctx, p.WorkspaceID); err != nil {
-				log.Printf("embed workspace %s failed: %v", p.WorkspaceID, err)
+				logger.Error("embed workspace failed", "workspace_id", p.WorkspaceID, "error", err)
 				return err
 			}
 			return nil
@@ -128,12 +135,13 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		log.Println("shutting down worker...")
+		logger.Info("shutting down worker...")
 		srv.Shutdown()
 	}()
 
-	log.Println("worker listening for tasks")
+	logger.Info("worker listening for tasks")
 	if err := srv.Start(); err != nil {
-		log.Fatalf("worker: %v", err)
+		logger.Error("worker", "error", err)
+		os.Exit(1)
 	}
 }

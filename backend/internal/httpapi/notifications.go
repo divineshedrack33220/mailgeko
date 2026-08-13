@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
+	"github.com/google/uuid"
 )
 
 func notificationResponse(n store.Notification) map[string]any {

@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -47,18 +46,20 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string) (bool, int64) {
 	return true, count
 }
 
-func (rl *RateLimiter) Middleware(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if rl == nil {
-			handler.ServeHTTP(w, r)
-			return
-		}
-		key := clientIP(r) + ":" + r.URL.Path
-		ok, _ := rl.Allow(r.Context(), key)
-		if !ok {
-			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests")
-			return
-		}
-		handler.ServeHTTP(w, r)
-	})
+// AllowFixed is a fixed-window limiter (INCR + EXPIRE) used for cheap per-user
+// checks on top of the sliding-window IP limiter. It is not used for the
+// primary limiter because the sliding window is fairer under bursts.
+func (rl *RateLimiter) AllowFixed(ctx context.Context, key string) bool {
+	if rl == nil {
+		return true
+	}
+	redisKey := "ratelimit:" + key
+	n, err := rl.rdb.Incr(ctx, redisKey).Result()
+	if err != nil {
+		return true
+	}
+	if n == 1 {
+		rl.rdb.Expire(ctx, redisKey, rl.window)
+	}
+	return n <= int64(rl.limit)
 }

@@ -507,10 +507,10 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
 		item := map[string]any{
-			"id":      k.ID,
-			"name":    k.Name,
-			"prefix":  k.Prefix,
-			"scopes":  orEmptySlice(k.Scopes),
+			"id":        k.ID,
+			"name":      k.Name,
+			"prefix":    k.Prefix,
+			"scopes":    orEmptySlice(k.Scopes),
 			"createdAt": k.CreatedAt.UTC().Format(time.RFC3339),
 		}
 		if k.LastUsedAt != nil {

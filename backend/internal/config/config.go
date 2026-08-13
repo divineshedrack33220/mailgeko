@@ -13,6 +13,18 @@ type Config struct {
 	Port    string
 	BaseURL string
 
+	// TrustedProxyCIDRs lists CIDRs whose forwarded-identity headers
+	// (X-Forwarded-For, X-Real-IP, X-Mg-Client-IP) are honoured. In the
+	// single-container deployment the Next.js rewrites reach the API from
+	// loopback, so the default is 127.0.0.1/32,::1/128. When the API sits
+	// directly behind a dedicated load balancer, add its CIDR instead.
+	TrustedProxyCIDRs []string
+
+	// AutoMigrate applies pending schema migrations at startup. Production
+	// operators with multiple API replicas may prefer to run migrations once
+	// via a separate job and set AUTO_MIGRATE=false.
+	AutoMigrate bool
+
 	// AllowedOrigins is the CORS allowlist. Requests whose Origin is not
 	// listed get no Access-Control-Allow-Origin header and are blocked by the
 	// browser. When ALLOWED_ORIGINS is unset it falls back to the BASE_URL
@@ -83,10 +95,12 @@ type Config struct {
 func Load() (*Config, error) {
 	dims, _ := strconv.Atoi(getEnv("EMBED_DIMENSIONS", "1536"))
 	cfg := &Config{
-		Env:                 getEnv("APP_ENV", "development"),
-		Port:                getEnv("PORT", "8080"),
-		BaseURL:             getEnv("BASE_URL", "http://localhost:8080"),
-		TiDBDSN:             getEnv("TIDB_DSN", ""),
+		Env:               getEnv("APP_ENV", "development"),
+		Port:              getEnv("PORT", "8080"),
+		BaseURL:           getEnv("BASE_URL", "http://localhost:8080"),
+		TrustedProxyCIDRs: defaultTrustedProxies(os.Getenv("TRUSTED_PROXY_IPS")),
+		AutoMigrate:       getEnv("AUTO_MIGRATE", "true") != "false",
+		TiDBDSN:           getEnv("TIDB_DSN", ""),
 		PostgresDSN:         getEnv("POSTGRES_DSN", ""),
 		RedisAddr:           getEnv("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:           getEnv("JWT_SECRET", ""),
@@ -147,6 +161,16 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// defaultTrustedProxies returns the trusted proxy CIDRs. An explicit
+// TRUSTED_PROXY_IPS value (comma-separated) wins; otherwise loopback is
+// trusted, which covers the Next.js -> Go API rewrites on the same host.
+func defaultTrustedProxies(explicit string) []string {
+	if cidrs := splitCSV(explicit); len(cidrs) > 0 {
+		return cidrs
+	}
+	return []string{"127.0.0.1/32", "::1/128"}
 }
 
 func splitCSV(s string) []string {

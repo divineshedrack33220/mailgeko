@@ -16,9 +16,9 @@ import (
 )
 
 type setupTwoFactorResponse struct {
-	Secret    string `json:"secret"`
+	Secret     string `json:"secret"`
 	OTPAuthURL string `json:"otpauthUrl"`
-	QrPNG     string `json:"qrPng"`
+	QrPNG      string `json:"qrPng"`
 }
 
 // handle2FASetup provisions a TOTP secret and returns it alongside a QR code.

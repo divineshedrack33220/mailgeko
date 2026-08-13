@@ -29,25 +29,18 @@ func (s *Server) verifyTrackSignature(r *http.Request, kind string, parts ...str
 	return track.Valid(s.trackingSecret, kind, r.URL.Query().Get("s"), parts...)
 }
 
-// clientIP extracts the caller address from proxy headers first (X-Forwarded-For
-// is trusted here because tracking pixels are public by design) and strips the
-// ephemeral source port from RemoteAddr so rate limits key on the client
-// rather than each connection.
-func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		first := strings.TrimSpace(strings.Split(fwd, ",")[0])
-		if first != "" {
-			return first
-		}
+// clientIP extracts the caller address using the trusted-proxy aware resolver.
+// Forwarded-identity headers are only honoured from trusted peers, so rate
+// limits and event attribution cannot be spoofed by setting headers directly.
+func (s *Server) clientIP(r *http.Request) string {
+	if s.trustedProxies != nil {
+		return s.trustedProxies.clientIPFor(r)
 	}
-	if real := strings.TrimSpace(r.Header.Get("X-Real-IP")); real != "" {
-		return real
+	// Fall back to the remote address when the server has no proxy config.
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return r.RemoteAddr
 }
 
 func (s *Server) enqueueTrackEvent(r *http.Request, campaignID, contactID, workspaceID, eventType, url string) {
@@ -76,7 +69,7 @@ func (s *Server) enqueueTrackEvent(r *http.Request, campaignID, contactID, works
 		Country:     analytics.CountryName(countryCode),
 		CountryCode: countryCode,
 		UserAgent:   r.UserAgent(),
-		IP:          clientIP(r),
+		IP:          s.clientIP(r),
 	})
 }
 

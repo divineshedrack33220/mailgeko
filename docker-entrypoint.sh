@@ -1,6 +1,16 @@
 #!/bin/sh
 set -e
 
+# MAILGEKO_ROLE controls which processes start:
+#   all    (default) - API + worker + web in one container (single-box deploy)
+#   api              - API only (horizontal scaling)
+#   worker           - worker only (horizontal scaling)
+#   web              - Next.js only (expects a separate api process)
+# This lets operators split the single container into replicas behind a load
+# balancer without changing the image.
+
+ROLE="${MAILGEKO_ROLE:-all}"
+
 # The API always listens on 8080 (matches the Next.js rewrites in next.config).
 # The web process binds to Render's injected PORT when present (so Render routes
 # external traffic to it), and falls back to 3000 for local/compose runs. If the
@@ -34,14 +44,24 @@ if [ "$WEB_PORT" = "8080" ]; then
 	WEB_PORT=3000
 fi
 
-PORT=8080 /usr/local/bin/api &
-API_PID=$!
+API_PID=""
+WORKER_PID=""
+WEB_PID=""
 
-/usr/local/bin/worker &
-WORKER_PID=$!
+if [ "$ROLE" = "all" ] || [ "$ROLE" = "api" ]; then
+	PORT=8080 /usr/local/bin/api &
+	API_PID=$!
+fi
 
-PORT="$WEB_PORT" HOSTNAME=0.0.0.0 node /app/server.js &
-WEB_PID=$!
+if [ "$ROLE" = "all" ] || [ "$ROLE" = "worker" ]; then
+	/usr/local/bin/worker &
+	WORKER_PID=$!
+fi
+
+if [ "$ROLE" = "all" ] || [ "$ROLE" = "web" ]; then
+	PORT="$WEB_PORT" HOSTNAME=0.0.0.0 node /app/server.js &
+	WEB_PID=$!
+fi
 
 trap 'kill $API_PID $WORKER_PID $WEB_PID $REDIS_PID 2>/dev/null || true' TERM INT
 wait

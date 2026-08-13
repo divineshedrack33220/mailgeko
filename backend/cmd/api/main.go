@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -33,22 +34,32 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
+	logger := newLogger(cfg.Env)
+	slog.SetDefault(logger)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	tiDB, err := database.ConnectTiDB(cfg.TiDBDSN)
 	if err != nil {
-		log.Fatalf("tidb: %v", err)
+		logger.Error("connect tidb", "error", err)
+		os.Exit(1)
 	}
 	defer tiDB.Close()
 
-	if err := database.MigrateMySQL(ctx, tiDB); err != nil {
-		log.Fatalf("migrate mysql: %v", err)
+	if cfg.AutoMigrate {
+		if err := database.MigrateMySQL(ctx, tiDB); err != nil {
+			logger.Error("migrate mysql", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		logger.Info("automatic migrations disabled (AUTO_MIGRATE=false)")
 	}
 
 	rdb, err := database.ConnectRedis(ctx, cfg.RedisAddr)
 	if err != nil {
-		log.Fatalf("redis: %v", err)
+		logger.Error("connect redis", "error", err)
+		os.Exit(1)
 	}
 	defer rdb.Close()
 
@@ -66,9 +77,10 @@ func main() {
 	if enc, err := crypto.New(cfg.SecretKey); err == nil {
 		engine_.WithEncryptor(enc)
 	} else if cfg.SecretKey != "" {
-		log.Fatalf("crypto: %v", err)
+		logger.Error("crypto", "error", err)
+		os.Exit(1)
 	} else {
-		log.Println("MAILGEKO_SECRET_KEY unset; BYO-SMTP disabled")
+		logger.Info("MAILGEKO_SECRET_KEY unset; BYO-SMTP disabled")
 	}
 
 	var analyticsStore httpapi.AnalyticsStore
@@ -76,19 +88,19 @@ func main() {
 	if cfg.PostgresDSN != "" {
 		pg, err := database.ConnectPostgres(ctx, cfg.PostgresDSN)
 		if err != nil {
-			log.Printf("postgres analytics disabled (connect failed): %v", err)
+			logger.Warn("postgres analytics disabled (connect failed)", "error", err)
 		} else {
 			defer pg.Close()
 			if err := database.MigratePostgres(ctx, pg); err != nil {
-				log.Printf("postgres analytics disabled (migrate failed): %v", err)
+				logger.Warn("postgres analytics disabled (migrate failed)", "error", err)
 			} else {
 				analyticsStore = analytics.New(pg)
-				log.Println("postgres analytics connected")
+				logger.Info("postgres analytics connected")
 
 				if em := embed.FromConfig(cfg.EmbedProvider, cfg.EmbedBaseURL, cfg.OpenAIKey, cfg.EmbedModel, cfg.EmbedDims); em != nil {
 					engine_.WithEmbedding(vector.New(pg), em)
 					searcher = engine_
-					log.Printf("vector search enabled (provider=%s)", cfg.EmbedProvider)
+					logger.Info("vector search enabled", "provider", cfg.EmbedProvider)
 				}
 			}
 		}
@@ -116,20 +128,20 @@ func main() {
 		gateway = billing.NewLocal(cfg.StripeWebhookSecret, cfg.BaseURL)
 	}
 	biller := billing.NewService(db, gateway, cfg.BaseURL)
-	log.Printf("billing enabled (provider=%s)", provider)
+	logger.Info("billing enabled", "provider", provider)
 
 	cloudinaryClient := cloudinary.New(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, "")
 	if cloudinaryClient.Enabled() {
-		log.Printf("cloudinary uploads enabled (cloud=%s)", cfg.CloudinaryCloudName)
+		logger.Info("cloudinary uploads enabled", "cloud", cfg.CloudinaryCloudName)
 	} else {
-		log.Println("cloudinary uploads disabled (no credentials)")
+		logger.Info("cloudinary uploads disabled (no credentials)")
 	}
 
 	oauthManager := oauth.NewManager(cfg.BaseURL, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GitHubClientID, cfg.GitHubClientSecret)
 	if oauthManager.Enabled(oauth.Google) || oauthManager.Enabled(oauth.GitHub) {
-		log.Println("oauth sign-in enabled")
+		logger.Info("oauth sign-in enabled")
 	} else {
-		log.Println("oauth sign-in disabled (no credentials)")
+		logger.Info("oauth sign-in disabled (no credentials)")
 	}
 
 	srv := httpapi.New(httpapi.Config{
@@ -138,6 +150,7 @@ func main() {
 		HTTPAddr:            ":" + cfg.Port,
 		BaseURL:             cfg.BaseURL,
 		AllowedOrigins:      cfg.AllowedOrigins,
+		TrustedProxyCIDRs:   cfg.TrustedProxyCIDRs,
 		TrackingSecret:      cfg.TrackingSecret,
 		ResendWebhookSecret: cfg.ResendWebhookSecret,
 		OpenAIKey:           cfg.OpenAIKey,
@@ -145,6 +158,7 @@ func main() {
 		OpenAIBaseURL:       cfg.AIBaseURL,
 		Cloudinary:          cloudinaryClient,
 		OAuth:               oauthManager,
+		Logger:              logger,
 	}, db, analyticsStore, manager, httpapi.NewSessionStore(rdb), queueAdapter, engine_, searcher, biller, rateLimit)
 
 	server := &http.Server{
@@ -159,17 +173,32 @@ func main() {
 	go scheduler_.Run(ctx)
 
 	go func() {
-		log.Printf("api listening on :%s (env=%s)", cfg.Port, cfg.Env)
+		logger.Info("api listening", "port", cfg.Port, "env", cfg.Env)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("http server: %v", err)
+			logger.Error("http server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("shutting down api...")
+	logger.Info("shutting down api...")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		logger.Warn("shutdown", "error", err)
 	}
+}
+
+// newLogger builds a structured logger whose verbosity depends on APP_ENV.
+// Production logs JSON for easy ingestion by log aggregators; development uses
+// human-readable text.
+func newLogger(env string) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	if env == "development" {
+		opts.Level = slog.LevelDebug
+	}
+	if env == "production" {
+		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, opts))
 }

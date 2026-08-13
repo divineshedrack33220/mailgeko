@@ -47,8 +47,19 @@ go run ./cmd/worker          # asynq worker
 ```
 
 Migrations are **embedded** in `internal/database/migrations` and auto-apply
-when the API boots — a deploy needs no manual SQL. The frontend proxies
-`/api`, `/webhooks`, `/track` and `/ping` to `:8080` (see `../next.config.ts`).
+when the API boots — a deploy needs no manual SQL. To run them separately
+(e.g. a one-off job before scaling out), set `AUTO_MIGRATE=false` and run
+`go run ./cmd/migrate`. The frontend proxies `/api`, `/webhooks`, `/track` and
+`/ping` to `:8080` (see `../next.config.ts`).
+
+### Client IP trust
+
+The API derives client IPs from the `x-mg-client-ip` header set by the Next.js
+middleware (`../src/middleware.ts`), plus the `X-Forwarded-For` chain. To avoid
+spoofing, IPs are only honored from hops listed in `TRUSTED_PROXY_IPS`
+(comma-separated CIDRs; defaults to loopback). When deploying behind a proxy or
+CDN, set it to those ranges. Trusted IPs drive rate limiting, VPN blocking and
+tracking-event attribution.
 
 ## Configuration
 

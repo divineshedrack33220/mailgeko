@@ -23,6 +23,20 @@ services:
       # https://mailgeko.onrender.com. Set in the dashboard (not in the repo).
       - key: BASE_URL
         sync: false
+      # CIDRs whose forwarded-identity headers the API trusts. Loopback covers
+      # the Next.js -> Go rewrites in the single container. If you front the API
+      # with a dedicated proxy, list its CIDR instead.
+      - key: TRUSTED_PROXY_IPS
+        value: 127.0.0.1/32,::1/128
+      # Set to false and run migrations once per deploy if you scale the API
+      # to multiple replicas.
+      - key: AUTO_MIGRATE
+        value: "true"
+      # Process split for horizontal scaling: all | api | worker | web.
+      # For multi-instance deploys run the API and worker separately with the
+      # web process on each; single-instance stays "all".
+      - key: MAILGEKO_ROLE
+        value: all
       # 32+ random bytes, hex-encoded: openssl rand -hex 32
       - key: JWT_SECRET
         sync: false
