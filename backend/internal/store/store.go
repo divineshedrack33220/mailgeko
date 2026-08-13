@@ -14,6 +14,11 @@ func New(db *sqlx.DB) *Store {
 	return &Store{db: db}
 }
 
+// Ping verifies the underlying database connection is alive.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *Store) WithTx(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {

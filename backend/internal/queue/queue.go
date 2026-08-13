@@ -69,6 +69,11 @@ func NewClient(redisAddr string) *Client {
 	return &Client{Client: asynq.NewClient(ParseRedisAddr(redisAddr).Asynq())}
 }
 
+// Ping verifies the backing Redis is reachable.
+func (c *Client) Ping(ctx context.Context) error {
+	return c.Client.Ping()
+}
+
 func (c *Client) EnqueueCampaignSend(ctx context.Context, campaignID string) error {
 	payload, err := json.Marshal(CampaignSendPayload{CampaignID: campaignID})
 	if err != nil {

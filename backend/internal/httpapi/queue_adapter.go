@@ -14,6 +14,11 @@ func NewQueueAdapter(c *queue.Client) CampaignEnqueuer {
 	return &queueClient{c: c}
 }
 
+// Ping verifies the backing Redis is reachable.
+func (a *queueClient) Ping(ctx context.Context) error {
+	return a.c.Ping(ctx)
+}
+
 func (a *queueClient) EnqueueCampaignSend(ctx context.Context, campaignID string) error {
 	return a.c.EnqueueCampaignSend(ctx, campaignID)
 }

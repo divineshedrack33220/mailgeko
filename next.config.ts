@@ -54,6 +54,10 @@ const nextConfig: NextConfig = {
         source: "/ping",
         destination: "http://127.0.0.1:8080/ping",
       },
+      {
+        source: "/readyz",
+        destination: "http://127.0.0.1:8080/readyz",
+      },
     ],
   }),
 };

@@ -44,6 +44,7 @@ type Server struct {
 	metrics        *Metrics
 	trustedProxies *TrustedProxies
 	vpn            *vpnLookup
+	readyChecks    []readyCheck
 }
 
 type Config struct {
@@ -110,6 +111,18 @@ type CampaignEnqueuer interface {
 	EnqueueEmbedWorkspace(ctx context.Context, p queueEmbedWorkspacePayload) error
 }
 
+// Pinger reports whether a backing dependency is reachable. Types that support
+// readiness probing (store, queue adapter, analytics) implement it.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
+// readyCheck couples a dependency name to its liveness probe.
+type readyCheck struct {
+	name string
+	ping Pinger
+}
+
 func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssuer, session *SessionStore, queue CampaignEnqueuer, eng *engine.Engine, searcher ContactSearcher, biller Biller, rateLimit *RateLimiter) *Server {
 	logger := cfg.Logger
 	if logger == nil {
@@ -120,6 +133,16 @@ func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssu
 		// Misconfigured proxies are a deployment error; fail fast rather than
 		// silently keying rate limits on the socket address.
 		log.Fatalf("trusted proxies: %v", err)
+	}
+	var readyChecks []readyCheck
+	if db != nil {
+		readyChecks = append(readyChecks, readyCheck{name: "tidb", ping: db})
+	}
+	if p, ok := queue.(Pinger); ok {
+		readyChecks = append(readyChecks, readyCheck{name: "queue", ping: p})
+	}
+	if p, ok := analytics.(Pinger); ok {
+		readyChecks = append(readyChecks, readyCheck{name: "analytics", ping: p})
 	}
 	return &Server{
 		cfg:            cfg,
@@ -141,6 +164,7 @@ func New(cfg Config, db *store.Store, analytics AnalyticsStore, tokens TokenIssu
 		metrics:        newMetrics(),
 		trustedProxies: trusted,
 		vpn:            newVPNLookup(&http.Client{Timeout: 5 * time.Second}),
+		readyChecks:    readyChecks,
 	}
 }
 
@@ -148,6 +172,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /readyz", s.handleReady)
 	mux.HandleFunc("GET /ping", s.handlePing)
 	mux.Handle("GET /metrics", s.metrics.Handle())
 

@@ -7,7 +7,8 @@ RUN go mod download
 
 COPY backend/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/api ./cmd/api \
- && CGO_ENABLED=0 GOOS=linux go build -o /out/worker ./cmd/worker
+ && CGO_ENABLED=0 GOOS=linux go build -o /out/worker ./cmd/worker \
+ && CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate
 
 FROM node:20-alpine AS frontend-builder
 
@@ -31,6 +32,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --from=backend-builder /out/api /usr/local/bin/api
 COPY --from=backend-builder /out/worker /usr/local/bin/worker
+COPY --from=backend-builder /out/migrate /usr/local/bin/migrate
 COPY --from=frontend-builder /app/.next/standalone ./
 COPY --from=frontend-builder /app/.next/static ./.next/static
 COPY --from=frontend-builder /app/public ./public

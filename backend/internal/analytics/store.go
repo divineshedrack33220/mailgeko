@@ -42,6 +42,11 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
+// Ping verifies the underlying Postgres connection is alive.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 func (s *Store) RecordEvent(ctx context.Context, e Event) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO email_events

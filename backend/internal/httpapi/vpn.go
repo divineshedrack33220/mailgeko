@@ -64,10 +64,11 @@ type vpnLookup struct {
 	client   *http.Client
 	cache    *vpnCache
 	inflight sync.Map // ip -> struct{}
+	baseURL  string
 }
 
 func newVPNLookup(client *http.Client) *vpnLookup {
-	return &vpnLookup{client: client, cache: newVPNCache()}
+	return &vpnLookup{client: client, cache: newVPNCache(), baseURL: "https://ip-api.com"}
 }
 
 // isVPNBlocked reports whether the given IP is a known VPN/proxy endpoint.
@@ -100,7 +101,7 @@ func (v *vpnLookup) lookup(ip string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,proxy,hosting", ip)
+	url := fmt.Sprintf("%s/json/%s?fields=status,proxy,hosting", v.baseURL, ip)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false

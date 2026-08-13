@@ -2,14 +2,23 @@
 set -e
 
 # MAILGEKO_ROLE controls which processes start:
-#   all    (default) - API + worker + web in one container (single-box deploy)
-#   api              - API only (horizontal scaling)
-#   worker           - worker only (horizontal scaling)
-#   web              - Next.js only (expects a separate api process)
+#   all      (default) - API + worker + web in one container (single-box deploy)
+#   api                - API only (horizontal scaling)
+#   worker             - worker only (horizontal scaling)
+#   web                - Next.js only (expects a separate api process)
+#   migrate            - apply schema migrations, then exit (one-off job)
 # This lets operators split the single container into replicas behind a load
 # balancer without changing the image.
 
 ROLE="${MAILGEKO_ROLE:-all}"
+
+# One-off migration job: apply schema changes and exit. The migrate binary runs
+# independently of the API, so replicas can boot with AUTO_MIGRATE=false and
+# never race to alter the schema. Requires only the DB DSNs.
+if [ "$ROLE" = "migrate" ]; then
+	/usr/local/bin/migrate
+	exit $?
+fi
 
 # The API always listens on 8080 (matches the Next.js rewrites in next.config).
 # The web process binds to Render's injected PORT when present (so Render routes

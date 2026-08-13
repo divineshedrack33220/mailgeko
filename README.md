@@ -153,15 +153,18 @@ flowchart TB
 | --- | --- | --- |
 | **API** | `backend/cmd/api` | HTTP server: REST API, webhook ingestion, signed tracking endpoints, and the campaign **scheduler** that moves due campaigns into the queue |
 | **Worker** | `backend/cmd/worker` | Consumes asynq tasks: per-recipient render+send, event recording, CSV imports, embeddings |
-| **Web** | Next.js standalone | UI on `:3000`; reverse-proxies `/api/*`, `/webhooks/*`, `/track/*`, `/ping` to the API |
+| **Web** | Next.js standalone | UI on `:3000`; reverse-proxies `/api/*`, `/webhooks/*`, `/track/*`, `/ping`, `/readyz` to the API |
+| **Migrate** | `backend/cmd/migrate` | One-off schema migration job (used when `AUTO_MIGRATE=false`) |
 
 Redis is **bundled inside the image** by default: `docker-entrypoint.sh` starts an
 in-memory `redis-server` on `127.0.0.1:6379` when `REDIS_ADDR` is unset or points
 at localhost. Set `REDIS_ADDR` to an external server (e.g. `rediss://…` Upstash)
 to use a managed Redis instead.
 
-Migrations auto-apply when the API boots, so a deploy is **migrate-and-go** —
-no separate migration job.
+Migrations auto-apply when the API boots, so a single-container deploy is
+**migrate-and-go** — no separate migration job. When scaling the API to multiple
+replicas, set `AUTO_MIGRATE=false` and run migrations once via
+`MAILGEKO_ROLE=migrate` (see `docs/deploy/README.md`).
 
 ---
 
@@ -850,6 +853,14 @@ Production notes:
 - `RESEND_API_KEYS` is required to start — use a real key in production.
 - Sending is gated by billing; the local gateway is used until Stripe
   credentials are supplied.
+
+### Scaling out
+
+The same image can split its three processes (`MAILGEKO_ROLE=api|worker|web`)
+across replicas and apply schema changes via a one-off `migrate` job
+(`AUTO_MIGRATE=false`). Probes: `/ping` (liveness), `/readyz` (readiness, checks
+TiDB/Redis/Postgres), `/metrics` (Prometheus). See
+[`docs/deploy/README.md`](docs/deploy/README.md) for the runbook.
 
 ---
 
