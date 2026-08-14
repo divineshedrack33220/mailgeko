@@ -152,6 +152,9 @@ func Load() (*Config, error) {
 	if len(cfg.ResendAPIKeys) == 0 {
 		return nil, fmt.Errorf("config: RESEND_API_KEYS is required")
 	}
+	if err := validateBaseURL(cfg.BaseURL, cfg.Env); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }
@@ -219,4 +222,25 @@ func originOf(rawurl string) (string, error) {
 		return "", fmt.Errorf("invalid base url %q", rawurl)
 	}
 	return u.Scheme + "://" + u.Host, nil
+}
+
+// validateBaseURL rejects configurations that would bake unreachable
+// open-tracking, click-tracking and unsubscribe links into sent emails.
+// BASE_URL falls back to http://localhost:8080 when unset, so in production a
+// missing or loopback value must be a hard error rather than a silent
+// degradation: recipients' mail clients cannot reach localhost, so opens,
+// clicks and unsubscribes would never be recorded.
+func validateBaseURL(baseURL, env string) error {
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("config: BASE_URL must be a valid absolute URL, got %q", baseURL)
+	}
+	if env != "production" {
+		return nil
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]" {
+		return fmt.Errorf("config: BASE_URL must be the public origin in production, got %q (localhost tracking links are unreachable by recipients; set BASE_URL to e.g. https://clawmark.online)", baseURL)
+	}
+	return nil
 }
