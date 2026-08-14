@@ -2,6 +2,8 @@ package cloudinary
 
 import (
 	"bytes"
+	// #nosec G505 -- Cloudinary's upload API requires SHA-1 request signing;
+	// the algorithm is mandated by the external service, not a choice here.
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -85,6 +87,8 @@ func (c *Client) Upload(file multipart.File, filename string) (string, error) {
 }
 
 func (c *Client) sign(params string) string {
+	// #nosec G401 -- Cloudinary's upload API requires SHA-1 request signing;
+	// the algorithm is mandated by the external service, not a choice here.
 	h := sha1.Sum([]byte(params + c.APISecret))
 	return hex.EncodeToString(h[:])
 }

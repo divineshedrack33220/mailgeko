@@ -169,8 +169,12 @@ export default function ContactsPage() {
   };
 
   const escapeCsvField = (val: string) => {
-    if (/[",\n\r]/.test(val)) return `"${val.replace(/"/g, '""')}"`;
-    return val;
+    const s = String(val ?? "");
+    // A leading =, +, -, @ or tab would be interpreted as a formula by
+    // spreadsheet apps when the CSV is reopened; prefix with a quote to
+    // neutralise it.
+    const safe = /^[=+\-@\t]/.test(s) ? `'${s}` : s;
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
 
   const exportCsv = () => {
@@ -183,7 +187,7 @@ export default function ContactsPage() {
           .join(",")
       )
       .join("\n");
-    const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });
+    const blob = new Blob([`\uFEFF${header}\n${body}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

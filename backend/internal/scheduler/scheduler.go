@@ -79,6 +79,9 @@ func (s *Scheduler) releaseDue(ctx context.Context, now time.Time) {
 		}
 		if err := s.queue.EnqueueCampaignSend(ctx, c.ID); err != nil {
 			log.Printf("scheduler: enqueue campaign %s: %v", c.ID, err)
+			// Roll the claim back so the campaign is retried on the next tick
+			// instead of sitting in 'sending' with no worker to finish it.
+			_ = s.db.SetCampaignStatus(ctx, c.WorkspaceID, c.ID, c.Status)
 			continue
 		}
 		log.Printf("scheduler: released campaign %s (%q)", c.ID, c.Name)

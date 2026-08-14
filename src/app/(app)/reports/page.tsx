@@ -155,7 +155,10 @@ export default function ReportsPage() {
   const exportCsv = () => {
     const esc = (v: string | number) => {
       const s = String(v ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      // Neutralise spreadsheet formula injection from values like "=cmd()"
+      // that begin with a formula trigger character.
+      const safe = /^[=+\-@\t]/.test(s) ? `'${s}` : s;
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
     };
     const rows: (string | number)[][] = [
       ["Mailgeko report", rangeLabel, new Date().toISOString()],

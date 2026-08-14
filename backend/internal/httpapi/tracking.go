@@ -104,6 +104,9 @@ func (s *Server) handleTrackClick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.enqueueTrackEvent(r, campaignID, contactID, workspaceID, "clicked", target)
+	// #nosec G710 -- target is HMAC-signed (verifyTrackSignature above) and
+	// restricted to http/https, so only links this server generated redirect;
+	// an attacker cannot force a redirect to an arbitrary URL.
 	http.Redirect(w, r, target, http.StatusFound)
 }
 

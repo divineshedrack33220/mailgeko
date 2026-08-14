@@ -4,18 +4,29 @@ import (
 	"crypto/rand"
 	"encoding/csv"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 )
 
+const maxCSVUploadBytes = 64 << 20
+
 func (s *Server) handleImportContacts(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	if !s.requireMemberRole(w, r, "owner", "admin", "manager") {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxCSVUploadBytes)
+	// #nosec G120 -- the body is capped at maxCSVUploadBytes (64 MiB) by the
+	// MaxBytesReader above; the memory threshold below only bounds buffering.
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "too_large", "file is too large (max 64 MiB)")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_request", "expected multipart form")
 		return
 	}
@@ -26,28 +37,38 @@ func (s *Server) handleImportContacts(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	listID := r.FormValue("listId")
+	if listID != "" {
+		if _, err := s.db.GetList(r.Context(), claims.GetWorkspaceID(), listID); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "validation", "list does not exist in this workspace")
+			return
+		}
+	}
+
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not process import")
 		return
 	}
 	path := filepath.Join(os.TempDir(), "mailgeko-import-"+hex.EncodeToString(buf)+".csv")
+	// #nosec G304 -- path is server-generated (os.TempDir() + random hex), never
+	// derived from request input; it points at a fresh file this handler owns.
 	dst, err := os.Create(path)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not store file")
 		return
 	}
 	if _, err := io.Copy(dst, file); err != nil {
-		dst.Close()
-		os.Remove(path)
+		_ = dst.Close()
+		_ = os.Remove(path)
 		writeError(w, http.StatusInternalServerError, "internal", "could not store file")
 		return
 	}
-	dst.Close()
+	_ = dst.Close()
 
 	if s.biller != nil {
 		if err := s.biller.CheckContactQuota(r.Context(), claims.GetWorkspaceID(), countCSVRows(path)); err != nil {
-			os.Remove(path)
+			_ = os.Remove(path)
 			s.writePlanError(w, err)
 			return
 		}
@@ -57,11 +78,11 @@ func (s *Server) handleImportContacts(w http.ResponseWriter, r *http.Request) {
 	payload := queueImportCSVPayload{
 		ImportID:    importID,
 		WorkspaceID: claims.GetWorkspaceID(),
-		ListID:      r.FormValue("listId"),
+		ListID:      listID,
 		Path:        path,
 	}
 	if err := s.queue.EnqueueImportCSV(r.Context(), payload); err != nil {
-		os.Remove(path)
+		_ = os.Remove(path)
 		writeError(w, http.StatusInternalServerError, "internal", "could not queue import")
 		return
 	}
@@ -69,6 +90,8 @@ func (s *Server) handleImportContacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func countCSVRows(path string) int64 {
+	// #nosec G304 -- path is server-generated (os.TempDir() + random hex), never
+	// derived from request input; it points at a file this handler just wrote.
 	f, err := os.Open(path)
 	if err != nil {
 		return 0

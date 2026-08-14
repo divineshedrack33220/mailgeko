@@ -250,7 +250,8 @@ func (s *Server) handleSendOneToOne(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.engine.SendOneToOne(r.Context(), ws, contact, req.Subject, req.Body)
 	if err != nil {
-		log.Printf("contacts: send one-to-one to %s: %v", contact.Email, err)
+		// #nosec G706 -- %q quotes/escapes the value, neutralizing CRLF injection.
+		log.Printf("contacts: send one-to-one to %q: %v", contact.Email, err)
 		writeError(w, http.StatusBadGateway, "send_failed", "could not send email")
 		return
 	}

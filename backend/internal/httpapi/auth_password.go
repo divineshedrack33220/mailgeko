@@ -133,7 +133,8 @@ func (s *Server) handleResendVerification(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.sendEmailVerification(r.Context(), user); err != nil {
-		log.Printf("httpapi: verification email to %s failed: %v", user.Email, err)
+		// #nosec G706 -- %q quotes/escapes the value, neutralizing CRLF injection.
+		log.Printf("httpapi: verification email to %q failed: %v", user.Email, err)
 		writeError(w, http.StatusInternalServerError, "email_failed", "could not send the verification email")
 		return
 	}

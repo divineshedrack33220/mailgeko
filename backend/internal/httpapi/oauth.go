@@ -27,6 +27,8 @@ func (s *Server) handleOAuthStart(provider oauth.Provider) http.HandlerFunc {
 			return
 		}
 
+		// #nosec G124 -- HttpOnly, SameSite=Lax and Secure (in production) are
+		// all set; the Secure flag is intentionally off over http for local dev.
 		http.SetCookie(w, &http.Cookie{
 			Name:     oauthStateCookie,
 			Value:    state,

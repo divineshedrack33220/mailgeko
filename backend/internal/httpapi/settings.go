@@ -229,7 +229,8 @@ func (s *Server) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 		}
 		if s.session != nil {
 			if err := s.session.RevokeAll(r.Context(), id, s.cfg.TokenTTL); err != nil {
-				log.Printf("httpapi: could not revoke sessions for removed member %s: %v", id, err)
+				// #nosec G706 -- %q quotes/escapes the value, neutralizing CRLF injection.
+				log.Printf("httpapi: could not revoke sessions for removed member %q: %v", id, err)
 			}
 		}
 		if workspace, err := s.db.GetWorkspace(r.Context(), claims.GetWorkspaceID()); err == nil {

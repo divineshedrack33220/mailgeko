@@ -98,14 +98,24 @@ func (v *vpnLookup) isVPNBlocked(ip string) bool {
 // lookup performs the blocking external call. Only called from the background
 // goroutine spawned in isVPNBlocked.
 func (v *vpnLookup) lookup(ip string) bool {
+	// Only query with a literal IP address. A non-IP (hostname, path segment,
+	// shell metacharacters) must never be interpolated into the request URL.
+	if net.ParseIP(ip) == nil {
+		return false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// #nosec G704 -- ip is validated as a literal address by net.ParseIP above;
+	// the host is a fixed constant (ip-api.com) and the value cannot redirect
+	// the request.
 	url := fmt.Sprintf("%s/json/%s?fields=status,proxy,hosting", v.baseURL, ip)
+	// #nosec G704 -- request targets the fixed base URL with a validated IP.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}
+	// #nosec G704 -- target host is the fixed base URL constant; ip is validated.
 	resp, err := v.client.Do(req)
 	if err != nil {
 		return false

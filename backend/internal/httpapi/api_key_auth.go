@@ -97,7 +97,10 @@ func (s *Server) apiKeyAllowed(r *http.Request, claims *auth.Claims) bool {
 		}
 	}
 	if required == "" {
-		return true
+		// A scoped key may only reach endpoints mapped to one of its scopes.
+		// Unmapped endpoints are denied rather than silently granting full
+		// access to whatever route falls through.
+		return false
 	}
 	for _, scope := range claims.Scopes {
 		if scope == required {

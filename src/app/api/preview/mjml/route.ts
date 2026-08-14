@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import mjml from "mjml";
+import { sanitizePreviewHtml } from "@/lib/mjml-sanitize";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { html, errors } = await mjml(input, { validationLevel: "soft" });
-    return NextResponse.json({ html, errors: errors ?? [] });
+    return NextResponse.json({ html: sanitizePreviewHtml(html), errors: errors ?? [] });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "failed to render MJML" },

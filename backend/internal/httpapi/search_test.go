@@ -33,8 +33,6 @@ func (f *fakeSearcher) SimilarContacts(ctx context.Context, ws, contactID string
 	return f.results, nil
 }
 
-type fakeContactDB struct{}
-
 func newSearchTestServer(t *testing.T, s ContactSearcher, db *store.Store) *httptest.Server {
 	t.Helper()
 	mgr := auth.NewTokenManager("test-secret", time.Hour)

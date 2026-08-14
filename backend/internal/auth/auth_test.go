@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,24 @@ func TestVerifyPasswordInvalidHash(t *testing.T) {
 	}
 	if _, err := VerifyPassword("password", ""); err == nil {
 		t.Fatal("expected error for empty hash")
+	}
+}
+
+func TestVerifyPasswordRejectsUnsafeParams(t *testing.T) {
+	salt := base64.RawStdEncoding.EncodeToString(make([]byte, 16))
+	hash := base64.RawStdEncoding.EncodeToString(make([]byte, 32))
+	unsafe := []string{
+		"$argon2id$v=19$m=4294967296,t=3,p=2$" + salt + "$" + hash, // 4 GiB memory: uint32 overflow
+		"$argon2id$v=19$m=65536,t=0,p=2$" + salt + "$" + hash,      // zero iterations
+		"$argon2id$v=19$m=65536,t=101,p=2$" + salt + "$" + hash,    // iterations over cap
+		"$argon2id$v=19$m=65536,t=3,p=256$" + salt + "$" + hash,    // parallelism over uint8 range
+		"$argon2id$v=19$m=1024,t=3,p=2$" + salt + "$" + hash,       // memory below floor
+		"$argon2id$v=19$m=65536,t=3,p=2$" + salt + "$" + base64.RawStdEncoding.EncodeToString(make([]byte, 4)),
+	}
+	for _, encoded := range unsafe {
+		if _, err := VerifyPassword("password", encoded); err == nil {
+			t.Fatalf("expected unsafe params to be rejected: %s", encoded)
+		}
 	}
 }
 

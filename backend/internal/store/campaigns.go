@@ -158,11 +158,13 @@ func (s *Store) ListDueScheduledCampaigns(ctx context.Context, now time.Time) ([
 }
 
 // MarkCampaignScheduled atomically claims a due campaign so it is enqueued
-// exactly once. It reports whether this caller won the claim.
+// exactly once even across multiple scheduler instances. The campaign is moved
+// out of the states ListDueScheduledCampaigns selects, so only the first
+// claimant observes a row change. It reports whether this caller won the claim.
 func (s *Store) MarkCampaignScheduled(ctx context.Context, id string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE campaigns SET status = 'scheduled'
-		 WHERE id = ? AND status IN ('draft', 'scheduled')`, id)
+		`UPDATE campaigns SET status = 'sending', updated_at = ?
+		 WHERE id = ? AND status IN ('draft', 'scheduled')`, time.Now().UTC(), id)
 	if err != nil {
 		return false, err
 	}

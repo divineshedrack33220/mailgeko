@@ -32,7 +32,7 @@ func (s *Static) Embed(_ context.Context, texts []string) ([][]float32, error) {
 
 func (s *Static) vector(text string) []float32 {
 	h := fnv.New64a()
-	h.Write([]byte(text))
+	_, _ = h.Write([]byte(text))
 	seed := h.Sum64()
 
 	vec := make([]float32, s.dims)

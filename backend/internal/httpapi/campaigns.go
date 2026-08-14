@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -157,6 +159,23 @@ func campaignResponse(c *store.Campaign, stats *store.CampaignStats, recipientCo
 	}
 }
 
+// validateCampaignAudience rejects campaigns that reference lists or segments
+// the workspace does not own. Without this a caller could attach another
+// workspace's list to a campaign and exfiltrate or email its contacts.
+func (s *Server) validateCampaignAudience(ctx context.Context, wsID string, c *store.Campaign) error {
+	for _, listID := range c.ListIDs {
+		if _, err := s.db.GetList(ctx, wsID, listID); err != nil {
+			return fmt.Errorf("list %q does not exist in this workspace", listID)
+		}
+	}
+	for _, segID := range c.SegmentIDs {
+		if _, err := s.db.GetSegment(ctx, wsID, segID); err != nil {
+			return fmt.Errorf("segment %q does not exist in this workspace", segID)
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleListCampaigns(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	campaigns, err := s.db.ListCampaigns(r.Context(), claims.GetWorkspaceID())
@@ -200,6 +219,10 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	req.apply(c)
 	if strings.TrimSpace(c.Name) == "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
+		return
+	}
+	if err := s.validateCampaignAudience(r.Context(), claims.GetWorkspaceID(), c); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "validation", err.Error())
 		return
 	}
 	if c.FromName == "" || c.FromEmail == "" || c.ReplyTo == "" {
@@ -267,6 +290,10 @@ func (s *Server) handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.apply(existing)
+	if err := s.validateCampaignAudience(r.Context(), claims.GetWorkspaceID(), existing); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "validation", err.Error())
+		return
+	}
 	if err := s.db.UpdateCampaign(r.Context(), existing); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update campaign")
 		return

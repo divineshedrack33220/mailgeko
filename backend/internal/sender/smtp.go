@@ -76,7 +76,7 @@ func (c *SMTPClient) Send(ctx context.Context, msg Message) (*SendResult, error)
 	if cfg.Port == 465 {
 		tlsConn := tls.Client(conn, clientTLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("smtp: tls handshake: %w", err)
 		}
 		client, err = smtp.NewClient(tlsConn, cfg.Host)
@@ -84,7 +84,7 @@ func (c *SMTPClient) Send(ctx context.Context, msg Message) (*SendResult, error)
 		client, err = smtp.NewClient(conn, cfg.Host)
 	}
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("smtp: client: %w", err)
 	}
 	defer client.Close()
@@ -130,7 +130,7 @@ func (c *SMTPClient) Send(ctx context.Context, msg Message) (*SendResult, error)
 	id := newMessageID(fromAddr.Address)
 	raw := buildSMTPMessage(msg, fromAddr, toAddr, id)
 	if _, err := w.Write(raw); err != nil {
-		w.Close()
+		_ = w.Close()
 		return nil, fmt.Errorf("smtp: write: %w", err)
 	}
 	if err := w.Close(); err != nil {

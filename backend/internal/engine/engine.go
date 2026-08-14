@@ -197,11 +197,21 @@ func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
 
 	ids, err := e.resolveRecipients(ctx, campaign)
 	if err != nil {
+		// The audience could not be resolved (e.g. a list vanished). Fail the
+		// campaign so it is not stranded in 'sending' with no worker, and tell
+		// the owner why.
+		_ = e.store.SetCampaignStatus(ctx, campaign.WorkspaceID, campaign.ID, store.CampaignFailed)
 		_ = e.notify(ctx, campaign.WorkspaceID, "campaign-failed",
 			"Campaign failed to start",
 			"Your campaign \""+campaign.Name+"\" could not start because its audience could not be resolved.",
 			"/campaigns/"+campaign.ID)
 		return err
+	}
+
+	if len(ids) == 0 {
+		// Nothing to send. Complete the campaign immediately so it is not left
+		// stranded in 'sending' forever with no queued recipients.
+		return e.maybeCompleteCampaign(ctx, campaign)
 	}
 
 	inserted := 0
@@ -332,7 +342,10 @@ func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID stri
 		body = "<p>" + campaign.PlainText + "</p>"
 	}
 	if body == "" {
-		return nil
+		// Nothing to send for this recipient. Mark it so the campaign can
+		// complete instead of a permanently 'queued' row blocking completion.
+		_ = e.store.MarkRecipientFailed(ctx, campaign.ID, contact.ID, "no content to send")
+		return e.maybeCompleteCampaign(ctx, campaign)
 	}
 
 	html := RenderHTML(body, contactVariables(contact), RenderOptions{

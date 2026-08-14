@@ -29,9 +29,9 @@ func (s *Store) UpsertCampaignRecipient(ctx context.Context, r *CampaignRecipien
 		INSERT INTO campaign_recipients (campaign_id, contact_id, resend_message_id, status, error)
 		VALUES (?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
-			resend_message_id = VALUES(resend_message_id),
-			status = VALUES(status),
-			error = VALUES(error)`,
+			resend_message_id = IF(resend_message_id IS NULL OR resend_message_id = '', VALUES(resend_message_id), resend_message_id),
+			status = IF(status IN ('queued', 'failed', 'skipped'), VALUES(status), status),
+			error = IF(status IN ('queued', 'failed', 'skipped'), VALUES(error), error)`,
 		r.CampaignID, r.ContactID, r.ResendMessageID, r.Status, r.Error)
 	return err
 }

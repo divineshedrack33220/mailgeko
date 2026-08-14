@@ -65,6 +65,8 @@ func TestAPIKeyAllowed(t *testing.T) {
 		{"blocked account route", "GET", "/api/v1/me", []string{"campaigns:write"}, false},
 		{"blocked billing route", "GET", "/api/v1/billing", nil, false},
 		{"blocked api-keys route", "DELETE", "/api/v1/api-keys/123", nil, false},
+		{"unmapped route denied for scoped key", "GET", "/api/v1/invitations/accept", []string{"campaigns:write"}, false},
+		{"unmapped route allowed for unscoped key", "GET", "/api/v1/invitations/accept", nil, true},
 	}
 
 	for _, tt := range tests {
