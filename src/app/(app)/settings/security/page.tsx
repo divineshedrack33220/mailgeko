@@ -90,7 +90,7 @@ export default function SecuritySettingsPage() {
   const refreshSessions = React.useCallback(async () => {
     try {
       const res = await api.get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions");
-      setSessions(res.sessions);
+      setSessions(res.sessions ?? []);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthError(true);
@@ -119,7 +119,7 @@ export default function SecuritySettingsPage() {
     api
       .get<{ sessions: SessionRow[] }>("/api/v1/auth/sessions")
       .then((res) => {
-        if (active) setSessions(res.sessions);
+        if (active) setSessions(res.sessions ?? []);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {

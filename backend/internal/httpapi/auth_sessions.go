@@ -25,6 +25,9 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not list sessions")
 		return
 	}
+	if sessions == nil {
+		sessions = []SessionInfo{}
+	}
 	for i := range sessions {
 		sessions[i].Current = sessions[i].TokenID == claims.GetTokenID()
 	}

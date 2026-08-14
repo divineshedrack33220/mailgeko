@@ -2,8 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 )
 
 func TestSessionStoreCRUD(t *testing.T) {
@@ -108,5 +113,48 @@ func TestSessionStoreTouch(t *testing.T) {
 	}
 	if sessions[0].LastSeen.Before(sessions[0].IssuedAt) {
 		t.Error("expected lastSeen to be after issuedAt after Touch")
+	}
+}
+
+// TestHandleListSessionsEmpty ensures a user with no sessions receives
+// "sessions": [] rather than null. A nil slice marshals to null, which crashed
+// the security settings page (sessions.filter is not a function).
+func TestHandleListSessionsEmpty(t *testing.T) {
+	rdb := newTestRedis(t)
+	sess := NewSessionStore(rdb)
+	mgr := auth.NewTokenManager("test-secret", time.Hour)
+	srv := New(Config{}, nil, nil, mgr, sess, nil, nil, nil, nil, nil)
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	tok, err := mgr.Issue("u-empty", "empty@example.com", "ws-1", "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := ts.Client().Do(mustGet(ts.URL+"/api/v1/auth/sessions", tok))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	var body map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	raw, ok := body["sessions"]
+	if !ok {
+		t.Fatal(`response missing "sessions" key`)
+	}
+	if string(raw) == "null" {
+		t.Fatal(`"sessions" marshaled as null; must be []`)
+	}
+	var list []SessionInfo
+	if err := json.Unmarshal(raw, &list); err != nil {
+		t.Fatalf("sessions not an array: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected no sessions, got %d", len(list))
 	}
 }

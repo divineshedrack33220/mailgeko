@@ -51,26 +51,11 @@ export default function BillingSettingsPage() {
   }, []);
 
   React.useEffect(() => {
-    let cancelled = false;
     const run = async () => {
-      try {
-        const [limitsRes, plansRes] = await Promise.all([
-          api.get<{ limits: BillingLimits }>("/api/v1/billing/current"),
-          api.get<{ plans: BillingPlan[] }>("/api/v1/billing/plans"),
-        ]);
-        if (!cancelled) {
-          setLimits(limitsRes.limits);
-          setPlans(plansRes.plans);
-        }
-      } catch (err) {
-        console.error("Failed to load billing data", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await load();
     };
-    void run();
-    return () => { cancelled = true; };
-  }, []);
+    run();
+  }, [load]);
 
   const currentPlan = limits?.plan;
 
