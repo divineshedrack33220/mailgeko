@@ -61,6 +61,10 @@ func (s *Server) handleBillingCheckout(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_request", "unknown plan")
 			return
 		}
+		if errors.Is(err, billing.ErrActiveSubscription) {
+			writeError(w, http.StatusConflict, "already_subscribed", err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal", "could not create checkout")
 		return
 	}

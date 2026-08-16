@@ -100,6 +100,65 @@ func (s *Store) RecipientAlreadySent(ctx context.Context, campaignID, contactID 
 	return status == "sent" || status == "bounced" || status == "complained" || status == "unsubscribed", nil
 }
 
+// ClaimRecipient atomically reserves a campaign recipient for sending. The
+// row is created as 'queued' on first sight; a re-run (manual send racing the
+// scheduler, a retried StartCampaign task) only re-queues recipients that were
+// failed or skipped, and never re-queues one that is already queued or sent.
+// It reports whether the caller won the claim (i.e. should enqueue a send).
+func (s *Store) ClaimRecipient(ctx context.Context, campaignID, contactID string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`INSERT INTO campaign_recipients (campaign_id, contact_id, status)
+		 VALUES (?, ?, 'queued')
+		 ON DUPLICATE KEY UPDATE
+		   status = IF(status IN ('failed', 'skipped'), 'queued', status)`,
+		campaignID, contactID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// ClaimAutomationSend atomically reserves an automation send for
+// (campaign, contact, run) so a step executed twice (scheduler re-claim racing
+// a still-running worker, or a retried task) emails the contact exactly once.
+//
+// Claim rules:
+//   - no row yet: claimed (insert).
+//   - same run already 'sent': not claimed (idempotent re-execution).
+//   - same run already claimed ('sending', not yet recorded as sent): not
+//     claimed, so a concurrent duplicate executor cannot double-send.
+//   - same run 'failed'/'skipped' (a send error was recorded): re-claimed, so
+//     the scheduler's retry actually re-sends.
+//   - a different run id (re-enrollment / restart-failed): re-claimed, so a
+//     fresh run emails the contact again.
+func (s *Store) ClaimAutomationSend(ctx context.Context, campaignID, contactID, automationRunID string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`INSERT INTO campaign_recipients (campaign_id, contact_id, status, automation_run_id, sent_at)
+		 VALUES (?, ?, 'sending', ?, NULL)
+		 ON DUPLICATE KEY UPDATE
+		   status = IF(automation_run_id = VALUES(automation_run_id) AND status = 'sent', status, 'sending'),
+		   sent_at = IF(automation_run_id = VALUES(automation_run_id) AND status = 'sent', sent_at, NULL),
+		   automation_run_id = VALUES(automation_run_id)`,
+		campaignID, contactID, automationRunID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// MarkAutomationSendFailed releases an automation recipient claim so a
+// scheduler retry of the run can re-claim and re-send it. Called when the
+// provider rejected the send; it is never called after a successful send.
+func (s *Store) MarkAutomationSendFailed(ctx context.Context, campaignID, contactID, automationRunID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE campaign_recipients SET status = 'failed', error = ''
+		 WHERE campaign_id = ? AND contact_id = ? AND automation_run_id = ?`,
+		campaignID, contactID, automationRunID)
+	return err
+}
+
 func (s *Store) MarkRecipientFailed(ctx context.Context, campaignID, contactID, errMsg string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE campaign_recipients SET status = 'failed', error = ?
@@ -306,5 +365,15 @@ func (s *Store) SetCampaignStatsField(ctx context.Context, campaignID, field str
 	}
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE campaign_stats SET `+field+` = `+field+` + ? WHERE campaign_id = ?`, delta, campaignID)
+	return err
+}
+
+// SetCampaignRecipientsCount writes the campaign's absolute recipient count,
+// replacing whatever the stats row held. Using an absolute count (instead of
+// adding a delta) keeps the stat correct when StartCampaign runs more than
+// once for the same campaign.
+func (s *Store) SetCampaignRecipientsCount(ctx context.Context, campaignID string, n int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE campaign_stats SET recipients = ? WHERE campaign_id = ?`, n, campaignID)
 	return err
 }

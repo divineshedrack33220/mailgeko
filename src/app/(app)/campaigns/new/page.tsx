@@ -50,6 +50,23 @@ const steps = [
   { id: 4, label: "Review", icon: Rocket },
 ];
 
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+// AI copy comes back as plain text; turn it into safe paragraph HTML so it
+// renders in an email the way the copywriter intended.
+const textToHtml = (text: string) =>
+  text
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br />")}</p>`)
+    .join("\n");
+
 export default function NewCampaignPage() {
   const router = useRouter();
   const role = useAuthStore((s) => s.role);
@@ -74,6 +91,9 @@ export default function NewCampaignPage() {
   const [fromName, setFromName] = React.useState("Mailgeko");
   const [fromEmail, setFromEmail] = React.useState("mailgeko@clawmark.online");
   const [replyTo, setReplyTo] = React.useState("");
+
+  const [htmlContent, setHtmlContent] = React.useState("");
+  const [aiDraftApplied, setAiDraftApplied] = React.useState(false);
 
   const [scheduleMode, setScheduleMode] = React.useState<"now" | "later">("now");
   const [scheduleDate, setScheduleDate] = React.useState("");
@@ -106,11 +126,49 @@ export default function NewCampaignPage() {
       } catch (err) {
         if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load campaign data");
       }
+
+      // Pick up a draft saved from the AI copywriter ("Apply to campaign").
+      try {
+        const draft = JSON.parse(localStorage.getItem("mailgeko_campaign_draft") ?? "{}");
+        if (cancelled || !draft || typeof draft !== "object") return;
+        if (typeof draft.subject === "string" && draft.subject.trim()) {
+          setSubject(draft.subject.trim());
+        }
+        if (typeof draft.htmlContent === "string" && draft.htmlContent.trim()) {
+          const body = draft.htmlContent.trim();
+          setHtmlContent(textToHtml(body));
+          setAiDraftApplied(true);
+          const snippet = body.replace(/\s+/g, " ").trim().slice(0, 150);
+          if (snippet) setPreviewText(snippet);
+        }
+      } catch {
+        // ignore malformed or inaccessible drafts
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const clearAiDraft = () => {
+    setAiDraftApplied(false);
+    setHtmlContent("");
+    try {
+      localStorage.removeItem("mailgeko_campaign_draft");
+    } catch {
+      // ignore storage issues
+    }
+  };
+
+  const stripTags = (html: string) =>
+    html
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
 
   const recipients = selectedLists.reduce(
     (sum, id) => sum + (lists.find((l) => l.id === id)?.contactCount ?? 0),
@@ -124,15 +182,29 @@ export default function NewCampaignPage() {
 
   const finalRecipients = segment !== "none" ? recipients + segmentCount : recipients;
 
+  // Recipients are resolved as a distinct set of contacts, so the estimate
+  // over-counts whenever contacts can appear in more than one place: multiple
+  // lists may share contacts, and a segment overlaps the lists it was built
+  // from. The exact overlap is unknowable from list/segment counts alone, so
+  // the figure is shown as an approximation in those cases.
+  const estimateApproximate = selectedLists.length > 1 || (segment !== "none" && selectedLists.length > 0);
+
   const canContinue = React.useMemo(() => {
     if (step === 1) return selectedLists.length > 0;
-    if (step === 2) return subject.trim().length > 0 && fromName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail.trim()) && template.length > 0;
+    if (step === 2) {
+      const senderValid =
+        subject.trim().length > 0 &&
+        fromName.trim().length > 0 &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail.trim());
+      if (!senderValid) return false;
+      return template.length > 0 || htmlContent.trim().length > 0;
+    }
     if (step === 3) {
       if (scheduleMode === "later") return scheduleDate.length > 0;
       return true;
     }
     return true;
-  }, [step, selectedLists.length, subject, fromName, fromEmail, template, scheduleMode, scheduleDate]);
+  }, [step, selectedLists.length, subject, fromName, fromEmail, template, htmlContent, scheduleMode, scheduleDate]);
 
   const finish = async () => {
     setSending(true);
@@ -147,7 +219,7 @@ export default function NewCampaignPage() {
         templateId: template,
         previewText,
         plainText: "",
-        htmlContent: "",
+        htmlContent,
         status: "draft",
         type: "regular",
         listIds: selectedLists,
@@ -156,6 +228,11 @@ export default function NewCampaignPage() {
         sender: { fromName, fromEmail, replyTo },
         settings: { trackOpens, trackClicks, allowUnsubscribe },
       });
+      try {
+        localStorage.removeItem("mailgeko_campaign_draft");
+      } catch {
+        // ignore storage issues
+      }
       if (scheduleMode === "now") {
         await api.post(`/api/v1/campaigns/${res.campaign.id}/send`);
       }
@@ -207,6 +284,7 @@ export default function NewCampaignPage() {
             segment={segment}
             onSegmentChange={setSegment}
             recipientCount={finalRecipients}
+            approximate={estimateApproximate}
           />
         )}
 
@@ -225,6 +303,9 @@ export default function NewCampaignPage() {
             onFromEmailChange={setFromEmail}
             replyTo={replyTo}
             onReplyToChange={setReplyTo}
+            aiDraftApplied={aiDraftApplied}
+            aiBodyText={stripTags(htmlContent)}
+            onClearAiDraft={clearAiDraft}
           />
         )}
 
@@ -243,6 +324,7 @@ export default function NewCampaignPage() {
           <ReviewStep
             campaignName={subject}
             recipientCount={finalRecipients}
+            approximate={estimateApproximate}
             fromName={fromName}
             fromEmail={fromEmail}
             scheduleMode={scheduleMode}
@@ -255,6 +337,7 @@ export default function NewCampaignPage() {
             onTrackClicksChange={setTrackClicks}
             onAllowUnsubscribeChange={setAllowUnsubscribe}
             templateName={templates.find((t) => t.id === template)?.name}
+            contentNote={htmlContent.trim() && !template ? "AI draft copy (no template)" : undefined}
           />
         )}
 
@@ -269,7 +352,13 @@ export default function NewCampaignPage() {
           </Button>
           <div className="flex items-center gap-2">
             {step < 4 && (
-              <Button variant="outline" type="button" onClick={() => setStep(4)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setStep(4)}
+                disabled={selectedLists.length === 0 || sending}
+                title={selectedLists.length === 0 ? "Select at least one list first" : undefined}
+              >
                 Skip to review
               </Button>
             )}
@@ -370,6 +459,7 @@ function RecipientsStep({
   segment,
   onSegmentChange,
   recipientCount,
+  approximate,
 }: {
   lists: ContactList[];
   segments: Segment[];
@@ -378,6 +468,7 @@ function RecipientsStep({
   segment: string;
   onSegmentChange: (value: string) => void;
   recipientCount: number;
+  approximate: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -450,10 +541,15 @@ function RecipientsStep({
         <div>
           <p className="text-sm font-medium">Estimated recipients</p>
           <p className="text-muted-foreground text-xs">
-            {segment !== "none" ? "Contacts in selected lists plus segment matches" : "Sum of selected lists"}
+            {approximate
+              ? "Approximate — contacts shared between lists and the segment are counted once at send"
+              : segment !== "none"
+                ? "Segment matches"
+                : "Sum of selected lists"}
           </p>
         </div>
         <span className="text-primary text-2xl font-semibold tabular-nums">
+          {approximate && <span className="text-primary/70">~</span>}
           {formatNumber(recipientCount)}
         </span>
       </div>
@@ -475,6 +571,9 @@ function ContentStep({
   onFromEmailChange,
   replyTo,
   onReplyToChange,
+  aiDraftApplied,
+  aiBodyText,
+  onClearAiDraft,
 }: {
   templates: Template[];
   template: string;
@@ -489,6 +588,9 @@ function ContentStep({
   onFromEmailChange: (v: string) => void;
   replyTo: string;
   onReplyToChange: (v: string) => void;
+  aiDraftApplied: boolean;
+  aiBodyText: string;
+  onClearAiDraft: () => void;
 }) {
   const [aiGenerating, setAiGenerating] = React.useState(false);
   const [aiIndex, setAiIndex] = React.useState(0);
@@ -530,6 +632,33 @@ function ContentStep({
         title="What's in the email?"
         description="Choose a template and craft your subject line and sender info."
       />
+
+      {aiDraftApplied && (
+        <Card className="gap-3 py-5">
+          <div className="flex items-center justify-between px-6">
+            <div className="flex items-center gap-2">
+              <Wand2 className="text-primary size-4" />
+              <span className="text-sm font-medium">AI draft applied</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClearAiDraft}
+              className="text-muted-foreground hover:text-foreground cursor-pointer text-xs font-medium underline-offset-2 hover:underline"
+            >
+              Remove draft
+            </button>
+          </div>
+          <div className="px-6">
+            <div className="bg-muted/40 max-h-40 overflow-auto rounded-lg border p-4 text-sm whitespace-pre-wrap">
+              {aiBodyText || "…"}
+            </div>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+              Your AI copy is set as the email body. A template is optional —
+              pick one to wrap the copy in your branding, or send it as-is.
+            </p>
+          </div>
+        </Card>
+      )}
 
       <Card className="gap-4 py-5">
         <div className="px-6">
@@ -734,6 +863,7 @@ function ScheduleStep({
 function ReviewStep({
   campaignName,
   recipientCount,
+  approximate,
   fromName,
   fromEmail,
   scheduleMode,
@@ -746,9 +876,11 @@ function ReviewStep({
   onTrackClicksChange,
   onAllowUnsubscribeChange,
   templateName,
+  contentNote,
 }: {
   campaignName: string;
   recipientCount: number;
+  approximate: boolean;
   fromName: string;
   fromEmail: string;
   scheduleMode: string;
@@ -761,6 +893,7 @@ function ReviewStep({
   onTrackClicksChange: (v: boolean) => void;
   onAllowUnsubscribeChange: (v: boolean) => void;
   templateName?: string;
+  contentNote?: string;
 }) {
   const scheduleLabel =
     scheduleMode === "now"
@@ -774,13 +907,15 @@ function ReviewStep({
       <Card className="gap-0 overflow-hidden py-0">
         <div className="border-b px-6 py-4">
           <p className="text-sm font-semibold">{campaignName || "Untitled campaign"}</p>
-          {templateName && (
+          {templateName ? (
             <p className="text-muted-foreground text-xs">Template: {templateName}</p>
-          )}
+          ) : contentNote ? (
+            <p className="text-muted-foreground text-xs">{contentNote}</p>
+          ) : null}
         </div>
         <dl className="divide-y">
           {[
-            { label: "Recipients", value: `${formatNumber(recipientCount)} contacts` },
+            { label: "Recipients", value: `${approximate ? "~" : ""}${formatNumber(recipientCount)} contacts` },
             { label: "From", value: `${fromName} <${fromEmail}>` },
             { label: "Schedule", value: scheduleLabel },
           ].map((row) => (

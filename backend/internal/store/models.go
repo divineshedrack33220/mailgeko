@@ -128,18 +128,20 @@ type CampaignStats struct {
 }
 
 type Automation struct {
-	ID                string
-	WorkspaceID       string
-	Name              string
-	Description       string
-	TriggerType       string
-	TriggerLabel      string
-	TriggerConditions []Condition
-	TriggerDelay      *int
-	Steps             json.RawMessage
-	Status            string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   string
+	WorkspaceID          string
+	Name                 string
+	Description          string
+	TriggerType          string
+	TriggerLabel         string
+	TriggerConditions    []Condition
+	TriggerDelay         *int
+	TriggerReentry       bool
+	TriggerRespectOptOut bool
+	Steps                json.RawMessage
+	Status               string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 func marshalJSON(v any) []byte {

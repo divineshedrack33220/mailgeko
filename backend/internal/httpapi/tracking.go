@@ -75,7 +75,9 @@ func (s *Server) enqueueTrackEvent(r *http.Request, campaignID, contactID, works
 
 func (s *Server) handleTrackOpen(w http.ResponseWriter, r *http.Request) {
 	campaignID, contactID, workspaceID := trackParams(r)
-	if !s.verifyTrackSignature(r, "open", campaignID, contactID) {
+	// trackURL signs opens with an empty target part; the verifier must mirror
+	// that exact part list or every open pixel 404s and opens are never counted.
+	if !s.verifyTrackSignature(r, "open", campaignID, contactID, "") {
 		http.NotFound(w, r)
 		return
 	}
@@ -112,7 +114,9 @@ func (s *Server) handleTrackClick(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTrackUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	campaignID, contactID, workspaceID := trackParams(r)
-	if !s.verifyTrackSignature(r, "unsubscribe", campaignID, contactID) {
+	// trackURL signs unsubscribe links with an empty target part; mirror it or
+	// every unsubscribe link is rejected and unsubscribes never register.
+	if !s.verifyTrackSignature(r, "unsubscribe", campaignID, contactID, "") {
 		http.NotFound(w, r)
 		return
 	}

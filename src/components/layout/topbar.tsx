@@ -337,7 +337,7 @@ function UserMenu() {
   const signOut = async () => {
     setSigningOut(true);
     try {
-      logout();
+      await logout();
       router.push("/login");
     } finally {
       setSigningOut(false);

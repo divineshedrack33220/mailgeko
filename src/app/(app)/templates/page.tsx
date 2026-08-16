@@ -127,11 +127,12 @@ export default function TemplatesPage() {
   });
 
   const toggleFavorite = async (id: string) => {
-    setTemplates((prev) => {
-      const template = prev.find((t) => t.id === id);
-      if (!template) return prev;
-      const next = { ...template, isFavorite: !template.isFavorite };
-      api.patch(`/api/v1/templates/${id}`, {
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    const next = { ...template, isFavorite: !template.isFavorite };
+    setTemplates((prev) => prev.map((t) => (t.id === id ? next : t)));
+    try {
+      await api.patch(`/api/v1/templates/${id}`, {
         name: next.name,
         description: next.description,
         category: next.category,
@@ -141,11 +142,11 @@ export default function TemplatesPage() {
         variables: next.variables,
         tags: next.tags,
         isFavorite: next.isFavorite,
-      }).catch((err) => {
-        toast.error(err instanceof Error ? err.message : "Could not update template");
       });
-      return prev.map((t) => (t.id === id ? next : t));
-    });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update template");
+      setTemplates((prev) => prev.map((t) => (t.id === id ? template : t)));
+    }
   };
 
   const duplicateTemplate = async (template: Template) => {

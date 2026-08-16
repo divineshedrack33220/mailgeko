@@ -121,3 +121,34 @@ func TestGetAutomationRunNotFound(t *testing.T) {
 		t.Fatalf("expected nil run, got %+v", run)
 	}
 }
+
+func TestAutomationRunExists(t *testing.T) {
+	s, mock := newSQLMockStore(t)
+	ctx := context.Background()
+
+	mock.ExpectQuery("SELECT 1 FROM automation_runs WHERE automation_id = \\? AND contact_id = \\? LIMIT 1").
+		WithArgs("a1", "c1").
+		WillReturnRows(sqlmock.NewRows([]string{"1"}).AddRow(1))
+	exists, err := s.AutomationRunExists(ctx, "a1", "c1")
+	if err != nil {
+		t.Fatalf("AutomationRunExists: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected existing run to be reported")
+	}
+
+	mock.ExpectQuery("SELECT 1 FROM automation_runs WHERE automation_id = \\? AND contact_id = \\? LIMIT 1").
+		WithArgs("a1", "c2").
+		WillReturnError(sql.ErrNoRows)
+	exists, err = s.AutomationRunExists(ctx, "a1", "c2")
+	if err != nil {
+		t.Fatalf("AutomationRunExists (missing): %v", err)
+	}
+	if exists {
+		t.Fatal("expected missing run to be reported as absent")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}

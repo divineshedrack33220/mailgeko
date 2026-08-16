@@ -26,7 +26,8 @@ func restartTestEngine(t *testing.T) (*Engine, sqlmock.Sqlmock) {
 func automationColumns() []string {
 	return []string{
 		"id", "workspace_id", "name", "description", "trigger_type", "trigger_label",
-		"trigger_conditions", "trigger_delay", "steps", "status", "created_at", "updated_at",
+		"trigger_conditions", "trigger_delay", "trigger_reentry", "trigger_respect_opt_out",
+		"steps", "status", "created_at", "updated_at",
 	}
 }
 
@@ -42,10 +43,10 @@ func automationRow(triggerDelay int, hasDelay bool) *sqlmock.Rows {
 	rows := sqlmock.NewRows(automationColumns())
 	if hasDelay {
 		return rows.AddRow("a1", "ws", "Welcome", "", "welcome", "New subscriber",
-			[]byte("[]"), triggerDelay, []byte("[]"), "active", time.Now(), time.Now())
+			[]byte("[]"), triggerDelay, true, true, []byte("[]"), "active", time.Now(), time.Now())
 	}
 	return rows.AddRow("a1", "ws", "Welcome", "", "welcome", "New subscriber",
-		[]byte("[]"), nil, []byte("[]"), "active", time.Now(), time.Now())
+		[]byte("[]"), nil, true, true, []byte("[]"), "active", time.Now(), time.Now())
 }
 
 func contactRow(id, email, status string) *sqlmock.Rows {

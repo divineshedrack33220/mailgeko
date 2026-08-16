@@ -48,8 +48,31 @@ func (e *Engine) enrollContact(ctx context.Context, automation *store.Automation
 	if !force && automation.Status != "active" {
 		return false, nil
 	}
-	if contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam {
+	if automation.TriggerRespectOptOut &&
+		(contact.Status == store.ContactUnsubscribed || contact.Status == store.ContactBounced || contact.Status == store.ContactSpam) {
 		return false, nil
+	}
+	// Trigger conditions gate enrollment: every configured condition must
+	// match (AND semantics, like an "all" segment). The editor surfaces these
+	// conditions, so without this check they were silently ignored and every
+	// contact entered the flow.
+	for _, cond := range automation.TriggerConditions {
+		if !conditionMatches(cond, contact) {
+			return false, nil
+		}
+	}
+	// Re-entry gate: with "run on re-entry" disabled a contact that already
+	// has a run (in progress or completed) must not restart the flow. Forced
+	// re-enrollment (restart-failed) is exempt: its whole purpose is to
+	// re-run contacts that already have a run.
+	if !force && !automation.TriggerReentry {
+		exists, err := e.store.AutomationRunExists(ctx, automation.ID, contact.ID)
+		if err != nil {
+			return false, err
+		}
+		if exists {
+			return false, nil
+		}
 	}
 	runAt := time.Now().UTC()
 	if automation.TriggerDelay != nil && *automation.TriggerDelay > 0 {
@@ -250,19 +273,30 @@ func (e *Engine) RunAutomationStep(ctx context.Context, runID string) error {
 	return e.store.AdvanceAutomationRun(ctx, run.ID, status, nextIndex, nextRunAt)
 }
 
-// boundStepFailure handles a step that failed to execute. It returns the error
-// so the worker retries it, but once the run has exhausted its retry budget
-// the run is marked failed and the owner is notified, so a permanently failing
-// step never retries forever.
+// boundStepFailure handles a step that failed to execute. Once the run has
+// exhausted its retry budget the run is marked failed and the owner is
+// notified, so a permanently failing step never retries forever.
+//
+// Within the budget the retry is scheduled through the run's own run_at column
+// (the scheduler re-claims and re-enqueues it after the backoff) instead of
+// being returned as an asynq error. That makes the scheduler the single source
+// of truth for automation-run execution: if asynq also retried the task, a
+// lease expiry could re-claim the run while the retried task is still running,
+// and both would execute the step and double-send email.
 func (e *Engine) boundStepFailure(ctx context.Context, run *store.AutomationRun, automation *store.Automation, step automationStep, contact *store.Contact, err error) error {
 	attempts, bumpErr := e.store.BumpAutomationRunAttempts(ctx, run.ID)
 	if bumpErr != nil {
-		return err
+		log.Printf("automation %s: run %s bump attempts: %v", automation.ID, run.ID, bumpErr)
+		return nil
 	}
 	if attempts < automationMaxStepAttempts {
 		log.Printf("automation %s: step %q failed for %s (attempt %d/%d): %v",
 			automation.ID, step.Label, contact.Email, attempts, automationMaxStepAttempts, err)
-		return err
+		backoff := time.Duration(attempts*attempts) * 15 * time.Second
+		if schedErr := e.store.ScheduleAutomationRunRetry(ctx, run.ID, time.Now().UTC().Add(backoff)); schedErr != nil {
+			log.Printf("automation %s: run %s schedule retry: %v", automation.ID, run.ID, schedErr)
+		}
+		return nil
 	}
 	_ = e.store.FailAutomationRun(ctx, run.ID, err.Error(), run.StepIndex)
 	_ = e.notify(ctx, run.WorkspaceID, "automation-failed",
@@ -291,12 +325,20 @@ func (e *Engine) sendEmailStep(ctx context.Context, runID string, automation *st
 		return nil
 	}
 	// Idempotency guard: if a retried step already sent this email for this
-	// run, don't send it again.
+	// run, don't send it again. The fast path avoids a write per re-execution;
+	// the atomic claim below is what actually prevents a concurrent duplicate.
 	sent, err := e.store.RecipientSentByAutomation(ctx, campaign.ID, contact.ID, runID)
 	if err != nil {
 		return err
 	}
 	if sent {
+		return nil
+	}
+	claimed, err := e.store.ClaimAutomationSend(ctx, campaign.ID, contact.ID, runID)
+	if err != nil {
+		return err
+	}
+	if !claimed {
 		return nil
 	}
 	return e.SendAutomationEmail(ctx, runID, automation.ID, campaign, contact)
@@ -345,6 +387,7 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 	}
 
 	headers := map[string]string{
+		"X-Mailgeko-Campaign":   campaign.ID,
 		"X-Mailgeko-Automation": automationID,
 		"X-Mailgeko-Contact":    contact.ID,
 		"X-Mailgeko-Workspace":  campaign.WorkspaceID,
@@ -354,7 +397,7 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 		headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 	}
 
-	_, err = snd.Send(ctx, sender.Message{
+	result, err := snd.Send(ctx, sender.Message{
 		From:    from,
 		To:      contact.Email,
 		Subject: Substitute(campaign.Subject, contactVariables(contact)),
@@ -368,15 +411,22 @@ func (e *Engine) SendAutomationEmail(ctx context.Context, automationRunID, autom
 		},
 	})
 	if err != nil {
+		// Release the claim so the scheduler's retry of this run can re-send.
+		// Without this a transient provider failure would leave the recipient
+		// claimed but never delivered.
+		_ = e.store.MarkAutomationSendFailed(ctx, campaign.ID, contact.ID, automationRunID)
 		return err
 	}
 	// Record the recipient so engagement (opens/clicks) can be tracked and
-	// automation "opened"/"clicked" conditions can evaluate. This row is also
-	// the idempotency marker for retried steps.
+	// automation "opened"/"clicked" conditions can evaluate. The message id is
+	// stored so Resend webhooks can resolve the event back to this recipient
+	// (without it, delivered/opened/clicked events for automation emails are
+	// dropped). This row is also the idempotency marker for retried steps.
 	now := time.Now().UTC()
 	if err := e.store.MarkAutomationSent(ctx, &store.CampaignRecipient{
 		CampaignID:      campaign.ID,
 		ContactID:       contact.ID,
+		ResendMessageID: result.MessageID,
 		Status:          "sent",
 		AutomationRunID: automationRunID,
 		SentAt:          &now,

@@ -57,9 +57,12 @@ func (r *campaignRequest) apply(c *store.Campaign) {
 		c.HTMLContent = r.HTMLContent
 	}
 	if r.Status != "" {
+		// Only non-terminal statuses may be set by a caller. Terminal states
+		// (sent, completed, failed) are derived from the send lifecycle; letting
+		// a member forge them would let a campaign be marked sent before it
+		// went out (or marked failed to dodge reporting).
 		allowedStatuses := map[string]bool{
-			"draft": true, "scheduled": true, "sending": true,
-			"sent": true, "completed": true, "failed": true, "paused": true,
+			"draft": true, "scheduled": true, "paused": true,
 		}
 		if allowedStatuses[r.Status] {
 			c.Status = r.Status
@@ -331,18 +334,29 @@ func (s *Server) handleSendCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "invalid_state", "campaign cannot be sent from its current state")
 		return
 	}
-	if s.biller != nil {
-		recipients, err := s.db.CountRecipients(r.Context(), c.ID)
+	// Check quota against the campaign's resolved audience. Counting recipient
+	// rows is wrong here: they only exist after a send starts, so a scheduled
+	// or fresh campaign would always report zero.
+	if s.biller != nil && s.engine != nil {
+		recipients, err := s.engine.EstimateAudience(r.Context(), c.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", "could not count recipients")
 			return
 		}
-		if err := s.biller.CheckEmailQuota(r.Context(), claims.GetWorkspaceID(), recipients); err != nil {
+		if err := s.biller.CheckEmailQuota(r.Context(), claims.GetWorkspaceID(), int64(recipients)); err != nil {
 			s.writePlanError(w, err)
 			return
 		}
 	}
-	if err := s.db.SetCampaignStatus(r.Context(), claims.GetWorkspaceID(), c.ID, store.CampaignSending); err != nil {
+	// Claim the campaign atomically so a manual send and the scheduler can
+	// never both start it. A losing caller gets a conflict instead of a
+	// second, duplicate send.
+	claimed, err := s.db.ClaimCampaignForSend(r.Context(), claims.GetWorkspaceID(), c.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not start campaign")
+		return
+	}
+	if !claimed {
 		writeError(w, http.StatusConflict, "invalid_state", "campaign is already being sent")
 		return
 	}

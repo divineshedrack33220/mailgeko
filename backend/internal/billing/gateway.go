@@ -14,6 +14,12 @@ import (
 
 var ErrInvalidSignature = errors.New("invalid webhook signature")
 
+// ErrActiveSubscription is returned when a checkout is attempted while the
+// workspace already has an active subscription for the same plan. Plan changes
+// go through a new checkout (which replaces the old subscription); repeat
+// checkouts for the plan you already have would stack duplicate subscriptions.
+var ErrActiveSubscription = errors.New("workspace already has this plan; manage your subscription from the billing portal")
+
 // Event types normalized from gateway webhooks.
 const (
 	EventCheckoutCompleted   = "checkout.completed"

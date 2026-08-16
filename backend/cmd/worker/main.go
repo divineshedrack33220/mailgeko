@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/analytics"
+	"github.com/divineshedrack33220/mailgeko/backend/internal/billing"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/config"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/crypto"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/database"
@@ -42,10 +43,17 @@ func main() {
 
 	queueClient := queue.NewClient(cfg.RedisAddr)
 
-	eng := engine.New(store.New(tiDB), sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueClient, cfg.BaseURL)
+	db := store.New(tiDB)
+	eng := engine.New(db, sender.NewConfigured(cfg.ResendAPIKeys, cfg.ResendEndpoint), queueClient, cfg.BaseURL)
 	eng.WithTrackingSecret(cfg.TrackingSecret)
 	eng.WithDefaultSender(cfg.DefaultFromName, cfg.DefaultFromEmail)
 	eng.WithAllowedFromDomains(cfg.AllowedFromDomains...)
+	// Enforce the monthly email cap at send time. The HTTP layer's quota check
+	// counts a campaign's resolved audience, but scheduled/queued campaigns
+	// start on the worker, so without this check they would bypass the cap.
+	// The local gateway is never used by the worker; it only supplies the
+	// quota logic (PlanByID + usage counts).
+	eng.WithEmailQuotaChecker(billing.NewService(db, billing.NewLocal(cfg.StripeWebhookSecret, cfg.BaseURL), cfg.BaseURL).CheckEmailQuota)
 	if enc, err := crypto.New(cfg.SecretKey); err == nil {
 		eng.WithEncryptor(enc)
 	} else if cfg.SecretKey != "" {

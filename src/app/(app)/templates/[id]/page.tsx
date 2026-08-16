@@ -436,9 +436,23 @@ export default function TemplateEditorPage() {
         toast.error("Popup blocked — allow popups for this site");
         return;
       }
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
+      // Render the compiled HTML inside a sandboxed iframe instead of writing
+      // it straight into the same-origin popup. Without allow-same-origin the
+      // email cannot reach localStorage/JWT, and without allow-scripts no
+      // script tag or javascript: URL in the template can execute. allow-popups
+      // keeps normal _blank links in the email working.
+      const escapeAttr = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      const doc = win.document;
+      doc.open();
+      doc.write(
+        '<!doctype html><html><head><meta charset="utf-8"><title>Email preview</title>' +
+          '<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0;display:block}</style>' +
+          '</head><body><iframe sandbox="allow-popups" title="Email preview" srcdoc="' +
+          escapeAttr(html) +
+          '"></iframe></body></html>'
+      );
+      doc.close();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not render preview");
     }

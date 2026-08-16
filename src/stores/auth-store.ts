@@ -137,7 +137,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       user: res.user ?? get().user,
       workspaceID: res.workspaceID,
-      role: res.role ?? null,
+      role: res.role ?? get().role,
       isAuthenticated: true,
     });
   },

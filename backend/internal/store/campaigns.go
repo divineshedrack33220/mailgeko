@@ -132,6 +132,21 @@ func (s *Store) SetCampaignStatus(ctx context.Context, workspaceID, id, status s
 	return err
 }
 
+// ClaimCampaignForSend atomically moves a campaign into 'sending' so a manual
+// send, the scheduler and a retried send task can never start the same
+// campaign twice. It reports whether this caller won the claim.
+func (s *Store) ClaimCampaignForSend(ctx context.Context, workspaceID, id string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE campaigns SET status = 'sending', updated_at = ?
+		 WHERE workspace_id = ? AND id = ? AND status IN ('draft', 'scheduled', 'paused', 'failed')`,
+		time.Now().UTC(), workspaceID, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 // ListDueScheduledCampaigns returns campaigns whose send time has arrived and
 // that are still waiting to go out (draft or scheduled, not paused/sent).
 func (s *Store) ListDueScheduledCampaigns(ctx context.Context, now time.Time) ([]Campaign, error) {
@@ -177,12 +192,19 @@ func (s *Store) MarkCampaignScheduled(ctx context.Context, id string) (bool, err
 // worker crashed mid-send: the campaign is left in 'sending' with no active
 // worker to complete it. Stuck campaigns are reset to 'failed' so the user
 // can retry.
+//
+// A campaign is only recovered when its recipients show no recent activity.
+// Large sends can legitimately run for many hours, so the campaign's own
+// updated_at (which is not touched per recipient) is not a reliable stall
+// signal on its own; the most recent sent_at across recipients is.
 func (s *Store) RecoverStuckSendingCampaigns(ctx context.Context, now time.Time, timeout time.Duration) (int64, error) {
 	cutoff := now.Add(-timeout)
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE campaigns SET status = 'failed', updated_at = ?
-		 WHERE status = 'sending' AND updated_at < ?`,
-		now.UTC(), cutoff.UTC())
+		 WHERE status = 'sending' AND updated_at < ?
+		   AND COALESCE((SELECT MAX(sent_at) FROM campaign_recipients
+		                 WHERE campaign_id = campaigns.id), 0) < ?`,
+		now.UTC(), cutoff.UTC(), cutoff.UTC())
 	if err != nil {
 		return 0, err
 	}

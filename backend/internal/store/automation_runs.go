@@ -108,6 +108,24 @@ func (s *Store) GetAutomationRun(ctx context.Context, id string) (*AutomationRun
 	return r.toAutomationRun(), nil
 }
 
+// AutomationRunExists reports whether a run already exists for an
+// (automation, contact) pair. Enrollment uses it to honour the trigger's
+// "run on re-entry" flag: when re-entry is disabled, a contact that has ever
+// entered (or is mid-way through) the flow must not be enrolled again.
+func (s *Store) AutomationRunExists(ctx context.Context, automationID, contactID string) (bool, error) {
+	var one int
+	err := s.db.GetContext(ctx, &one,
+		`SELECT 1 FROM automation_runs WHERE automation_id = ? AND contact_id = ? LIMIT 1`,
+		automationID, contactID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // ListDueAutomationRuns returns runs that are ready to execute. Runs stuck in
 // 'processing' beyond their lease (run_at) are included so a crashed worker
 // doesn't strand a run forever.
@@ -185,6 +203,18 @@ func (s *Store) BumpAutomationRunAttempts(ctx context.Context, id string) (int, 
 		return 0, err
 	}
 	return n, nil
+}
+
+// ScheduleAutomationRunRetry postpones a failed run's next attempt by setting
+// its run_at, leaving the run 'processing'. The scheduler is the only thing
+// that enqueues automation-run tasks, so it re-claims and re-enqueues the run
+// once run_at arrives; the worker's own asynq task must NOT also retry it, or
+// the run could execute twice.
+func (s *Store) ScheduleAutomationRunRetry(ctx context.Context, id string, runAt time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE automation_runs SET run_at = ?, updated_at = ? WHERE id = ?`,
+		runAt.UTC(), time.Now().UTC(), id)
+	return err
 }
 
 // ListAutomationRuns returns the most recent runs for an automation joined

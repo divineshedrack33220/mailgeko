@@ -136,9 +136,11 @@ func (c *SMTPClient) Send(ctx context.Context, msg Message) (*SendResult, error)
 	if err := w.Close(); err != nil {
 		return nil, fmt.Errorf("smtp: send: %w", err)
 	}
-	if err := client.Quit(); err != nil {
-		return nil, fmt.Errorf("smtp: quit: %w", err)
-	}
+	// The message was accepted once w.Close() (the terminating CRLF) succeeds.
+	// A failure in the polite QUIT exchange does NOT mean the server rejected
+	// the message, so treating it as a send failure would make the caller
+	// retry and send a duplicate. The connection is closed either way.
+	_ = client.Quit()
 
 	return &SendResult{Status: 250, MessageID: id}, nil
 }

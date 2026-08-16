@@ -24,8 +24,17 @@ func NewServer(redisAddr string) *Server {
 				"default":  3,
 				"low":      1,
 			},
+			// Backoff ramps quadratically but is capped well below the
+			// scheduler's 15-minute automation-run lease. If a retry were
+			// scheduled beyond the lease, the scheduler would re-claim the run
+			// and enqueue a second task while the retry is still queued, and
+			// the run could execute twice.
 			RetryDelayFunc: func(n int, e error, t *asynq.Task) time.Duration {
-				return time.Duration(n*n) * 15 * time.Second
+				d := time.Duration(n*n) * 15 * time.Second
+				if d > time.Minute {
+					d = time.Minute
+				}
+				return d
 			},
 			ShutdownTimeout: 30 * time.Second,
 			Logger:          asynqLogger{},

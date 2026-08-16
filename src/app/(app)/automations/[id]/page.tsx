@@ -175,6 +175,9 @@ export default function AutomationBuilderPage() {
   const [name, setName] = React.useState("");
   const [status, setStatus] = React.useState<AutomationStatus>("draft");
   const [triggerDelay, setTriggerDelay] = React.useState(0);
+  const [triggerType, setTriggerType] = React.useState<string>("welcome");
+  const [reentry, setReentry] = React.useState(true);
+  const [respectOptOut, setRespectOptOut] = React.useState(true);
   const [selected, setSelected] = React.useState<string | null>("trigger");
   const [zoom, setZoom] = React.useState(1);
   const [saved, setSaved] = React.useState(false);
@@ -213,6 +216,9 @@ export default function AutomationBuilderPage() {
         setName(res.automation.name);
         setStatus(res.automation.status);
         setTriggerDelay(res.automation.trigger?.delay ?? 0);
+        setTriggerType(res.automation.trigger?.type ?? "welcome");
+        setReentry(res.automation.trigger?.reentry ?? true);
+        setRespectOptOut(res.automation.trigger?.respectOptOut ?? true);
         setNodes([
           {
             id: "trigger",
@@ -338,10 +344,12 @@ export default function AutomationBuilderPage() {
     name: name.trim(),
     description: automation?.description ?? "",
     trigger: {
-      type: automation?.trigger?.type ?? "welcome",
+      type: triggerType,
       label: automation?.trigger?.label ?? "New subscriber",
       conditions: automation?.trigger?.conditions ?? [],
       delay: triggerDelay,
+      reentry,
+      respectOptOut,
     },
     steps: nodes
       .filter((n) => n.type !== "trigger")
@@ -562,6 +570,12 @@ export default function AutomationBuilderPage() {
           onConfigChange={updateNodeConfig}
           onTriggerDelayChange={setTriggerDelay}
           triggerDelay={triggerDelay}
+          triggerType={triggerType}
+          onTriggerTypeChange={setTriggerType}
+          reentry={reentry}
+          onReentryChange={setReentry}
+          respectOptOut={respectOptOut}
+          onRespectOptOutChange={setRespectOptOut}
           onRemove={selectedNode ? () => removeNode(selectedNode.id) : undefined}
         />
       </div>
@@ -908,6 +922,12 @@ function NodeInspector({
   onConfigChange,
   onTriggerDelayChange,
   triggerDelay,
+  triggerType,
+  onTriggerTypeChange,
+  reentry,
+  onReentryChange,
+  respectOptOut,
+  onRespectOptOutChange,
   onRemove,
 }: {
   node?: CanvasNode;
@@ -916,6 +936,12 @@ function NodeInspector({
   onConfigChange: (id: string, config: Record<string, unknown>) => void;
   onTriggerDelayChange: (hours: number) => void;
   triggerDelay: number;
+  triggerType: string;
+  onTriggerTypeChange: (type: string) => void;
+  reentry: boolean;
+  onReentryChange: (value: boolean) => void;
+  respectOptOut: boolean;
+  onRespectOptOutChange: (value: boolean) => void;
   onRemove?: () => void;
 }) {
   const isTrigger = node?.type === "trigger";
@@ -955,6 +981,12 @@ function NodeInspector({
                 automation={automation}
                 delay={triggerDelay}
                 onDelayChange={onTriggerDelayChange}
+                type={triggerType}
+                onTypeChange={onTriggerTypeChange}
+                reentry={reentry}
+                onReentryChange={onReentryChange}
+                respectOptOut={respectOptOut}
+                onRespectOptOutChange={onRespectOptOutChange}
               />
             ) : node.type === "send-email" ? (
               <EmailStepConfig
@@ -999,10 +1031,22 @@ function TriggerConfig({
   automation,
   delay,
   onDelayChange,
+  type,
+  onTypeChange,
+  reentry,
+  onReentryChange,
+  respectOptOut,
+  onRespectOptOutChange,
 }: {
   automation: Automation;
   delay: number;
   onDelayChange: (hours: number) => void;
+  type: string;
+  onTypeChange: (type: string) => void;
+  reentry: boolean;
+  onReentryChange: (value: boolean) => void;
+  respectOptOut: boolean;
+  onRespectOptOutChange: (value: boolean) => void;
 }) {
   const [duration, setDuration] = React.useState(delay);
   const [unit, setUnit] = React.useState("hours");
@@ -1018,7 +1062,7 @@ function TriggerConfig({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Event</Label>
-        <Select defaultValue={automation.trigger?.type ?? "welcome"}>
+        <Select value={type} onValueChange={onTypeChange}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -1058,20 +1102,32 @@ function TriggerConfig({
           <p className="text-sm font-medium">Run on re-entry</p>
           <p className="text-muted-foreground text-xs">Restart if a contact triggers again</p>
         </div>
-        <Switch defaultChecked />
+        <Switch checked={reentry} onCheckedChange={onReentryChange} />
       </div>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">Global opt-out respected</p>
           <p className="text-muted-foreground text-xs">Skip unsubscribed contacts</p>
         </div>
-        <Switch defaultChecked />
+        <Switch checked={respectOptOut} onCheckedChange={onRespectOptOutChange} />
       </div>
       <div className="bg-muted/50 rounded-lg border px-3 py-2.5">
         <p className="text-muted-foreground text-xs leading-relaxed">
-          <span className="font-medium">Welcome trigger.</span> Contacts are
-          enrolled automatically when they are created or imported. Custom
-          automations start from the &quot;Run now&quot; button.
+          <span className="font-medium">
+            {type === "welcome"
+              ? "Welcome trigger."
+              : type === "purchase"
+                ? "Purchase trigger."
+                : type === "abandoned_cart"
+                  ? "Abandoned-cart trigger."
+                  : type === "birthday"
+                    ? "Birthday trigger."
+                    : "Custom trigger."}
+          </span>{" "}
+          Contacts are enrolled automatically when they match the event and
+          conditions above. Disabling &quot;Run on re-entry&quot; keeps a
+          contact in a single run; disabling opt-out also sends to contacts who
+          unsubscribed.
         </p>
       </div>
     </div>

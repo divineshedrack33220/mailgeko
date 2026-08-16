@@ -31,6 +31,7 @@ export default function ListDetailPage() {
 
   const [list, setList] = React.useState<ContactList | null>(null);
   const [contacts, setContacts] = React.useState<Contact[]>([]);
+  const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -39,10 +40,11 @@ export default function ListDetailPage() {
       try {
         const [listRes, contactsRes] = await Promise.all([
           api.get<{ list: ContactList }>(`/api/v1/lists/${id}`),
-          api.get<{ contacts: Contact[] }>(`/api/v1/contacts?listId=${id}&limit=500`),
+          api.get<{ contacts: Contact[]; total?: number }>(`/api/v1/contacts?listId=${id}&limit=500`),
         ]);
         setList(listRes.list ?? null);
         setContacts(contactsRes.contacts ?? []);
+        setTotal(contactsRes.total ?? contactsRes.contacts?.length ?? 0);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not load list");
       } finally {
@@ -68,7 +70,7 @@ export default function ListDetailPage() {
           list && (
             <Badge variant="secondary" className="gap-1">
               <Mail className="size-3.5" />
-              {formatNumber(contacts.length)} contacts
+              {formatNumber(total)} contacts
             </Badge>
           )
         }
@@ -89,7 +91,13 @@ export default function ListDetailPage() {
             actionHref="/contacts"
           />
         ) : (
-          <Table>
+          <>
+            {total > contacts.length && (
+              <div className="border-b bg-muted/30 px-6 py-2.5 text-xs text-muted-foreground">
+                Showing first {formatNumber(contacts.length)} of {formatNumber(total)} contacts.
+              </div>
+            )}
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Contact</TableHead>
@@ -155,6 +163,7 @@ export default function ListDetailPage() {
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </Card>
     </div>

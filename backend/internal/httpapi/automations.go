@@ -15,10 +15,12 @@ type automationRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Trigger     struct {
-		Type       string            `json:"type"`
-		Label      string            `json:"label"`
-		Conditions []store.Condition `json:"conditions"`
-		Delay      *int              `json:"delay"`
+		Type          string            `json:"type"`
+		Label         string            `json:"label"`
+		Conditions    []store.Condition `json:"conditions"`
+		Delay         *int              `json:"delay"`
+		Reentry       *bool             `json:"reentry"`
+		RespectOptOut *bool             `json:"respectOptOut"`
 	} `json:"trigger"`
 	Steps  json.RawMessage `json:"steps"`
 	Status string          `json:"status"`
@@ -31,16 +33,27 @@ func normalizeSteps(s json.RawMessage) json.RawMessage {
 	return s
 }
 
+// derefBool returns the value pointed to by b, or fallback when nil. PATCH
+// requests legitimately omit unchanged fields, so nil means "keep the default".
+func derefBool(b *bool, fallback bool) bool {
+	if b == nil {
+		return fallback
+	}
+	return *b
+}
+
 func automationResponse(a *store.Automation) map[string]any {
 	return map[string]any{
 		"id":          a.ID,
 		"name":        a.Name,
 		"description": a.Description,
 		"trigger": map[string]any{
-			"type":       a.TriggerType,
-			"label":      a.TriggerLabel,
-			"conditions": orEmptySlice(a.TriggerConditions),
-			"delay":      a.TriggerDelay,
+			"type":          a.TriggerType,
+			"label":         a.TriggerLabel,
+			"conditions":    orEmptySlice(a.TriggerConditions),
+			"delay":         a.TriggerDelay,
+			"reentry":       a.TriggerReentry,
+			"respectOptOut": a.TriggerRespectOptOut,
 		},
 		"steps":     orEmptyRaw(a.Steps),
 		"status":    a.Status,
@@ -105,18 +118,20 @@ func (s *Server) handleCreateAutomation(w http.ResponseWriter, r *http.Request) 
 		status = "draft"
 	}
 	a := &store.Automation{
-		ID:                newID(),
-		WorkspaceID:       claims.GetWorkspaceID(),
-		Name:              req.Name,
-		Description:       req.Description,
-		TriggerType:       req.Trigger.Type,
-		TriggerLabel:      req.Trigger.Label,
-		TriggerConditions: req.Trigger.Conditions,
-		TriggerDelay:      req.Trigger.Delay,
-		Steps:             req.Steps,
-		Status:            status,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+		ID:                   newID(),
+		WorkspaceID:          claims.GetWorkspaceID(),
+		Name:                 req.Name,
+		Description:          req.Description,
+		TriggerType:          req.Trigger.Type,
+		TriggerLabel:         req.Trigger.Label,
+		TriggerConditions:    req.Trigger.Conditions,
+		TriggerDelay:         req.Trigger.Delay,
+		TriggerReentry:       derefBool(req.Trigger.Reentry, true),
+		TriggerRespectOptOut: derefBool(req.Trigger.RespectOptOut, true),
+		Steps:                req.Steps,
+		Status:               status,
+		CreatedAt:            time.Now(),
+		UpdatedAt:            time.Now(),
 	}
 	a.Steps = normalizeSteps(req.Steps)
 	if err := s.db.CreateAutomation(r.Context(), a); err != nil {
@@ -267,6 +282,8 @@ func (s *Server) handleUpdateAutomation(w http.ResponseWriter, r *http.Request) 
 	existing.TriggerLabel = req.Trigger.Label
 	existing.TriggerConditions = req.Trigger.Conditions
 	existing.TriggerDelay = req.Trigger.Delay
+	existing.TriggerReentry = derefBool(req.Trigger.Reentry, existing.TriggerReentry)
+	existing.TriggerRespectOptOut = derefBool(req.Trigger.RespectOptOut, existing.TriggerRespectOptOut)
 	if req.Steps != nil {
 		existing.Steps = normalizeSteps(req.Steps)
 	}
@@ -311,16 +328,18 @@ func (s *Server) handleDuplicateAutomation(w http.ResponseWriter, r *http.Reques
 	}
 
 	copy := &store.Automation{
-		ID:                newID(),
-		WorkspaceID:       claims.GetWorkspaceID(),
-		Name:              src.Name + " (copy)",
-		Description:       src.Description,
-		TriggerType:       src.TriggerType,
-		TriggerLabel:      src.TriggerLabel,
-		TriggerConditions: src.TriggerConditions,
-		TriggerDelay:      src.TriggerDelay,
-		Steps:             normalizeSteps(src.Steps),
-		Status:            "draft",
+		ID:                   newID(),
+		WorkspaceID:          claims.GetWorkspaceID(),
+		Name:                 src.Name + " (copy)",
+		Description:          src.Description,
+		TriggerType:          src.TriggerType,
+		TriggerLabel:         src.TriggerLabel,
+		TriggerConditions:    src.TriggerConditions,
+		TriggerDelay:         src.TriggerDelay,
+		TriggerReentry:       src.TriggerReentry,
+		TriggerRespectOptOut: src.TriggerRespectOptOut,
+		Steps:                normalizeSteps(src.Steps),
+		Status:               "draft",
 	}
 	if len(copy.Steps) == 0 {
 		copy.Steps = []byte("[]")

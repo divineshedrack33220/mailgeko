@@ -167,6 +167,8 @@ export interface Automation {
     label: string;
     conditions: SegmentCondition[];
     delay?: number;
+    reentry?: boolean;
+    respectOptOut?: boolean;
   };
   steps: AutomationStep[];
   status: AutomationStatus;

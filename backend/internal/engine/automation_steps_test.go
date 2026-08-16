@@ -126,7 +126,7 @@ func TestEnrollContactSkipsInactiveAndOptedOut(t *testing.T) {
 	if err := e.EnrollContact(ctx, inactive, &store.Contact{ID: "c1", Email: "a@b.co"}); err != nil {
 		t.Fatalf("inactive automation should be skipped: %v", err)
 	}
-	active := &store.Automation{ID: "a2", Status: "active"}
+	active := &store.Automation{ID: "a2", Status: "active", TriggerReentry: true, TriggerRespectOptOut: true}
 	for _, status := range []string{store.ContactUnsubscribed, store.ContactBounced, store.ContactSpam} {
 		if err := e.EnrollContact(ctx, active, &store.Contact{ID: "c1", Email: "a@b.co", Status: status}); err != nil {
 			t.Fatalf("opted-out contact (%s) should be skipped: %v", status, err)

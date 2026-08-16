@@ -35,10 +35,17 @@ function OAuthCallbackContent() {
     setToken(token);
     (async () => {
       try {
-        const res = await api.get<{ user: import("@/stores/auth-store").AuthUser; workspaceID: string }>(
-          "/api/v1/me"
-        );
-        useAuthStore.setState({ user: res.user, workspaceID: res.workspaceID, isAuthenticated: true });
+        const res = await api.get<{
+          user: import("@/stores/auth-store").AuthUser;
+          workspaceID: string;
+          role?: string;
+        }>("/api/v1/me");
+        useAuthStore.setState({
+          user: res.user,
+          workspaceID: res.workspaceID,
+          role: res.role ?? null,
+          isAuthenticated: true,
+        });
         router.replace("/dashboard");
       } catch {
         toast.error("Could not complete sign-in. Please try again.");

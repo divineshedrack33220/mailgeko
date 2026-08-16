@@ -123,11 +123,32 @@ func (e *Engine) ImportCSV(ctx context.Context, workspaceID, listID, path string
 		existing, err := e.store.ContactByEmail(ctx, workspaceID, contact.Email)
 		if err == nil {
 			contact.ID = existing.ID
+			// Merge, never overwrite wholesale: a partial re-import that only
+			// provides some columns must not wipe the fields and tags the
+			// contact already had. Values present in the CSV win; anything the
+			// CSV doesn't mention is preserved.
 			if len(contact.CustomFields) == 0 {
 				contact.CustomFields = existing.CustomFields
+			} else {
+				for k, v := range existing.CustomFields {
+					if _, ok := contact.CustomFields[k]; !ok {
+						contact.CustomFields[k] = v
+					}
+				}
 			}
 			if len(contact.Tags) == 0 {
 				contact.Tags = existing.Tags
+			} else {
+				seen := make(map[string]bool, len(contact.Tags)+len(existing.Tags))
+				for _, t := range contact.Tags {
+					seen[t] = true
+				}
+				for _, t := range existing.Tags {
+					if !seen[t] {
+						contact.Tags = append(contact.Tags, t)
+						seen[t] = true
+					}
+				}
 			}
 			if err := e.store.UpdateContact(ctx, contact); err != nil {
 				return imported, updated, err

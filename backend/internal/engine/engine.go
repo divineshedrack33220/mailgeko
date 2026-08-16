@@ -45,6 +45,7 @@ type Engine struct {
 	enc                *crypto.Encryptor
 	httpClient         *http.Client
 	allowPrivateHooks  bool
+	checkEmailQuota    func(ctx context.Context, workspaceID string, extra int64) error
 }
 
 func New(db *store.Store, sender *sender.Client, queue Queue, baseURL string) *Engine {
@@ -91,6 +92,16 @@ func (e *Engine) defaultFrom(name string) string {
 // sender instead of being rejected by the provider with a 403.
 func (e *Engine) WithAllowedFromDomains(domains ...string) *Engine {
 	e.allowedFromDomains = domains
+	return e
+}
+
+// WithEmailQuotaChecker enforces the workspace's monthly email cap at send
+// time. It is called with the number of emails a campaign is about to send;
+// when it returns a non-nil error the send is rejected. Without it the quota
+// check in the HTTP layer is bypassable (recipient rows only exist after a
+// send starts) and nothing stops a queued/scheduled send from going out.
+func (e *Engine) WithEmailQuotaChecker(checker func(ctx context.Context, workspaceID string, extra int64) error) *Engine {
+	e.checkEmailQuota = checker
 	return e
 }
 
@@ -214,24 +225,35 @@ func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
 		return e.maybeCompleteCampaign(ctx, campaign)
 	}
 
-	inserted := 0
-	for _, contactID := range ids {
-		if err := e.store.UpsertCampaignRecipient(ctx, &store.CampaignRecipient{
-			CampaignID: campaign.ID,
-			ContactID:  contactID,
-			Status:     "queued",
-		}); err != nil {
-			return err
+	// Enforce the workspace's monthly email cap here, at the moment the send
+	// actually starts. The HTTP-layer check alone is not enough: recipient
+	// rows only exist after a send starts, so a scheduled or queued campaign
+	// would otherwise sail through with a count of zero.
+	if e.checkEmailQuota != nil {
+		if err := e.checkEmailQuota(ctx, campaign.WorkspaceID, int64(len(ids))); err != nil {
+			_ = e.store.SetCampaignStatus(ctx, campaign.WorkspaceID, campaign.ID, store.CampaignFailed)
+			_ = e.notify(ctx, campaign.WorkspaceID, "campaign-failed",
+				"Campaign could not send",
+				"Your campaign \""+campaign.Name+"\" could not start: "+err.Error(),
+				"/campaigns/"+campaign.ID)
+			return nil
 		}
-		inserted++
 	}
 
-	if err := e.store.SetCampaignStatsField(ctx, campaign.ID, "recipients", int64(inserted)); err != nil {
-		return err
-	}
-
+	// Claim each recipient atomically: a re-run of StartCampaign (retried
+	// task, manual send racing the scheduler) only re-enqueues recipients that
+	// were failed or skipped, never ones that are already queued or sent.
+	// This is what prevents duplicate sends when the same campaign starts
+	// twice.
 	failedEnqueues := 0
 	for _, contactID := range ids {
+		claimed, err := e.store.ClaimRecipient(ctx, campaign.ID, contactID)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			continue
+		}
 		if err := e.queue.EnqueueRecipientSend(ctx, campaign.ID, contactID); err != nil {
 			log.Printf("engine: enqueue recipient %s: %v", contactID, err)
 			_ = e.store.MarkRecipientFailed(ctx, campaign.ID, contactID, "enqueue failed: "+err.Error())
@@ -240,6 +262,14 @@ func (e *Engine) StartCampaign(ctx context.Context, campaignID string) error {
 	}
 	if failedEnqueues > 0 {
 		log.Printf("engine: campaign %s: %d/%d recipients failed to enqueue", campaign.ID, failedEnqueues, len(ids))
+	}
+
+	// Write the absolute recipient count (not a delta), so the stat stays
+	// correct across multiple starts of the same campaign.
+	if n, err := e.store.CountRecipients(ctx, campaign.ID); err == nil {
+		if err := e.store.SetCampaignRecipientsCount(ctx, campaign.ID, n); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -305,6 +335,21 @@ func (e *Engine) CountSegmentMatches(ctx context.Context, workspaceID, segmentID
 		}
 	}
 	return n, nil
+}
+
+// EstimateAudience resolves the campaign's current audience (list and segment
+// members, de-duplicated) without side effects. It backs the HTTP-layer quota
+// check so a campaign can be rejected before any send work is queued.
+func (e *Engine) EstimateAudience(ctx context.Context, campaignID string) (int, error) {
+	campaign, err := e.store.GetCampaignByID(ctx, campaignID)
+	if err != nil {
+		return 0, err
+	}
+	ids, err := e.resolveRecipients(ctx, campaign)
+	if err != nil {
+		return 0, err
+	}
+	return len(ids), nil
 }
 
 func (e *Engine) SendToRecipient(ctx context.Context, campaignID, contactID string) error {

@@ -214,38 +214,37 @@ export default function CampaignDetailPage() {
   };
 
   const updateSetting = async (key: "trackOpens" | "trackClicks" | "allowUnsubscribe", value: boolean) => {
-    setCampaign((prev) => {
-      if (!prev) return prev;
-      const next = {
-        ...prev,
-        settings: { ...(prev.settings ?? { trackOpens: true, trackClicks: true, allowUnsubscribe: true }), [key]: value },
-      };
-      const payload = {
-        name: prev.name,
-        subject: prev.subject,
-        templateId: prev.templateId,
-        previewText: prev.previewText,
-        plainText: prev.plainText,
-        htmlContent: prev.htmlContent,
-        status: prev.status,
-        type: prev.type,
-        listIds: prev.listIds,
-        segmentIds: prev.segmentIds,
-        sender: prev.sender,
-        settings: next.settings,
-      };
-      api.patch(`/api/v1/campaigns/${prev.id}`, payload).then(
-        () => toast.success("Settings updated"),
-        (err) => {
-          api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${prev.id}`).then(
-            (res) => setCampaign(res.campaign),
-            () => {}
-          );
-          toast.error(err instanceof Error ? err.message : "Could not update settings");
-        }
+    if (!campaign) return;
+    const prev = campaign;
+    const next = {
+      ...prev,
+      settings: { ...(prev.settings ?? { trackOpens: true, trackClicks: true, allowUnsubscribe: true }), [key]: value },
+    };
+    const payload = {
+      name: prev.name,
+      subject: prev.subject,
+      templateId: prev.templateId,
+      previewText: prev.previewText,
+      plainText: prev.plainText,
+      htmlContent: prev.htmlContent,
+      status: prev.status,
+      type: prev.type,
+      listIds: prev.listIds,
+      segmentIds: prev.segmentIds,
+      sender: prev.sender,
+      settings: next.settings,
+    };
+    setCampaign(next);
+    try {
+      await api.patch(`/api/v1/campaigns/${prev.id}`, payload);
+      toast.success("Settings updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update settings");
+      api.get<{ campaign: Campaign }>(`/api/v1/campaigns/${prev.id}`).then(
+        (res) => setCampaign(res.campaign),
+        () => {}
       );
-      return next;
-    });
+    }
   };
 
   if (loading) {

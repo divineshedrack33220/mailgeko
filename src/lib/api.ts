@@ -61,18 +61,35 @@ export function oauthUrl(provider: "google" | "github"): string {
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT = 30_000;
+const UPLOAD_TIMEOUT = 120_000;
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const token = getToken();
   if (token && !options.skipAuth) headers.set("Authorization", `Bearer ${token}`);
 
+  // A hung upstream must not hang the UI forever: abort after a timeout and
+  // surface it as a network error so callers show a retryable message instead
+  // of spinning indefinitely.
+  const timeoutMs =
+    options.timeoutMs ??
+    (options.method === "POST" && options.body instanceof FormData
+      ? UPLOAD_TIMEOUT
+      : DEFAULT_TIMEOUT);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
   } catch {
     throw new ApiError(0, "network", "Could not reach the API server");
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {

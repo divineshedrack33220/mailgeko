@@ -105,6 +105,14 @@ func (s *Service) Checkout(ctx context.Context, workspaceID, plan string) (*Chec
 	if err != nil {
 		return nil, err
 	}
+	// Refuse to create a second subscription for a plan the workspace is
+	// already paying for. Repeated checkouts would otherwise stack duplicate
+	// subscriptions for the same plan.
+	if ws.StripeSubscriptionStatus == "active" || ws.StripeSubscriptionStatus == "trialing" {
+		if ws.StripeSubscriptionID != "" && ws.Plan == plan {
+			return nil, ErrActiveSubscription
+		}
+	}
 	customerID := ws.StripeCustomerID
 	if customerID == "" {
 		customerID, err = s.gateway.EnsureCustomer(ctx, ws.ID, "")
@@ -159,6 +167,20 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, signature stri
 func (s *Service) applyEvent(ctx context.Context, workspaceID string, evt *GatewayEvent) error {
 	if _, ok := PlanByID(evt.Plan); !ok {
 		evt.Plan = DefaultPlanID()
+	}
+	// A subscription.deleted (or updated->canceled) event for a subscription
+	// that is NOT the workspace's current one is stale: Stripe emits it when a
+	// replaced subscription is finally torn down after an upgrade. Applying it
+	// would downgrade the workspace to the starter plan even though its newer,
+	// active subscription is still in force.
+	if evt.Type == EventSubscriptionDeleted || (evt.Type == EventSubscriptionUpdated && evt.Status == "canceled") {
+		ws, err := s.db.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		if ws.StripeSubscriptionID != "" && evt.SubscriptionID != "" && ws.StripeSubscriptionID != evt.SubscriptionID {
+			return nil
+		}
 	}
 	switch evt.Type {
 	case EventCheckoutCompleted, EventSubscriptionUpdated:
