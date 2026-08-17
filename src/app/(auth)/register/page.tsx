@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Mail, User, Lock, Check, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Loader2, Mail, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const register = useAuthStore((s) => s.register);
   const [loading, setLoading] = React.useState(false);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [password, setPassword] = React.useState("");
+  const [registered, setRegistered] = React.useState(false);
   const shake = useShake();
 
   const destination = () => {
@@ -30,15 +29,6 @@ export default function RegisterPage() {
         : null;
     return safeNextPath(next) ?? "/dashboard";
   };
-
-  const strength = React.useMemo(() => {
-    let score = 0;
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
-    return score;
-  }, [password]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,11 +43,13 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      await register(`${firstName} ${lastName}`.trim(), email, password);
-      toast.success(
-        "Account created — check your inbox to verify your email"
-      );
-      router.push(destination());
+      const hasPassword = await register(`${firstName} ${lastName}`.trim(), email);
+      if (hasPassword) {
+        toast.success("Account created — check your inbox to verify your email");
+        router.push(destination());
+      } else {
+        setRegistered(true);
+      }
     } catch (err) {
       shake.trigger();
       toast.error(err instanceof Error ? err.message : "Could not create account");
@@ -65,6 +57,31 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  if (registered) {
+    return (
+      <>
+        <title>Check your inbox · Mailgeko</title>
+        <FitZoom className="flex flex-col items-center gap-4 text-center">
+          <span className="bg-success/10 text-success flex size-14 items-center justify-center rounded-2xl">
+            <CheckCircle2 className="size-7" />
+          </span>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              Check your inbox
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+              We sent you a link to verify your email and set up your password.
+              Click it to get started.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="mt-2">
+            <Link href="/login">Back to sign in</Link>
+          </Button>
+        </FitZoom>
+      </>
+    );
+  }
 
   return (
     <>
@@ -106,78 +123,13 @@ export default function RegisterPage() {
             />
           </div>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="8+ characters"
-              className="pr-9 pl-9"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer"
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            {[0, 1, 2, 3].map((bar) => (
-              <span
-                key={bar}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  bar < strength
-                    ? strength <= 1
-                      ? "bg-destructive"
-                      : strength === 2
-                        ? "bg-warning"
-                        : "bg-success"
-                    : "bg-muted"
-                }`}
-              />
-            ))}
-            <span className="text-muted-foreground w-20 text-right text-xs">
-              {strength === 0
-                ? "Too weak"
-                : strength <= 2
-                  ? "Getting there"
-                  : "Strong"}
-            </span>
-          </div>
-        </div>
 
-        <ul className="mt-1 grid grid-cols-3 gap-2">
-          {[
-            { label: "At least 8 characters", ok: password.length >= 8 },
-            { label: "One uppercase letter", ok: /[A-Z]/.test(password) },
-            { label: "One number", ok: /[0-9]/.test(password) },
-          ].map((rule) => (
-            <li
-              key={rule.label}
-              className={`flex flex-col items-center gap-1 text-center text-xs leading-tight ${
-                rule.ok ? "text-success" : "text-muted-foreground"
-              }`}
-            >
-              {rule.ok ? <Check className="size-3.5" /> : <span className="size-3.5 rounded-full border" />}
-              {rule.label}
-            </li>
-          ))}
-        </ul>
-
-        <Button type="submit" size="lg" disabled={loading || strength < 2} className="mt-2 w-full">
+        <Button type="submit" size="lg" disabled={loading} className="mt-2 w-full">
           {loading && <Loader2 className="animate-spin" />}
           Create account
         </Button>
         <p className="text-muted-foreground text-center text-xs">
-          Start on the Starter plan ($19/mo) with 2,000 contacts and 10,000 emails. Cancel anytime.
+          We&apos;ll email you a link to verify your email and set your password.
         </p>
       </form>
 

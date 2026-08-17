@@ -23,7 +23,7 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-import { api, getToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 const routerReplace = vi.fn();
@@ -44,14 +44,12 @@ beforeEach(() => {
     isAuthenticated: false,
   });
   routerReplace.mockReset();
-  vi.mocked(getToken).mockReset();
   vi.mocked(api.get).mockReset();
 });
 
 describe("AuthGuard", () => {
   it("renders children once booted as authenticated", async () => {
-    // A signed-in session: a token exists and /me succeeds.
-    vi.mocked(getToken).mockReturnValue("tok");
+    // Cookie-based: boot() always calls /me; a successful response means authenticated.
     vi.mocked(api.get).mockResolvedValue(meResponse as never);
 
     render(
@@ -65,8 +63,8 @@ describe("AuthGuard", () => {
   });
 
   it("redirects to /login when boot finishes signed out", async () => {
-    // No token in storage, so boot() resolves unauthenticated without network.
-    vi.mocked(getToken).mockReturnValue(null);
+    // No session cookie: /me returns 401.
+    vi.mocked(api.get).mockRejectedValue(new (await import("@/lib/api")).ApiError(401, "unauthorized", "no session"));
 
     render(
       <AuthGuard>

@@ -7,7 +7,6 @@ const replaceMock = vi.fn();
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
-  window.localStorage.clear();
   Object.defineProperty(window, "location", {
     writable: true,
     value: {
@@ -26,25 +25,20 @@ afterEach(() => {
 });
 
 describe("token storage", () => {
-  it("returns null when no token is stored", () => {
+  it("getToken returns null (cookie-based auth)", () => {
     expect(getToken()).toBeNull();
   });
 
-  it("stores and returns a token", () => {
+  it("setToken is a no-op", () => {
     setToken("abc");
-    expect(getToken()).toBe("abc");
-  });
-
-  it("clears the token when null is passed", () => {
-    setToken("abc");
+    expect(getToken()).toBeNull();
     setToken(null);
     expect(getToken()).toBeNull();
   });
 });
 
 describe("api client", () => {
-  it("sends the bearer token on authenticated requests", async () => {
-    setToken("tok-123");
+  it("sends credentials include on all requests", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -53,12 +47,11 @@ describe("api client", () => {
 
     await api.get("/api/v1/me");
 
-    const [url, opts] = fetchMock.mock.calls[0];
-    expect(url).toContain("/api/v1/me");
-    expect(new Headers(opts.headers).get("Authorization")).toBe("Bearer tok-123");
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(opts.credentials).toBe("include");
   });
 
-  it("omits the Authorization header when no token is stored", async () => {
+  it("does not set an Authorization header (cookie-based auth)", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -118,8 +111,7 @@ describe("api client", () => {
 });
 
 describe("401 interceptor", () => {
-  it("redirects to login and clears the token on an expired session", async () => {
-    setToken("expired");
+  it("redirects to login on an expired session", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,
@@ -131,7 +123,6 @@ describe("401 interceptor", () => {
 
     // The current path is preserved for a post-login redirect.
     expect(replaceMock).toHaveBeenCalledWith("/login?next=%2Fcampaigns");
-    expect(getToken()).toBeNull();
   });
 
   it("does not redirect for auth endpoints that legitimately return 401", async () => {

@@ -34,12 +34,16 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "a valid email is required")
 		return
 	}
-	if len(req.Password) < 8 {
-		writeError(w, http.StatusUnprocessableEntity, "validation", "password must be at least 8 characters")
-		return
-	}
 	if req.Name == "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation", "name is required")
+		return
+	}
+
+	// Password is optional: when omitted the user will set it via the
+	// verification link (email verification + password setup in one step).
+	hasPassword := strings.TrimSpace(req.Password) != ""
+	if hasPassword && len(req.Password) < 8 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "password must be at least 8 characters")
 		return
 	}
 
@@ -48,18 +52,19 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash, err := auth.HashPassword(req.Password)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "could not create account")
-		return
-	}
-
 	user := &store.User{
-		ID:           newID(),
-		Email:        req.Email,
-		PasswordHash: hash,
-		Name:         req.Name,
-		Role:         "owner",
+		ID:    newID(),
+		Email: req.Email,
+		Name:  req.Name,
+		Role:  "owner",
+	}
+	if hasPassword {
+		hash, err := hashPassword(req.Password)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not create account")
+			return
+		}
+		user.PasswordHash = hash
 	}
 	if err := s.db.CreateUser(r.Context(), user); err != nil {
 		var mysqlErr *mysql.MySQLError
@@ -88,10 +93,26 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Best-effort: email a verification link without blocking signup.
+	// Email a verification link. When the user registered without a password
+	// the verification link doubles as the "set your password" flow.
 	if err := s.sendEmailVerification(r.Context(), user); err != nil {
 		log.Printf("httpapi: verification email to %s failed: %v", user.Email, err)
 	}
 
+	// Passwordless registrations return a message instead of a session — the
+	// user must verify their email and set a password first.
+	if !hasPassword {
+		writeJSON(w, http.StatusCreated, map[string]string{
+			"message": "Check your email to verify your account and set your password",
+		})
+		return
+	}
+
 	s.issueSessionToken(r.Context(), w, user, workspace.ID, r, s.cfg.TokenTTL, http.StatusCreated)
+}
+
+// hashPassword is a thin wrapper around auth.HashPassword used by both
+// registration and the set-password flow.
+func hashPassword(password string) (string, error) {
+	return auth.HashPassword(password)
 }

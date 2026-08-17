@@ -7,6 +7,7 @@ import (
 )
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	s.clearSessionCookie(w)
 	claims := claimsFrom(r)
 	if claims == nil || s.session == nil {
 		writeOK(w, map[string]bool{"ok": true})

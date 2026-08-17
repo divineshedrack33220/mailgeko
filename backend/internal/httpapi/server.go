@@ -181,6 +181,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", s.handleForgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", s.handleResetPassword)
 	mux.HandleFunc("POST /api/v1/auth/verify-email", s.handleVerifyEmail)
+	mux.HandleFunc("POST /api/v1/auth/set-password", s.handleSetPassword)
 	mux.Handle("POST /api/v1/auth/resend-verification", s.withAuth(http.HandlerFunc(s.handleResendVerification)))
 	mux.HandleFunc("GET /api/v1/auth/oauth/google", s.handleOAuthStart(oauth.Google))
 	mux.HandleFunc("GET /api/v1/auth/oauth/github", s.handleOAuthStart(oauth.GitHub))
@@ -421,11 +422,12 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 		if origin != "" {
 			if s.originAllowed(origin) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 			w.Header().Add("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -463,9 +465,8 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
-		authHeader := r.Header.Get("Authorization")
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == "" || token == authHeader {
+		token := tokenFromRequest(r)
+		if token == "" {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
 			return
 		}
@@ -515,6 +516,21 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		}
 
 		s.refreshSessionActivity(ctx, claims)
+
+		// CSRF protection: when the session is carried by a cookie, state-
+		// changing requests must include a header that HTML forms cannot set
+		// (Content-Type: application/json or X-Requested-With). This prevents
+		// same-site CSRF. Requests authenticated via the Authorization header
+		// (API keys, CLI) are exempt because they are not vulnerable to CSRF.
+		if (r.Method == "POST" || r.Method == "PUT" || r.Method == "PATCH" || r.Method == "DELETE") && hasSessionCookie(r) {
+			ct := r.Header.Get("Content-Type")
+			xrw := r.Header.Get("X-Requested-With")
+			if !strings.HasPrefix(ct, "application/json") && xrw == "" {
+				writeError(w, http.StatusForbidden, "csrf", "missing required header")
+				return
+			}
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

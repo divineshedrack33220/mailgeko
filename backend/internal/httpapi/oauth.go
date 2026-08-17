@@ -92,7 +92,9 @@ func (s *Server) handleOAuthCallback(provider oauth.Provider) http.HandlerFunc {
 		}
 		s.recordSession(r.Context(), jwt, r, s.cfg.TokenTTL)
 
-		http.Redirect(w, r, s.cfg.BaseURL+"/oauth/callback?token="+jwt, http.StatusFound)
+		s.setSessionCookie(w, jwt, s.cfg.TokenTTL)
+
+		http.Redirect(w, r, s.cfg.BaseURL+"/oauth/callback", http.StatusFound)
 	}
 }
 

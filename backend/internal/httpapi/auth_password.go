@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/divineshedrack33220/mailgeko/backend/internal/auth"
 	"github.com/divineshedrack33220/mailgeko/backend/internal/store"
@@ -84,7 +85,7 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal", "could not update password")
 		return
 	}
-	// Revoke every existing session so other devices must sign in again.
+	s.blacklistPurposeToken(r, claims)
 	if s.session != nil {
 		_ = s.session.RevokeAllExcept(r.Context(), user.ID, "", s.cfg.TokenTTL)
 	}
@@ -108,11 +109,69 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_token", "this verification link is invalid or expired")
 		return
 	}
+
+	// Users who registered without a password need to set one before we mark
+	// the email as verified — the set-password step handles both.
+	if user.PasswordHash == "" {
+		s.blacklistPurposeToken(r, claims)
+		writeOK(w, map[string]bool{"ok": true, "requiresPassword": true})
+		return
+	}
+
+	s.blacklistPurposeToken(r, claims)
 	if err := s.db.MarkEmailVerified(r.Context(), user.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "could not verify email")
 		return
 	}
 	writeOK(w, map[string]bool{"ok": true})
+}
+
+type setPasswordRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// handleSetPassword sets a password for a user who registered without one and
+// marks their email as verified. The token is the same email-verification JWT.
+func (s *Server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
+	var req setPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, http.StatusUnprocessableEntity, "validation", "password must be at least 8 characters")
+		return
+	}
+
+	claims, err := s.tokens.Parse(req.Token)
+	if err != nil || claims.Purpose != auth.PurposeEmailVerification {
+		writeError(w, http.StatusBadRequest, "invalid_token", "this verification link is invalid or expired")
+		return
+	}
+	user, err := s.db.UserByID(r.Context(), claims.GetUserID())
+	if err != nil || user.Email != claims.GetEmail() {
+		writeError(w, http.StatusBadRequest, "invalid_token", "this verification link is invalid or expired")
+		return
+	}
+
+	hash, err := hashPassword(req.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not set password")
+		return
+	}
+	if err := s.db.SetPasswordHash(r.Context(), user.ID, hash); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not set password")
+		return
+	}
+	if err := s.db.MarkEmailVerified(r.Context(), user.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "could not verify email")
+		return
+	}
+
+	s.blacklistPurposeToken(r, claims)
+	workspaceID, _ := s.db.WorkspaceIDForUser(r.Context(), user.ID)
+	s.issueSessionToken(r.Context(), w, user, workspaceID, r, s.cfg.TokenTTL, http.StatusOK)
 }
 
 // handleResendVerification emails a new verification link to the signed-in
@@ -161,4 +220,18 @@ func (s *Server) sendPasswordReset(ctx context.Context, user *store.User) error 
 	link := s.cfg.BaseURL + "/reset-password?token=" + url.QueryEscape(token)
 	_, err = s.engine.SendPasswordReset(ctx, user.Email, user.Name, link)
 	return err
+}
+
+// blacklistPurposeToken prevents a single-use token (email verification,
+// password reset) from being replayed. The JTI is added to the denylist for
+// the token's remaining TTL.
+func (s *Server) blacklistPurposeToken(r *http.Request, claims *auth.Claims) {
+	if s.session == nil {
+		return
+	}
+	remaining := time.Until(claims.ExpiresAt.Time)
+	if remaining <= 0 {
+		return
+	}
+	_ = s.session.Blacklist(r.Context(), claims.GetTokenID(), remaining)
 }

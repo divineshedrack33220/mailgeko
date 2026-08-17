@@ -242,7 +242,7 @@ func (s *Server) handleVerifyTwoFactor(w http.ResponseWriter, r *http.Request) {
 }
 
 // issueSessionToken issues a real session token, records it in the session
-// store, and writes the standard auth response.
+// store, sets an httpOnly cookie, and writes the standard auth response.
 func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, user *store.User, workspaceID string, r *http.Request, ttl time.Duration, status int) bool {
 	token, err := s.tokens.IssueWithTTL(user.ID, user.Email, workspaceID, user.Role, ttl)
 	if err != nil {
@@ -250,6 +250,7 @@ func (s *Server) issueSessionToken(ctx context.Context, w http.ResponseWriter, u
 		return false
 	}
 	s.recordSession(r.Context(), token, r, ttl)
+	s.setSessionCookie(w, token, ttl)
 	writeJSON(w, status, map[string]any{
 		"token":       token,
 		"user":        userResponse(user),

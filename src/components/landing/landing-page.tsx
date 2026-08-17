@@ -21,7 +21,7 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
-import { api, getToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getStoredVisitor, getVisitorFromUrl, rememberVisitor } from "@/lib/visitor";
 import { GeckoMark } from "@/components/brand/gecko-mark";
@@ -611,7 +611,7 @@ export function LandingPage({ fonts }: LandingPageProps) {
 
       if (name || email) rememberVisitor(name, email);
 
-      if (!name && getToken()) {
+      if (!name) {
         try {
           const res = await api.get<{ user: { name: string; email: string } }>("/api/v1/me");
           if (cancelled) return;

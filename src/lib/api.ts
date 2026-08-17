@@ -1,5 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-const TOKEN_KEY = "mailgeko_token";
+// In development the Next.js rewrite proxy forwards /api/* to the backend,
+// so the default is empty (same origin). In production the reverse proxy
+// serves both from the same domain. Set NEXT_PUBLIC_API_URL to override.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 // Endpoints that legitimately return 401 without meaning the session is dead
 // (bad credentials, expired 2FA challenge, invalid reset link, …). These must
@@ -11,11 +13,12 @@ const UNAUTHENTICATED_PATHS = [
   "/api/v1/auth/reset-password",
   "/api/v1/auth/verify-email",
   "/api/v1/auth/2fa/verify",
+  "/api/v1/auth/set-password",
   "/api/v1/auth/oauth",
 ];
 
 // Routes that don't need a redirect because the user is already there.
-const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/verify", "/2fa", "/invite"];
+const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/2fa", "/invite"];
 
 let redirectingToLogin = false;
 
@@ -26,7 +29,6 @@ function redirectToLogin() {
   if (AUTH_PAGES.some((p) => current === p || current.startsWith(p + "/"))) return;
   redirectingToLogin = true;
   const next = window.location.pathname + window.location.search;
-  window.localStorage.removeItem(TOKEN_KEY);
   window.location.replace(`/login${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`);
 }
 
@@ -42,17 +44,15 @@ export class ApiError extends Error {
   }
 }
 
+// Token management: the JWT is now stored in an httpOnly cookie set by the
+// backend. These helpers are kept for backward compatibility but are effectively
+// no-ops — the browser sends the cookie automatically via credentials:'include'.
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
-export function setToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) {
-    redirectingToLogin = false;
-    window.localStorage.setItem(TOKEN_KEY, token);
-  } else window.localStorage.removeItem(TOKEN_KEY);
+export function setToken(_token: string | null): void { // eslint-disable-line @typescript-eslint/no-unused-vars
+  // Intentional no-op: the session cookie is managed by the backend.
 }
 
 export function oauthUrl(provider: "google" | "github"): string {
@@ -69,12 +69,9 @@ const UPLOAD_TIMEOUT = 120_000;
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  const token = getToken();
-  if (token && !options.skipAuth) headers.set("Authorization", `Bearer ${token}`);
 
-  // A hung upstream must not hang the UI forever: abort after a timeout and
-  // surface it as a network error so callers show a retryable message instead
-  // of spinning indefinitely.
+  // The browser sends the httpOnly session cookie automatically when
+  // credentials:'include' is set. No need to attach a Bearer header.
   const timeoutMs =
     options.timeoutMs ??
     (options.method === "POST" && options.body instanceof FormData
@@ -85,7 +82,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+      credentials: "include",
+    });
   } catch {
     throw new ApiError(0, "network", "Could not reach the API server");
   } finally {

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import { api, ApiError, getToken, setToken } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 export interface AuthUser {
   id: string;
@@ -36,7 +36,7 @@ interface AuthState {
   boot: () => Promise<void>;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<string | null>;
   verifyTwoFactor: (pendingToken: string, code: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password?: string) => Promise<boolean>;
   acceptInvite: (token: string) => Promise<void>;
   switchWorkspace: (workspaceId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -50,10 +50,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
 
   boot: async () => {
-    if (!getToken()) {
-      set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
-      return;
-    }
+    // The session is now carried by an httpOnly cookie. Always attempt to
+    // fetch /me — the browser sends the cookie automatically. A 401/403
+    // means the session is invalid.
     try {
       const res = await api.get<{ user: AuthUser; workspaceID: string; role?: string }>("/api/v1/me");
       set({
@@ -63,11 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
       });
     } catch (err) {
-      // The server is the source of truth for the session. Only clear the
-      // token when it explicitly rejects it (401/403); a transient network or
-      // server error must not log the user out.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        setToken(null);
         set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
         return;
       }
@@ -83,7 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if ("requiresTwoFactor" in res && res.requiresTwoFactor) {
       return res.pendingToken;
     }
-    setToken(res.token);
+    // The session cookie is set by the backend via Set-Cookie header.
     set({
       user: res.user,
       workspaceID: res.workspaceID,
@@ -98,7 +93,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       pendingToken,
       code,
     });
-    setToken(res.token);
     set({
       user: res.user,
       workspaceID: res.workspaceID,
@@ -108,19 +102,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   register: async (name, email, password) => {
-    const res = await api.post<AuthResponse>("/api/v1/auth/register", { name, email, password });
-    setToken(res.token);
-    set({
-      user: res.user,
-      workspaceID: res.workspaceID,
-      role: res.role ?? null,
-      isAuthenticated: true,
-    });
+    // When no password is provided the backend returns a message instead of a
+    // session — the user must verify their email and set a password first.
+    const res = await api.post<
+      AuthResponse | { message: string }
+    >("/api/v1/auth/register", { name, email, ...(password ? { password } : {}) });
+    if ("token" in res && res.token) {
+      set({
+        user: res.user,
+        workspaceID: res.workspaceID,
+        role: res.role ?? null,
+        isAuthenticated: true,
+      });
+      return true;
+    }
+    return false;
   },
 
   acceptInvite: async (token) => {
     const res = await api.post<AuthResponse>("/api/v1/invitations/accept", { token });
-    setToken(res.token);
     set({
       user: res.user,
       workspaceID: res.workspaceID,
@@ -133,7 +133,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const res = await api.post<SwitchWorkspaceResponse>("/api/v1/workspace/switch", {
       workspaceId,
     });
-    if (res.token) setToken(res.token);
     set({
       user: res.user ?? get().user,
       workspaceID: res.workspaceID,
@@ -146,9 +145,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await api.post("/api/v1/auth/logout");
     } catch {
-      // token is cleared regardless
+      // The server clears the session cookie regardless.
     }
-    setToken(null);
     set({ user: null, workspaceID: null, role: null, isAuthenticated: false });
   },
 
